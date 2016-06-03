@@ -1,0 +1,49 @@
+package: github.com/getcfs/megacfs
+import:
+- package: github.com/BurntSushi/toml
+- package: github.com/Sirupsen/logrus
+- package: github.com/docker/go-plugins-helpers
+  subpackages:
+  - sdk
+- package: github.com/getcfs/fuse
+  subpackages:
+  - fuseutil
+- package: github.com/gholt/brimtext
+- package: github.com/gholt/brimtime
+- package: github.com/gholt/flog
+- package: github.com/gholt/ring
+- package: github.com/gholt/store
+- package: github.com/gogo/protobuf
+  subpackages:
+  - proto
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+- package: github.com/pandemicsyn/cmdctrl
+  subpackages:
+  - api
+- package: github.com/pandemicsyn/node_exporter
+  subpackages:
+  - collector
+- package: github.com/peterh/liner
+- package: github.com/pkg/profile
+- package: github.com/prometheus/client_golang
+  subpackages:
+  - prometheus
+- package: github.com/satori/go.uuid
+- package: github.com/shirou/gopsutil
+  subpackages:
+  - disk
+  - mem
+- package: github.com/spaolacci/murmur3
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  subpackages:
+  - codes
+  - credentials
+  - grpclog
+  - metadata
+  - peer
+- package: gopkg.in/urfave/cli.v2
