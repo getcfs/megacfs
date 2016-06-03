@@ -1,0 +1,467 @@
+package api
+
+import (
+    "errors"
+    "fmt"
+    "sync"
+
+    "github.com/gholt/store"
+    "github.com/getcfs/megacfs/ftls"
+    "github.com/getcfs/megacfs/oort/api/proto"
+    pb "github.com/getcfs/megacfs/oort/api/{{.t}}proto"
+    "golang.org/x/net/context"
+    "google.golang.org/grpc"
+)
+
+type {{.t}}Store struct {
+    lock                sync.Mutex
+    addr                string
+    ftlsc               *ftls.Config
+    opts                []grpc.DialOption
+    conn                *grpc.ClientConn
+    client              pb.{{.T}}StoreClient
+    handlersDoneChan    chan struct{}
+    {{range $R := .R}}
+    pending{{$R}}ReqChan    chan *async{{$.T}}{{$R}}Request
+    free{{$R}}ReqChan       chan *async{{$.T}}{{$R}}Request
+    free{{$R}}ResChan       chan *async{{$.T}}{{$R}}Response
+    {{end}}
+}
+
+// New{{.T}}Store creates a {{.T}}Store connection via grpc to the given
+// address.
+func New{{.T}}Store(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) (store.{{.T}}Store, error) {
+    stor := &{{.t}}Store{
+        addr:               addr,
+        ftlsc:              ftlsConfig,
+        opts:               opts,
+        handlersDoneChan:   make(chan struct{}),
+    }
+    {{range $R := .R}}
+        stor.pending{{$R}}ReqChan = make(chan *async{{$.T}}{{$R}}Request, concurrency)
+        stor.free{{$R}}ReqChan = make(chan *async{{$.T}}{{$R}}Request, concurrency)
+        stor.free{{$R}}ResChan = make(chan *async{{$.T}}{{$R}}Response, concurrency)
+        for i := 0; i < cap(stor.free{{$R}}ReqChan); i++ {
+            stor.free{{$R}}ReqChan <- &async{{$.T}}{{$R}}Request{resChan: make(chan *async{{$.T}}{{$R}}Response, 1)}
+        }
+        for i := 0; i < cap(stor.free{{$R}}ResChan); i++ {
+            stor.free{{$R}}ResChan <- &async{{$.T}}{{$R}}Response{}
+        }
+        go stor.handle{{$R}}Stream()
+    {{end}}
+    return stor, nil
+}
+
+func (stor *{{.t}}Store) Startup(ctx context.Context) error {
+    stor.lock.Lock()
+    err := stor.startup()
+    stor.lock.Unlock()
+    return err
+}
+
+func (stor *{{.t}}Store) startup() error {
+    if stor.conn != nil {
+        return nil
+    }
+    var err error
+    creds, err := ftls.NewGRPCClientDialOpt(stor.ftlsc)
+    if err != nil {
+        stor.conn = nil
+        return err
+    }
+    opts := make([]grpc.DialOption, len(stor.opts))
+    copy(opts, stor.opts)
+    opts = append(opts, creds)
+    stor.conn, err = grpc.Dial(stor.addr, opts...)
+    if err != nil {
+        stor.conn = nil
+        return err
+    }
+    stor.client = pb.New{{.T}}StoreClient(stor.conn)
+    return nil
+}
+
+// Shutdown will close any existing connections; note that Startup may
+// automatically get called with any further activity, but it will use a new
+// connection. To ensure the {{.t}}Store has no further activity, use Close.
+func (stor *{{.t}}Store) Shutdown(ctx context.Context) error {
+    stor.lock.Lock()
+    err := stor.shutdown()
+    stor.lock.Unlock()
+    return err
+}
+
+func (stor *{{.t}}Store) shutdown() error {
+    if stor.conn == nil {
+        return nil
+    }
+    stor.conn.Close()
+    stor.conn = nil
+    stor.client = nil
+    return nil
+}
+
+// Close will shutdown outgoing connectivity and stop all background
+// goroutines; note that the {{.t}}Store is no longer usable after a call to
+// Close, including using Startup.
+func (stor *{{.t}}Store) Close() {
+    stor.lock.Lock()
+    stor.shutdown()
+    close(stor.handlersDoneChan)
+    stor.lock.Unlock()
+}
+
+func (stor *{{.t}}Store) EnableWrites(ctx context.Context) error {
+    return nil
+}
+
+func (stor *{{.t}}Store) DisableWrites(ctx context.Context) error {
+    // TODO: I suppose we could implement toggling writes from this client;
+    // I'll leave that for later.
+    return errors.New("cannot disable writes with this client at this time")
+}
+
+func (stor *{{.t}}Store) Flush(ctx context.Context) error {
+    // Nothing cached on this end, so nothing to flush.
+    return nil
+}
+
+func (stor *{{.t}}Store) AuditPass(ctx context.Context) error {
+    return errors.New("audit passes not available with this client at this time")
+}
+
+func (stor *{{.t}}Store) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
+    return noStats, nil
+}
+
+func (stor *{{.t}}Store) ValueCap(ctx context.Context) (uint32, error) {
+    // TODO: This should be a (cached) value from the server. Servers don't
+    // change their value caps on the fly, so the cache can be kept until
+    // disconnect.
+    return 0xffffffff, nil
+}
+
+{{range $R := .R}}
+    type async{{$.T}}{{$R}}Request struct {
+        req             pb.{{$R}}Request
+        resChan         chan *async{{$.T}}{{$R}}Response
+        canceledLock    sync.Mutex
+        canceled        bool
+    }
+
+    type async{{$.T}}{{$R}}Response struct {
+        res *pb.{{$R}}Response
+        err error
+    }
+
+    func (stor *{{$.t}}Store) handle{{$R}}Stream() {
+        resChan := make(chan *async{{$.T}}{{$R}}Response, cap(stor.free{{$R}}ReqChan))
+        resFunc := func(stream pb.{{$.T}}Store_Stream{{$R}}Client) {
+            var err error
+            var res *async{{$.T}}{{$R}}Response
+            for {
+                select {
+                case res = <-stor.free{{$R}}ResChan:
+                case <-stor.handlersDoneChan:
+                    return
+                }
+                res.res, res.err = stream.Recv()
+                err = res.err
+                if err != nil {
+                    res.res = nil
+                }
+                select {
+                case resChan <- res:
+                case <-stor.handlersDoneChan:
+                    return
+                }
+                if err != nil {
+                    return
+                }
+            }
+        }
+        var err error
+        var stream pb.{{$.T}}Store_Stream{{$R}}Client
+        waitingMax := uint32(cap(stor.free{{$R}}ReqChan)) - 1
+        waiting := make([]*async{{$.T}}{{$R}}Request, waitingMax+1)
+        waitingIndex := uint32(0)
+        for {
+            select {
+            case req := <-stor.pending{{$R}}ReqChan:
+                j := waitingIndex
+                for waiting[waitingIndex] != nil {
+                    waitingIndex++
+                    if waitingIndex > waitingMax {
+                        waitingIndex = 0
+                    }
+                    if waitingIndex == j {
+                        panic("coding error: got more concurrent requests from pending{{$R}}ReqChan than should be available")
+                    }
+                }
+                req.req.Rpcid = waitingIndex
+                waiting[waitingIndex] = req
+                waitingIndex++
+                if waitingIndex > waitingMax {
+                    waitingIndex = 0
+                }
+                if stream == nil {
+                    stor.lock.Lock()
+                    if stor.client == nil {
+                        if err = stor.startup(); err != nil {
+                            stor.lock.Unlock()
+                            res := <-stor.free{{$R}}ResChan
+                            res.err = err
+                            res.res = &pb.{{$R}}Response{Rpcid: req.req.Rpcid}
+                            resChan <- res
+                            break
+                        }
+                    }
+                    stream, err = stor.client.Stream{{$R}}(context.Background())
+                    stor.lock.Unlock()
+                    if err != nil {
+                        res := <-stor.free{{$R}}ResChan
+                        res.err = err
+                        res.res = &pb.{{$R}}Response{Rpcid: req.req.Rpcid}
+                        resChan <- res
+                        break
+                    }
+                    go resFunc(stream)
+                }
+                if err = stream.Send(&req.req); err != nil {
+                    stream = nil
+                    res := <-stor.free{{$R}}ResChan
+                    res.err = err
+                    res.res = &pb.{{$R}}Response{Rpcid: req.req.Rpcid}
+                    resChan <- res
+                }
+            case res := <-resChan:
+                if res.res == nil {
+                    // Receiver got unrecoverable error, so we'll have to
+                    // respond with errors to all waiting requests.
+                    wereWaiting := make([]*async{{$.T}}{{$R}}Request, len(waiting))
+                    for i, v := range waiting {
+                        wereWaiting[i] = v
+                    }
+                    err := res.err
+                    if err == nil {
+                        err = errors.New("receiver had error, had to close any other waiting requests")
+                    }
+                    go func(reqs []*async{{$.T}}{{$R}}Request, err error) {
+                        for _, req := range reqs {
+                            if req == nil {
+                                continue
+                            }
+                            res := <-stor.free{{$R}}ResChan
+                            res.err = err
+                            res.res = &pb.{{$R}}Response{Rpcid: req.req.Rpcid}
+                            resChan <- res
+                        }
+                    }(wereWaiting, err)
+                    break
+                }
+                if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
+                    // TODO: Debug log error?
+                    break
+                }
+                req := waiting[res.res.Rpcid]
+                if req == nil {
+                    // TODO: Debug log error?
+                    break
+                }
+                waiting[res.res.Rpcid] = nil
+                req.canceledLock.Lock()
+                if !req.canceled {
+                    req.resChan <- res
+                } else {
+                    stor.free{{$R}}ReqChan <- req
+                    stor.free{{$R}}ResChan <- res
+                }
+                req.canceledLock.Unlock()
+            case <-stor.handlersDoneChan:
+                return
+            }
+        }
+    }
+
+    {{if eq $R "Lookup"}}
+        func (stor *{{$.t}}Store) Lookup(ctx context.Context, keyA, keyB uint64{{if eq $.t "group"}}, childKeyA, childKeyB uint64{{end}}) (timestampMicro int64, length uint32, err error) {
+    {{else if eq $R "Read"}}
+        func (stor *{{$.t}}Store) Read(ctx context.Context, keyA, keyB uint64{{if eq $.t "group"}}, childKeyA, childKeyB uint64{{end}}, value []byte) (timestampMicro int64, rvalue []byte, err error) {
+    {{else if eq $R "Write"}}
+        func (stor *{{$.t}}Store) Write(ctx context.Context, keyA, keyB uint64{{if eq $.t "group"}}, childKeyA, childKeyB uint64{{end}}, timestampMicro int64, value []byte) (oldTimestampMicro int64, err error) {
+    {{else if eq $R "Delete"}}
+        func (stor *{{$.t}}Store) Delete(ctx context.Context, keyA, keyB uint64{{if eq $.t "group"}}, childKeyA, childKeyB uint64{{end}}, timestampMicro int64) (oldTimestampMicro int64, err error) {
+    {{else if eq $R "LookupGroup"}}
+        func (stor *groupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB uint64) (items []store.LookupGroupItem, err error) {
+    {{else if eq $R "ReadGroup"}}
+        func (stor *groupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB uint64) (items []store.ReadGroupItem, err error) {
+    {{end}}
+        var req *async{{$.T}}{{$R}}Request
+        select {
+        case req = <-stor.free{{$R}}ReqChan:
+        case <-ctx.Done():
+            {{if eq $R "Lookup"}}
+                return 0, 0, ctx.Err()
+            {{else if eq $R "Read"}}
+                return 0, rvalue, ctx.Err()
+            {{else if eq $R "Write"}}
+                return 0, ctx.Err()
+            {{else if eq $R "Delete"}}
+                return 0, ctx.Err()
+            {{else if eq $R "LookupGroup"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadGroup"}}
+                return nil, ctx.Err()
+            {{end}}
+        }
+        req.canceled = false
+        {{if eq $R "Lookup"}}
+            req.req.KeyA = keyA
+            req.req.KeyB = keyB
+            {{if eq $.t "group"}}
+                req.req.ChildKeyA = childKeyA
+                req.req.ChildKeyB = childKeyB
+            {{end}}
+        {{else if eq $R "Read"}}
+            req.req.KeyA = keyA
+            req.req.KeyB = keyB
+            {{if eq $.t "group"}}
+                req.req.ChildKeyA = childKeyA
+                req.req.ChildKeyB = childKeyB
+            {{end}}
+        {{else if eq $R "Write"}}
+            req.req.KeyA = keyA
+            req.req.KeyB = keyB
+            {{if eq $.t "group"}}
+                req.req.ChildKeyA = childKeyA
+                req.req.ChildKeyB = childKeyB
+            {{end}}
+            req.req.TimestampMicro = timestampMicro
+            if len(value) == 0 {
+                panic(fmt.Sprintf("REMOVEME %s asked to Write a zlv", stor.addr))
+            }
+            req.req.Value = value
+        {{else if eq $R "Delete"}}
+            req.req.KeyA = keyA
+            req.req.KeyB = keyB
+            {{if eq $.t "group"}}
+                req.req.ChildKeyA = childKeyA
+                req.req.ChildKeyB = childKeyB
+            {{end}}
+            req.req.TimestampMicro = timestampMicro
+        {{else if eq $R "LookupGroup"}}
+            req.req.KeyA = parentKeyA
+            req.req.KeyB = parentKeyB
+        {{else if eq $R "ReadGroup"}}
+            req.req.KeyA = parentKeyA
+            req.req.KeyB = parentKeyB
+        {{end}}
+        select {
+        case stor.pending{{$R}}ReqChan <- req:
+        case <-ctx.Done():
+            stor.free{{$R}}ReqChan <- req
+            {{if eq $R "Lookup"}}
+                return 0, 0, ctx.Err()
+            {{else if eq $R "Read"}}
+                return 0, rvalue, ctx.Err()
+            {{else if eq $R "Write"}}
+                return 0, ctx.Err()
+            {{else if eq $R "Delete"}}
+                return 0, ctx.Err()
+            {{else if eq $R "LookupGroup"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadGroup"}}
+                return nil, ctx.Err()
+            {{end}}
+        }
+        var res *async{{$.T}}{{$R}}Response
+        select {
+        case res = <-req.resChan:
+        case <-ctx.Done():
+            req.canceledLock.Lock()
+            select {
+            case <-req.resChan:
+            default:
+                req.canceled = true
+            }
+            req.canceledLock.Unlock()
+            {{if eq $R "Lookup"}}
+                return 0, 0, ctx.Err()
+            {{else if eq $R "Read"}}
+                return 0, rvalue, ctx.Err()
+            {{else if eq $R "Write"}}
+                return 0, ctx.Err()
+            {{else if eq $R "Delete"}}
+                return 0, ctx.Err()
+            {{else if eq $R "LookupGroup"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadGroup"}}
+                return nil, ctx.Err()
+            {{end}}
+        }
+        stor.free{{$R}}ReqChan <- req
+        if res.err != nil {
+            err = res.err
+            stor.free{{$R}}ResChan <- res
+            {{if eq $R "Lookup"}}
+                return 0, 0, err
+            {{else if eq $R "Read"}}
+                return 0, rvalue, err
+            {{else if eq $R "Write"}}
+                return 0, err
+            {{else if eq $R "Delete"}}
+                return 0, err
+            {{else if eq $R "LookupGroup"}}
+                return nil, err
+            {{else if eq $R "ReadGroup"}}
+                return nil, err
+            {{end}}
+        }
+        {{if eq $R "Lookup"}}
+            timestampMicro = res.res.TimestampMicro
+            length = res.res.Length
+        {{else if eq $R "Read"}}
+            timestampMicro = res.res.TimestampMicro
+            rvalue = append(rvalue, res.res.Value...)
+        {{else if eq $R "Write"}}
+            oldTimestampMicro = res.res.TimestampMicro
+        {{else if eq $R "Delete"}}
+            oldTimestampMicro = res.res.TimestampMicro
+        {{else if eq $R "LookupGroup"}}
+            items = make([]store.LookupGroupItem, len(res.res.Items))
+            for i, v := range res.res.Items {
+                items[i].ChildKeyA = v.ChildKeyA
+                items[i].ChildKeyB = v.ChildKeyB
+                items[i].TimestampMicro = v.TimestampMicro
+                items[i].Length = v.Length
+            }
+        {{else if eq $R "ReadGroup"}}
+            items = make([]store.ReadGroupItem, len(res.res.Items))
+            for i, v := range res.res.Items {
+                items[i].ChildKeyA = v.ChildKeyA
+                items[i].ChildKeyB = v.ChildKeyB
+                items[i].TimestampMicro = v.TimestampMicro
+                items[i].Value = v.Value
+            }
+        {{end}}
+        if res.res.Err == "" {
+            err = nil
+        } else {
+            err = proto.TranslateErrorString(res.res.Err)
+        }
+        stor.free{{$R}}ResChan <- res
+        {{if eq $R "Lookup"}}
+            return timestampMicro, length, err
+        {{else if eq $R "Read"}}
+            return timestampMicro, rvalue, err
+        {{else if eq $R "Write"}}
+            return oldTimestampMicro, err
+        {{else if eq $R "Delete"}}
+            return oldTimestampMicro, err
+        {{else if eq $R "LookupGroup"}}
+            return items, err
+        {{else if eq $R "ReadGroup"}}
+            return items, err
+        {{end}}
+    }
+{{end}}

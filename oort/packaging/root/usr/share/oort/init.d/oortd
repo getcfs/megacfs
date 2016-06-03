@@ -1,0 +1,75 @@
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides:          oortd
+# Required-Start:    $local_fs $remote_fs $network $syslog
+# Required-Stop:     $local_fs $remote_fs $network $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: oort
+### END INIT INFO
+
+DAEMON_OPTS="-s map"
+
+pid() {
+  if [ -f /usr/local/bin/oortd ]; then
+    pidof /usr/local/bin/oortd
+  fi
+}
+
+stop() {
+  if pidof /usr/local/bin/oortd >/dev/null; then
+    kill "$(pid)"
+  else
+    echo "oortd not running"
+    exit 1
+  fi
+}
+
+start() {
+  if pidof /usr/local/bin/oortd >/dev/null; then
+    echo "oortd already running"
+    exit 1
+  else
+    nohup oortd $DAEMON_OPTS > /var/log/oortd.log  2>&1 &
+  fi
+}
+
+restart() {
+  if pidof /usr/local/bin/oortd >/dev/null; then
+    kill  "$(pid)"
+    nohup oortd $DAEMON_OPTS > /var/log/oortd.log  2>&1 &
+    exit 0
+  else
+    nohup oortd $DAEMON_OPTS > /var/log/oortd.log  2>&1 &
+    exit 0
+  fi
+}
+
+status() {
+  if pidof /usr/local/bin/oortd >/dev/null; then
+    echo "oortd with pid $(pid) is running"
+  else
+    echo "oortd is not running"
+  fi
+  exit 0
+}
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  restart)
+        restart
+        ;;
+  status)
+        status
+        ;;
+  *)
+        echo "Usage: service oortd {start|stop|restart|status}"
+        exit 1
+        ;;
+esac

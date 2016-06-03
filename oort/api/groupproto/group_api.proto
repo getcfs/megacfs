@@ -1,0 +1,122 @@
+syntax = "proto3";
+package groupproto;
+
+// Write and Delete intentionally use uniquely named ResponseMessages
+// incase they ever change down the road.
+service GroupStore {
+    rpc Write(WriteRequest) returns (WriteResponse) {}
+    rpc StreamWrite(stream WriteRequest) returns (stream WriteResponse) {}
+    rpc Lookup(LookupRequest) returns (LookupResponse) {}
+    rpc StreamLookup(stream LookupRequest) returns (stream LookupResponse) {}
+    rpc LookupGroup(LookupGroupRequest) returns (LookupGroupResponse) {}
+    rpc StreamLookupGroup(stream LookupGroupRequest) returns (stream LookupGroupResponse) {}
+    rpc ReadGroup(ReadGroupRequest) returns (ReadGroupResponse) {}
+    rpc StreamReadGroup(stream ReadGroupRequest) returns (stream ReadGroupResponse) {}
+    rpc Read(ReadRequest) returns (ReadResponse) {}
+    rpc StreamRead(stream ReadRequest) returns (stream ReadResponse) {}
+    rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+    rpc StreamDelete(stream DeleteRequest) returns (stream DeleteResponse) {}
+}
+
+message EmptyMsg {}
+
+message WriteRequest {
+    uint32 rpcid = 1;
+    uint64 keyA = 2;
+    uint64 keyB = 3;
+    uint64 childKeyA = 4;
+    uint64 childKeyB = 5;
+    bytes  value = 6;
+    int64  timestampMicro = 7;
+}
+
+message LookupRequest {
+    uint32 rpcid = 1;
+    uint64 keyA = 2;
+    uint64 keyB = 3;
+    uint64 childKeyA = 4;
+    uint64 childKeyB = 5;
+}
+
+message ReadRequest {
+    uint32 rpcid = 1;
+    uint64 keyA = 2;
+    uint64 keyB = 3;
+    uint64 childKeyA = 4;
+    uint64 childKeyB = 5;
+}
+
+message DeleteRequest {
+    uint32 rpcid = 1;
+    uint64 keyA = 2;
+    uint64 keyB = 3;
+    uint64 childKeyA = 4;
+    uint64 childKeyB = 5;
+    int64  timestampMicro = 6;
+}
+
+message LookupGroupRequest {
+    uint32 rpcid = 1;
+    uint64 keyA = 2;
+    uint64 keyB = 3;
+}
+
+message ReadGroupRequest {
+    uint32 rpcid = 1;
+    uint64 keyA = 2;
+    uint64 keyB = 3;
+}
+
+message WriteResponse {
+    uint32 rpcid = 1;
+    int64  timestampMicro = 2;
+    string err = 3;
+}
+
+message LookupResponse {
+    uint32 rpcid = 1;
+    int64  timestampMicro = 2;
+    uint32 length = 3;
+    string err = 4;
+}
+
+message LookupGroupResponse {
+    uint32 rpcid = 1;
+    repeated LookupGroupItem items = 2;
+    string err = 3;
+}
+
+message LookupGroupItem {
+    uint32 rpcid = 1;
+    uint64 childKeyA = 2;
+    uint64 childKeyB = 3;
+    int64 timestampMicro = 4;
+    uint32 length = 5;
+}
+
+message ReadGroupResponse {
+    uint32 rpcid = 1;
+    repeated ReadGroupItem items = 2;
+    string err = 3;
+}
+
+message ReadGroupItem {
+    uint32 rpcid = 1;
+    uint64 childKeyA = 2;
+    uint64 childKeyB = 3;
+    int64 timestampMicro = 4;
+    bytes value = 5;
+}
+
+message ReadResponse {
+    uint32 rpcid = 1;
+    int64  timestampMicro = 2;
+    bytes  value = 3;
+    string err = 4;
+}
+
+message DeleteResponse {
+    uint32 rpcid = 1;
+    int64  timestampMicro = 2;
+    string err = 3;
+}

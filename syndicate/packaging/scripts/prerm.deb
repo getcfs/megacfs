@@ -1,0 +1,59 @@
+#!/bin/sh
+set -e
+
+dist() {
+  lsb_release -i | awk '{print tolower($3)}' | sed -e 's/^ *//' -e 's/ *$//'
+}
+
+version() {
+  lsb_release -r | awk '{print $2}' | sed -e 's/^ *//' -e 's/ *$//' | awk -F. '{ print $1 }'
+}
+
+echo Stopping synd
+
+upstart() {
+  initctl stop synd || :
+}
+
+systemd() {
+  if [ $1 = "remove" ] ; then
+    systemctl --no-reload disable synd || :
+    systemctl stop synd || :
+  fi
+}
+
+sysv() {
+  if [ -f /etc/init.d/synd ] ; then
+    if pidof /usr/local/bin/synd >/dev/null; then
+      exec /etc/init.d/synd stop || :
+    fi
+  fi
+}
+
+validate_ver() {
+  echo "$(version) < $1" | bc
+}
+
+case "$(dist)" in
+  debian)
+    if [ "$(version)" -lt "8" ]; then
+      sysv
+    else
+      systemd $1
+    fi
+    ;;
+  ubuntu)
+    if [ "$(version)" -lt "15" ]; then
+      upstart
+    else
+      systemd $1
+    fi
+    ;;
+  *)
+    if [ -f /usr/local/bin/synd ]; then
+      if pidof /usr/local/bin/synd >/dev/null; then
+        kill -9 `pidof /usr/local/bin/synd`
+      fi
+    fi
+    ;;
+esac

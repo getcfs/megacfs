@@ -1,0 +1,76 @@
+package api
+
+import (
+    "fmt"
+
+    {{if eq .t "group"}}"github.com/gholt/store"{{end}}
+    "golang.org/x/net/context"
+)
+
+type error{{.T}}Store string
+
+func (es error{{.T}}Store) String() string {
+    return string(es)
+}
+
+func (es error{{.T}}Store) Error() string {
+    return string(es)
+}
+
+func (es error{{.T}}Store) Startup(ctx context.Context) error {
+    return es
+}
+
+func (es error{{.T}}Store) Shutdown(ctx context.Context) error {
+    return es
+}
+
+func (es error{{.T}}Store) EnableWrites(ctx context.Context) error {
+    return es
+}
+
+func (es error{{.T}}Store) DisableWrites(ctx context.Context) error {
+    return es
+}
+
+func (es error{{.T}}Store) Flush(ctx context.Context) error {
+    return es
+}
+
+func (es error{{.T}}Store) AuditPass(ctx context.Context) error {
+    return es
+}
+
+func (es error{{.T}}Store) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
+    return es, es
+}
+
+func (es error{{.T}}Store) ValueCap(ctx context.Context) (uint32, error) {
+    return 0, es
+}
+
+func (es error{{.T}}Store) Lookup(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}) (int64, uint32, error) {
+    return 0, 0, es
+}
+
+func (es error{{.T}}Store) Read(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}, value []byte) (int64, []byte, error) {
+    return 0, value, es
+}
+
+func (es error{{.T}}Store) Write(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}, timestampMicro int64, value []byte) (int64, error) {
+    return 0, es
+}
+
+func (es error{{.T}}Store) Delete(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}, timestampMicro int64) (int64, error) {
+    return 0, es
+}
+
+{{if eq .t "group"}}
+func (es errorGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.LookupGroupItem, error) {
+    return nil, es
+}
+
+func (es errorGroupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.ReadGroupItem, error) {
+    return nil, es
+}
+{{end}}

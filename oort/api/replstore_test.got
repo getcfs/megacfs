@@ -1,0 +1,11 @@
+package api
+
+import (
+    "testing"
+
+    "github.com/gholt/store"
+)
+
+func Test{{.T}}StoreInterface(t *testing.T) {
+    func (s store.{{.T}}Store) { } (NewRepl{{.T}}Store(nil))
+}
