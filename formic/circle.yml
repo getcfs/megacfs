@@ -1,0 +1,33 @@
+machine:
+  pre:
+    - wget https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz
+    - mkdir ~/go1.5.3
+    - tar -C ~/go1.5.3 -xzf go1.5.3.linux-amd64.tar.gz
+  environment:
+    GOROOT: ${HOME}/go1.5.3/go
+    GO15VENDOREXPERIMENT: 1
+    GOPATH: ${HOME}/go
+    PATH: $GOPATH/bin:${GOROOT}/bin:${PATH}
+    PPATH: ${HOME}/go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+    BUILDPATH: $PPATH/packaging/root/usr/local/bin
+  post:
+    - go version
+    - echo $PPATH
+dependencies:
+  pre:
+    - mkdir -p ${HOME}/go/src/github.com/$CIRCLE_PROJECT_USERNAME
+    - mv ~/$CIRCLE_PROJECT_REPONAME ${HOME}/go/src/github.com/$CIRCLE_PROJECT_USERNAME
+    - ln -s $PPATH ~/$CIRCLE_PROJECT_REPONAME
+  override:
+    - go get -v github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/...
+general:
+  artifacts:
+    - "$PPATH/packaging/root/usr/local/bin"
+test:
+  pre:
+    - go version
+    - make deps
+  override:
+    - make test
+  post:
+    - GOOS=linux GOARCH=amd64 make build

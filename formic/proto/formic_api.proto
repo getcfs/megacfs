@@ -1,0 +1,402 @@
+syntax = "proto3";
+
+package proto;
+
+// Versioning Rules
+// Don't change the number tags once set
+// If you remove a field, don't re-use the number tag
+// If you are going to change a type, ensure that it is compatible, otherwise create a new items instead
+// API Changes: (For future notes on how things have changed)
+
+// Combined ClientApi
+service Api {
+    rpc SetAttr(SetAttrRequest) returns (SetAttrResponse) {}
+    rpc GetAttr(GetAttrRequest) returns (GetAttrResponse) {}
+    rpc Read(ReadRequest) returns (ReadResponse) {}
+    rpc Write(WriteRequest) returns (WriteResponse) {}
+    rpc MkDir(MkDirRequest) returns (MkDirResponse) {}
+    rpc Create(CreateRequest) returns (CreateResponse) {}
+    rpc Remove(RemoveRequest) returns (RemoveResponse) {}
+    rpc Lookup(LookupRequest) returns (LookupResponse) {}
+    rpc ReadDirAll(ReadDirAllRequest) returns (ReadDirAllResponse) {}
+    rpc Symlink(SymlinkRequest) returns (SymlinkResponse) {}
+    rpc Readlink(ReadlinkRequest) returns (ReadlinkResponse) {}
+    rpc Getxattr(GetxattrRequest) returns (GetxattrResponse) {}
+    rpc Setxattr(SetxattrRequest) returns (SetxattrResponse) {}
+    rpc Listxattr(ListxattrRequest) returns (ListxattrResponse) {}
+    rpc Removexattr(RemovexattrRequest) returns (RemovexattrResponse) {}
+    rpc Rename(RenameRequest) returns (RenameResponse) {}
+    rpc Statfs(StatfsRequest) returns (StatfsResponse) {}
+    rpc InitFs(InitFsRequest) returns (InitFsResponse) {}
+}
+
+// DirEnt is a directory entry
+message DirEnt {
+    string name   = 1;
+    uint64 parent = 2;
+    uint32 type   = 3;
+}
+
+// DirEntries just contains a list of directory entries
+message DirEntries {
+    repeated DirEnt DirEntries  = 1;
+}
+
+// Attr
+message Attr {
+    uint64 inode  = 1;
+    int64  atime  = 2;
+    int64  mtime  = 3;
+    int64  ctime  = 4;
+    int64  crtime = 5;
+    uint32 mode   = 6;
+    int32  valid  = 7;
+    uint64 size   = 8;
+    uint32 uid    = 9;
+    uint32 gid    = 10;
+}
+
+// SetAttrRequest
+message SetAttrRequest {
+    Attr   attr  = 1;
+    uint32 valid = 2;   // Bitmask of which attrs are changed
+}
+
+// SetAttrResponse
+message SetAttrResponse {
+    Attr attr = 1;
+}
+
+// GetAttrRequest
+message GetAttrRequest {
+    uint64 inode = 1;
+}
+
+// GetAttrResponse
+message GetAttrResponse {
+    Attr attr = 1;
+}
+
+// ReqadRequest
+message ReadRequest {
+    uint64 inode   = 1;
+    int64  offset  = 2;
+    int64  size    = 3;
+}
+
+// ReadResponse
+message ReadResponse {
+    uint64 inode   = 1;
+    bytes  payload = 2;
+}
+
+// WriteRequest
+message WriteRequest {
+    uint64 inode   = 1;
+    int64  offset  = 2;
+    bytes  payload = 3;
+}
+
+// WriteResponse place holder. Maybe use an enum so
+// we can map to fuse errors ?
+message WriteResponse {
+    int32 status = 1;
+}
+
+// MkdirRequest
+message MkDirRequest {
+    uint64 parent = 1;
+    string name   = 2;
+    Attr   attr   = 3;
+}
+
+// MkdirResponse
+message MkDirResponse {
+    string name   = 1;
+    Attr   attr   = 2;
+}
+
+// CreateRequest
+message CreateRequest {
+    uint64 parent = 1;
+    string name   = 2;
+    Attr   attr   = 3;
+}
+
+// CreateResponse
+message CreateResponse {
+    string name   = 1;
+    Attr   attr   = 2;
+}
+
+// RemoveRequest
+message RemoveRequest {
+    uint64 parent = 1;
+    string name   = 2;
+}
+
+// RemoveResponse
+message RemoveResponse {
+    int32 status = 1;
+}
+
+// LookupRequest
+message LookupRequest {
+    uint64 parent = 1; 
+    string name   = 2;
+}
+
+
+// LookupResponse is a directory entry
+message LookupResponse {
+    string name   = 1;
+    Attr   attr   = 2;
+}
+
+// ReadDirAllRequest
+message ReadDirAllRequest {
+    uint64 inode = 1;
+}
+
+// ReadDirAllResponse
+message ReadDirAllResponse {
+    repeated DirEnt DirEntries  = 1;
+}
+
+// SymlinkRequest
+message SymlinkRequest {
+    uint64 parent   = 1;
+    string name     = 2;
+    string target   = 3;
+    uint32 uid      = 4;
+    uint32 gid      = 5;
+}
+
+// SymlinkResponse
+message SymlinkResponse {
+    uint64 parent = 1;
+    string name   = 2;
+    Attr   attr   = 3;
+}
+
+// ReadlinkRequest
+message ReadlinkRequest {
+    uint64 inode = 1;
+}
+
+// ReadlinkResponse
+message ReadlinkResponse {
+    string target = 1;
+}
+
+// Getxattr
+message GetxattrRequest {
+    uint64 inode    = 1;
+    string name     = 2;
+    uint32 size     = 3;
+    uint32 position = 4;
+}
+message GetxattrResponse {
+    bytes xattr = 1;
+}
+
+// Setxattr
+message SetxattrRequest {
+    uint64 inode    = 1;
+    string name     = 2;
+    bytes  value    = 3;
+    uint32 position = 4;
+    uint32 flags    = 5;
+}
+message SetxattrResponse {}
+
+// Listxattr
+message ListxattrRequest {
+    uint64 inode    = 1;
+    uint32 size     = 2;
+    uint32 position = 3;
+}
+message ListxattrResponse {
+    bytes xattr = 1;
+}
+
+// Removexattr
+message RemovexattrRequest {
+    uint64 inode = 1;
+    string name  = 2;
+}
+message RemovexattrResponse {}
+
+// Rename
+message RenameRequest {
+    uint64 oldParent = 1;
+    uint64 newParent = 2;
+    string oldName   = 3;
+    string newName   = 4;
+}
+message RenameResponse {}
+
+// Statfs
+message StatfsRequest {}
+message StatfsResponse {
+    uint64 blocks  = 1;
+    uint64 bfree   = 2;
+    uint64 bavail  = 3;
+    uint64 files   = 4;
+    uint64 ffree   = 5;
+    uint32 bsize   = 6;
+    uint32 namelen = 7;
+    uint32 frsize  = 8;
+}
+
+// InitFs
+message InitFsRequest {}
+message InitFsResponse {}
+
+// Since this data can sit around for a while, we track a version number of the api so that it 
+// is easier to explicitly check what version we are using and act accordingly
+
+// Inode
+// This is used for serialization of the inode metadata
+// This is *not* used for api calls
+message InodeEntry {
+    uint32 version            = 1;
+    bool   isDir              = 2;
+    Attr   attr               = 3;
+    uint64 parent             = 4;
+    uint64 inode              = 5;
+    uint64 nodeCount          = 6;
+    bool   isLink             = 7;
+    string target             = 8;
+    map<string, bytes>  xattr = 9; // NOTE: Probably not the best long term way to do this
+    uint64 blocks             = 10;
+    uint64 blockSize          = 11;
+    uint64 lastBlock          = 12;
+    bytes  fsId               = 13;
+}
+
+// Tombstone
+// Stores information needed to keep track of deleted items
+message Tombstone {
+    int64  dtime  = 1; // Timestamp micro the delete request was made
+    int64  qtime  = 2; // Timestamp micro of the most recent queing of delete
+    bytes  fsId   = 3; // Needed to get the block IDs
+    uint64 inode  = 4;
+    uint64 blocks = 5; // Blocks from the original object that need to be deleted
+}
+    
+// DirEntry
+// This is used for the serialization of dir info in the group score
+// This is *not* used for api calls
+message DirEntry {
+    uint32    version   = 1;
+    string    name      = 2;
+    bytes     id        = 3;
+    Tombstone tombstone = 4; // If set, this record has been deleted
+    uint32    type      = 5;
+}
+
+// FileBlock
+// This is used for storing blocks in value store
+// This is *not* used for api calls
+message FileBlock {
+    uint32 version  = 1;
+    bytes  data     = 2;
+    uint32 checksum = 3;
+}
+
+// Message service definition for the FileSystemApi
+service FileSystemAPI {
+  rpc CreateFS (CreateFSRequest) returns (CreateFSResponse) {}
+  rpc ListFS (ListFSRequest) returns (ListFSResponse) {}
+  rpc ShowFS (ShowFSRequest) returns (ShowFSResponse) {}
+  rpc DeleteFS (DeleteFSRequest) returns (DeleteFSResponse) {}
+  rpc UpdateFS (UpdateFSRequest) returns (UpdateFSResponse) {}
+  rpc GrantAddrFS (GrantAddrFSRequest) returns (GrantAddrFSResponse) {}
+  rpc RevokeAddrFS (RevokeAddrFSRequest) returns (RevokeAddrFSResponse) {}
+}
+
+// ModFS ...
+message ModFS {
+  string    Name         = 1;
+  string    Status       = 2;
+}
+
+// Request to create a new filesystem
+message CreateFSRequest {
+  string  Token           = 1;
+  string  FSName          = 2;
+}
+
+// Response from creating a new filesystem
+message CreateFSResponse {
+  string  Data        = 1;
+}
+
+// Request a list of all file systems for a given account
+message ListFSRequest{
+  string  Token           = 1;
+}
+
+// Response for displaying a list of all an accounts file systems.
+message ListFSResponse {
+  string  Data    = 1;
+}
+
+// Request to show the specific details about a file system
+message ShowFSRequest{
+  string  Token           = 1;
+  string  FSid            = 2;
+}
+
+// Response for a specific file system for an account.
+message ShowFSResponse {
+  string  Data    = 1;
+}
+
+// Request to delete a specific file system
+message DeleteFSRequest {
+  string  Token         = 1;
+  string  FSid          = 2;
+}
+
+// Response from deleting a file system
+message DeleteFSResponse {
+  string  Data         = 1;
+}
+
+// Request to update a specific file system's information
+message UpdateFSRequest {
+  string  Token           = 1;
+  string  FSid            = 2;
+  ModFS   Filesys         = 4;
+}
+
+// Response from an update operation
+message UpdateFSResponse {
+  string  Data       = 1;
+}
+
+// Request grant an ip address access to a file system
+message GrantAddrFSRequest {
+  string  Token      = 1;
+  string  FSid       = 2;
+  string  Addr       = 3;
+}
+
+// Response from granting ip address access to a file system
+message GrantAddrFSResponse {
+  string  Data          = 1;
+}
+
+// Request revoke an ip address access to a file system
+message RevokeAddrFSRequest {
+  string Token      = 1;
+  string FSid       = 2;
+  string Addr       = 3;
+}
+
+// Response from revoking ip address access to a file system
+message RevokeAddrFSResponse {
+  string  Data     = 1;
+}
