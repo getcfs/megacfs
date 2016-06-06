@@ -1,0 +1,30 @@
+machine:
+  environment:
+    GOVER: 1.6.2
+    GOROOT: ${HOME}/go$GOVER/go
+    BUILDPATH: ${HOME}/${CIRCLE_PROJECT_REPONAME}/build
+    PATH: ${GOROOT}/bin:${PATH}
+  post:
+    - sudo rm -rf $GOROOT
+    - sudo rm -rf /usr/local/go
+    - mkdir -v -p $GOROOT
+    - if [ ! -e go$GOVER.linux-amd64.tar.gz ]; then curl -o go$GOVER.linux-amd64.tar.gz https://storage.googleapis.com/golang/go$GOVER.linux-amd64.tar.gz; fi
+    - tar -C ~/go1.6.2 -xzf go$GOVER.linux-amd64.tar.gz
+    - go version
+dependencies:
+  cache_directories:
+    - ~/go$GOVERSION.linux-amd64.tar.gz
+  override:
+    - mkdir -p $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME
+    - ln -fs $HOME/$CIRCLE_PROJECT_REPONAME $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+    - |
+      echo 'export GOPATH=$GOPATH:$HOME/.go_project' >> ~/.circlerc
+general:
+  artifacts:
+    - "$BUILDPATH"
+test:
+  pre:
+    - go version
+  override:
+    - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && GOOS=linux GOARCH=amd64 make test
+    - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && GOOS=linux GOARCH=amd64 make build
