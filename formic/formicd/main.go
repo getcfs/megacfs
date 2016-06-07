@@ -36,6 +36,7 @@ var (
 
 var formicdVersion string
 var buildDate string
+var commitVersion string
 var goVersion string
 
 func setupMetrics(listenAddr, enabledCollectors string) {
@@ -55,7 +56,8 @@ func setupMetrics(listenAddr, enabledCollectors string) {
 func main() {
 	flag.Parse()
 	if *printVersionInfo {
-		fmt.Println("formicd version:", formicdVersion)
+		fmt.Println("formicd:", formicdVersion)
+		fmt.Println("commit:", commitVersion)
 		fmt.Println("build date:", buildDate)
 		fmt.Println("go version:", goVersion)
 		return

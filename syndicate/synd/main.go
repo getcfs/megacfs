@@ -28,8 +28,8 @@ var (
 )
 
 var syndVersion string
-var ringVersion string
 var goVersion string
+var commitVersion string
 var buildDate string
 
 /*
@@ -110,8 +110,8 @@ func main() {
 	}
 	flag.Parse()
 	if *printVersionInfo {
-		fmt.Println("syndicate-client:", syndVersion)
-		fmt.Println("ring version:", ringVersion)
+		fmt.Println("synd:", syndVersion)
+		fmt.Println("commit:", commitVersion)
 		fmt.Println("build date:", buildDate)
 		fmt.Println("go version:", goVersion)
 		return
