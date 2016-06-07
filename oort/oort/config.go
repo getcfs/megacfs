@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/getcfs/megacfs/syndicate/utils/srvconf"
 	"github.com/gholt/ring"
 	"github.com/pandemicsyn/cmdctrl"
-	"github.com/getcfs/megacfs/syndicate/utils/srvconf"
 )
 
 // FExists true if a file or dir exists
