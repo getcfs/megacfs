@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/pandemicsyn/cmdctrl"
 	"github.com/getcfs/megacfs/oort/oort"
 	"github.com/getcfs/megacfs/oort/oortstore"
 	"github.com/getcfs/megacfs/syndicate/utils/sysmetrics"
+	"github.com/pandemicsyn/cmdctrl"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 	//BinaryPath is the absolute path and name of this executable (used for binary upgrades)
 	BinaryPath = "/usr/local/bin/oort-valued"
 	//GithubRepo is the github repo where production releases are (used for binary upgrades)
-	GithubRepo = "cfs-binary-release"
+	GithubRepo = "megacfs"
 	//GithubProject is the github project where proudction release are (used for binary upgrades)
 	GithubProject = "getcfs"
 )

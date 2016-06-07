@@ -1,0 +1,42 @@
+machine:
+  environment:
+    GOVER: 1.7beta1
+    GOROOT: ${HOME}/go$GOVER/go
+    BUILDPATH: ${HOME}/${CIRCLE_PROJECT_REPONAME}/build
+    PATH: ${GOROOT}/bin:${PATH}
+  post:
+    - mkdir -p ~/govers
+    - sudo rm -rf $GOROOT
+    - sudo rm -rf /usr/local/go
+    - mkdir -v -p $GOROOT
+    - if [ ! -e ~/govers/go$GOVER.linux-amd64.tar.gz ]; then curl -o ~/govers/go$GOVER.linux-amd64.tar.gz https://storage.googleapis.com/golang/go$GOVER.linux-amd64.tar.gz; fi
+    - tar -C ~/go1.7beta1 -xzf ~/govers/go$GOVER.linux-amd64.tar.gz
+    - go version
+dependencies:
+  cache_directories:
+    - ~/govers/
+  override:
+    - mkdir -p $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME
+    - ln -fs $HOME/$CIRCLE_PROJECT_REPONAME $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+    - |
+      echo 'export GOPATH=$GOPATH:$HOME/.go_project' >> ~/.circlerc
+    - go get github.com/Masterminds/glide
+    - go install github.com/Masterminds/glide
+general:
+  artifacts:
+    - "$BUILDPATH"
+test:
+  pre:
+    - go version
+  override:
+    - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && GOOS=linux GOARCH=amd64 make test
+    - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && GOOS=linux GOARCH=amd64 make build
+deployment:
+  master:
+    branch: master
+    commands:
+        - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && utils/ghr -t $GITHUB_TOKEN -u getcfs --replace --prerelease pre-`cat VERSION` $BUILDPATH
+  production:
+    branch: prod
+    commands:
+        - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && utils/ghr -t $GITHUB_TOKEN -u getcfs `cat VERSION` $BUILDPATH
