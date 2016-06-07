@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gholt/brimtext"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
+	"github.com/gholt/brimtext"
 )
 
 var (
@@ -22,7 +22,7 @@ var (
 )
 
 var syndicateClientVersion string
-var ringVersion string
+var commitVersion string
 var buildDate string
 var goVersion string
 
@@ -80,7 +80,7 @@ func main() {
 	flag.Parse()
 	if *printVersionInfo {
 		fmt.Println("syndicate-client:", syndicateClientVersion)
-		fmt.Println("ring version:", ringVersion)
+		fmt.Println("commit:", commitVersion)
 		fmt.Println("build date:", buildDate)
 		fmt.Println("go version:", goVersion)
 		return

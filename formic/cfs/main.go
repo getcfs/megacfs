@@ -13,8 +13,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/getcfs/fuse"
+	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/pkg/profile"
 	"github.com/satori/go.uuid"
 	"google.golang.org/grpc"
@@ -82,6 +82,11 @@ type NullWriter int
 
 func (NullWriter) Write([]byte) (int, error) { return 0, nil }
 
+var cfsVersion string
+var buildDate string
+var commitVersion string
+var goVersion string
+
 func main() {
 
 	if gogoprofile := os.Getenv("CFS_PROFILE"); gogoprofile == "true" {
@@ -100,6 +105,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "cfs"
 	app.Usage = "Client used to test filesysd"
+	app.Version = fmt.Sprintf(": %s\ncommit: %s\nbuild date: %s\ngo version: %s", cfsVersion, commitVersion, buildDate, goVersion)
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
 			Name:        "token",
