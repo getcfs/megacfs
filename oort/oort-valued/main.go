@@ -33,19 +33,15 @@ var (
 )
 
 var oortVersion string
-var ringVersion string
-var valuestoreVersion string
-var cmdctrlVersion string
+var commitVersion string
 var goVersion string
 var buildDate string
 
 func main() {
 	flag.Parse()
 	if *printVersionInfo {
-		fmt.Println("oort version:", oortVersion)
-		fmt.Println("ring version:", ringVersion)
-		fmt.Println("cmdctrl version:", cmdctrlVersion)
-		fmt.Println("valuestore version:", valuestoreVersion)
+		fmt.Println("oort-valued:", oortVersion)
+		fmt.Println("commit:", commitVersion)
 		fmt.Println("build date:", buildDate)
 		fmt.Println("go version:", goVersion)
 		return
