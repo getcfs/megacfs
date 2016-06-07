@@ -5,7 +5,7 @@ machine:
     BUILDPATH: ${HOME}/${CIRCLE_PROJECT_REPONAME}/build
     PATH: ${GOROOT}/bin:${PATH}
   post:
-    - mkdir -v ~/govers
+    - mkdir -p ~/govers
     - sudo rm -rf $GOROOT
     - sudo rm -rf /usr/local/go
     - mkdir -v -p $GOROOT
