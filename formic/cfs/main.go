@@ -13,8 +13,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/getcfs/fuse"
+	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/pkg/profile"
 	"github.com/satori/go.uuid"
 	"google.golang.org/grpc"
@@ -420,19 +420,18 @@ func main() {
 				fusermountPath()
 				// process file system options
 				allowOther := false
+				debugOff := true
 				if c.String("o") != "" {
 					clargs := getArgs(c.String("o"))
 					// crapy debug log handling :)
 					if debug, ok := clargs["debug"]; ok {
-						if debug == "false" {
-							log.SetFlags(0)
-							log.SetOutput(ioutil.Discard)
-						}
-					} else {
-						log.SetFlags(0)
-						log.SetOutput(ioutil.Discard)
+						debugOff = debug == "false"
 					}
 					_, allowOther = clargs["allow_other"]
+				}
+				if debugOff {
+					log.SetFlags(0)
+					log.SetOutput(ioutil.Discard)
 				}
 				// Setup grpc
 				var opts []grpc.DialOption
