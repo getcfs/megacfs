@@ -11,8 +11,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/gholt/ring"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
+	"github.com/gholt/ring"
 )
 
 type ringslave struct {

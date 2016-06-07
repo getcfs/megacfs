@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gholt/ring"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
+	"github.com/gholt/ring"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )

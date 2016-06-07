@@ -11,12 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gholt/flog"
-	"github.com/gholt/ring"
-	"github.com/gholt/store"
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort/oort"
 	synpb "github.com/getcfs/megacfs/syndicate/api/proto"
+	"github.com/gholt/flog"
+	"github.com/gholt/ring"
+	"github.com/gholt/store"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
