@@ -62,6 +62,8 @@ ring:
 	$(MAKE) ringversion
 
 ringversion:
+	go get github.com/pandemicsyn/ringver
+	go install github.com/pandemicsyn/ringver
 	cp -av $(RINGDIR)/valuestore.ring $(RINGDIR)/$(VV)-valuestore.ring
 	cp -av $(RINGDIR)/valuestore.builder $(RINGDIR)/$(VV)-valuestore.builder
 	cp -av $(RINGDIR)/groupstore.ring $(RINGDIR)/$(GV)-groupstore.ring
