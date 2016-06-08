@@ -50,6 +50,8 @@ run:
 ring:
 	go get github.com/gholt/ring/ring
 	go install github.com/gholt/ring/ring
+	go get github.com/pandemicsyn/ringver
+	go install github.com/pandemicsyn/ringver
 	mkdir -p $(RINGDIR)
 	ring $(RINGDIR)/valuestore.builder create replicas=1 config-file=$(DDIR)/valuestore.toml
 	ring $(RINGDIR)/valuestore.builder add active=true capacity=1000 tier0=removeme
@@ -60,8 +62,6 @@ ring:
 	make ringversion
 
 ringversion:
-	go get github.com/pandemicsyn/ringver
-	go install github.com/pandemicsyn/ringver
 	cp -av $(RINGDIR)/valuestore.ring $(RINGDIR)/$(shell ringver /etc/syndicate/ring/valuestore.ring)-valuestore.ring
 	cp -av $(RINGDIR)/valuestore.builder $(RINGDIR)/$(shell ringver /etc/syndicate/ring/valuestore.ring)-valuestore.builder
 	cp -av $(RINGDIR)/groupstore.ring $(RINGDIR)/$(shell ringver /etc/syndicate/ring/groupstore.ring)-groupstore.ring
