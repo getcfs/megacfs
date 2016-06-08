@@ -63,7 +63,7 @@ ln -s /etc/syndicate/cfssl/ca.pem /var/lib/formic/ca.pem
 ln -s /etc/syndicate/cfssl/localhost-key.pem /var/lib/formic/client.key
 ln -s /etc/syndicate/cfssl/localhost.pem /var/lib/formic/client.crt
 ln -s $GOPATH/bin/cfs /sbin/cfs
-echo -e '#!/bin/sh\ncfs mount $1 $2 -o $4 > /dev/null &' > /sbin/mount.cfs
+echo -e '#!/bin/sh\ncfs mount -o $4 $1 $2 > /dev/null &' > /sbin/mount.cfs
 chmod +x /sbin/mount.cfs
 
 echo "Installing startup scripts"
@@ -111,7 +111,7 @@ echo "creating and mounting a test file system"
 FSID=`cfs -T test create -R aio -N test 2>&1 | awk '{print $5}'`
 cfs -T test grant -addr 127.0.0.1 aio://$FSID
 mkdir -p /mnt/test
-echo "$FSID /mnt/test cfs rw 0 0" >> /etc/fstab
+echo "aio://$FSID /mnt/test cfs rw 0 0" >> /etc/fstab
 mount /mnt/test
 
 echo
