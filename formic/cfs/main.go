@@ -13,8 +13,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/getcfs/fuse"
+	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/pkg/profile"
 	"github.com/satori/go.uuid"
 	"google.golang.org/grpc"
@@ -82,6 +82,11 @@ type NullWriter int
 
 func (NullWriter) Write([]byte) (int, error) { return 0, nil }
 
+var cfsVersion string
+var buildDate string
+var commitVersion string
+var goVersion string
+
 func main() {
 
 	if gogoprofile := os.Getenv("CFS_PROFILE"); gogoprofile == "true" {
@@ -100,6 +105,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "cfs"
 	app.Usage = "Client used to test filesysd"
+	app.Version = fmt.Sprintf(": %s\ncommit: %s\nbuild date: %s\ngo version: %s", cfsVersion, commitVersion, buildDate, goVersion)
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
 			Name:        "token",
@@ -420,19 +426,18 @@ func main() {
 				fusermountPath()
 				// process file system options
 				allowOther := false
+				debugOff := true
 				if c.String("o") != "" {
 					clargs := getArgs(c.String("o"))
 					// crapy debug log handling :)
 					if debug, ok := clargs["debug"]; ok {
-						if debug == "false" {
-							log.SetFlags(0)
-							log.SetOutput(ioutil.Discard)
-						}
-					} else {
-						log.SetFlags(0)
-						log.SetOutput(ioutil.Discard)
+						debugOff = debug == "false"
 					}
 					_, allowOther = clargs["allow_other"]
+				}
+				if debugOff {
+					log.SetFlags(0)
+					log.SetOutput(ioutil.Discard)
 				}
 				// Setup grpc
 				var opts []grpc.DialOption

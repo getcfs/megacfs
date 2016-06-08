@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gholt/store"
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort/api/proto"
 	pb "github.com/getcfs/megacfs/oort/api/valueproto"
+	"github.com/gholt/store"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )

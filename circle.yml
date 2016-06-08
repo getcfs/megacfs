@@ -1,6 +1,6 @@
 machine:
   environment:
-    GOVER: 1.7beta1
+    GOVER: 1.6.2
     GOROOT: ${HOME}/go$GOVER/go
     BUILDPATH: ${HOME}/${CIRCLE_PROJECT_REPONAME}/build
     PATH: ${GOROOT}/bin:${PATH}
@@ -10,7 +10,7 @@ machine:
     - sudo rm -rf /usr/local/go
     - mkdir -v -p $GOROOT
     - if [ ! -e ~/govers/go$GOVER.linux-amd64.tar.gz ]; then curl -o ~/govers/go$GOVER.linux-amd64.tar.gz https://storage.googleapis.com/golang/go$GOVER.linux-amd64.tar.gz; fi
-    - tar -C ~/go1.7beta1 -xzf ~/govers/go$GOVER.linux-amd64.tar.gz
+    - tar -C ~/go$GOVER -xzf ~/govers/go$GOVER.linux-amd64.tar.gz
     - go version
 dependencies:
   cache_directories:
