@@ -13,8 +13,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/gholt/brimtext"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
+	"github.com/gholt/brimtext"
 	"golang.org/x/net/context"
 )
 

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gholt/brimtime"
-	"github.com/gholt/store"
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort/api"
+	"github.com/gholt/brimtime"
+	"github.com/gholt/store"
 	"github.com/peterh/liner"
 	"github.com/spaolacci/murmur3"
 	"golang.org/x/net/context"

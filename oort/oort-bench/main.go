@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gholt/brimtime"
 	gp "github.com/getcfs/megacfs/oort/api/groupproto"
 	vp "github.com/getcfs/megacfs/oort/api/valueproto"
+	"github.com/gholt/brimtime"
 	"github.com/pkg/profile"
 	"github.com/spaolacci/murmur3"
 	"golang.org/x/net/context"

@@ -7,11 +7,11 @@ import (
 	"syscall"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/codegangsta/cli"
 	"github.com/opencontainers/runc/libcontainer"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/specconv"
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/urfave/cli"
 )
 
 var restoreCommand = cli.Command{
@@ -76,6 +76,10 @@ using the runc checkpoint command.`,
 		cli.BoolFlag{
 			Name:  "no-pivot",
 			Usage: "do not use pivot root to jail process inside rootfs.  This should be used whenever the rootfs is on top of a ramdisk",
+		},
+		cli.StringSliceFlag{
+			Name:  "empty-ns",
+			Usage: "create a namespace, but don't restore its properies",
 		},
 	},
 	Action: func(context *cli.Context) error {
@@ -142,6 +146,10 @@ func restoreContainer(context *cli.Context, spec *specs.Spec, config *configs.Co
 	}
 
 	setManageCgroupsMode(context, options)
+
+	if err := setEmptyNsMask(context, options); err != nil {
+		return -1, err
+	}
 
 	// ensure that the container is always removed if we were the process
 	// that created it.
