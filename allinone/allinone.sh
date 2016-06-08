@@ -103,19 +103,10 @@ syndicate-client -addr 127.0.0.1:8444 capacity $NODEID 1000
 syndicate-client -addr 127.0.0.1:8444 active $NODEID true
 syndicate-client -addr 127.0.0.1:8444 rm $DUMMY_NODEID
 
+echo "adding test account and test token"
+echo 'write /token test {"token":"test","acctid":"test"}' | oort-cli -mutualtls -g -ca /etc/syndicate/ca.pem -cert /etc/syndicate/client.crt -key /etc/syndicate/client.key
+echo 'write /acct test {"id":"test","name":"test","token":"test"}' | oort-cli -mutualtls -g -ca /etc/syndicate/ca.pem -cert /etc/syndicate/client.crt -key /etc/syndicate/client.key
+
 echo
-echo "Create a mount directory"
-echo "mkdir -p /mnt/cfs"
+echo "cfs -T test list"
 echo
-echo "Use acctdv2 and oort-cli to create an account"
-echo
-echo "You can create an file system with the cfs client"
-echo "Example:"
-echo "cfs -T [account token uuid] create aio://[account uuid] -N test"
-echo
-echo "Once you create a file system you need to grant a local ip address 127.0.0.1"
-echo "Example:"
-echo "cfs -T [account token uuid] grant aio://[account uuid]/[file system uuid] -addr 127.0.0.1"
-echo
-echo "For example: to create a cfsfuse mount point create the location and run the mount command:"
-echo "mount -t cfs  aio0://cfsteam/allinone/ /mnt/fsdrive -o host=localhost:8445"
