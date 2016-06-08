@@ -400,22 +400,16 @@ func main() {
 			Name:      "mount",
 			Usage:     "mount a file system",
 			ArgsUsage: "<region>://<file system uuid> <mount point> -o [OPTIONS]",
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:  "o",
-					Value: "",
-					Usage: "mount options",
-				},
-			},
 			Action: func(c *cli.Context) error {
 				if !c.Args().Present() {
-					fmt.Println("Invalid syntax for revoke.")
+					fmt.Println("Invalid syntax for mount.")
 					os.Exit(1)
 				}
 				serverAddr, fsNum = parseurl(c.Args().Get(0), "8445")
 				fsnum, err := uuid.FromString(fsNum)
 				if err != nil {
 					fmt.Print("File System id is not valid: ", err)
+					os.Exit(1)
 				}
 				mountpoint := c.Args().Get(1)
 				// check mountpoint exists
@@ -424,16 +418,18 @@ func main() {
 					os.Exit(1)
 				}
 				fusermountPath()
-				// process file system options
 				allowOther := false
 				debugOff := true
-				if c.String("o") != "" {
-					clargs := getArgs(c.String("o"))
-					// crapy debug log handling :)
-					if debug, ok := clargs["debug"]; ok {
-						debugOff = debug == "false"
+				// process file system options
+				if c.Args().Get(2) == "-o" {
+					if c.Args().Get(3) != "" {
+						clargs := getArgs(c.Args().Get(3))
+						// crapy debug log handling :)
+						if _, ok := clargs["debug"]; ok {
+							debugOff = false
+						}
+						_, allowOther = clargs["allow_other"]
 					}
-					_, allowOther = clargs["allow_other"]
 				}
 				if debugOff {
 					log.SetFlags(0)
