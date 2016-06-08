@@ -85,6 +85,12 @@ TENDOT=$(ifconfig | awk -F "[: ]+" '/inet addr:/ { if ($4 != "127.0.0.1") print 
 sed -e "s/TENDOTME/$TENDOT/g" /etc/syndicate/cfssl/localhost.json.tmpl | sed -e "s/HOSTNAMEME/`hostname -f`/g" > /etc/syndicate/cfssl/localhost.json
 cfssl gencert -ca=/etc/syndicate/cfssl/ca.pem -ca-key=/etc/syndicate/cfssl/ca-key.pem -config=/etc/syndicate/cfssl/ca-config.json -profile=client-server /etc/syndicate/cfssl/localhost.json | cfssljson -bare localhost
 
+echo "starting services"
+systemctl start synd
+systemctl start oort-valued
+systemctl start oort-groupd
+systemctl start formicd
+
 echo "fixing rings"
 DUMMY_NODEID=`syndicate-client search | awk '/ID/{print $2}' | head -n1`
 NODEID=`syndicate-client search | awk '/ID/{print $2}' | tail -n1`
@@ -97,14 +103,6 @@ syndicate-client -addr 127.0.0.1:8444 capacity $NODEID 1000
 syndicate-client -addr 127.0.0.1:8444 active $NODEID true
 syndicate-client -addr 127.0.0.1:8444 rm $DUMMY_NODEID
 
-echo
-echo "!! Don't forget to remove the place holder nodes from the ring once you've started your nodes"
-echo
-echo "To start services run:"
-echo "systemctl start synd"
-echo "systemctl start oort-valued"
-echo "systemctl start oort-groupd"
-echo "systemctl start formicd"
 echo
 echo "Create a mount directory"
 echo "mkdir -p /mnt/cfs"
