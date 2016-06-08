@@ -57,7 +57,7 @@ ring:
 	ring $(RINGDIR)/groupstore.builder create replicas=1 config-file=$(DDIR)/groupstore.toml
 	ring $(RINGDIR)/groupstore.builder add active=true capacity=1000 tier0=removeme
 	ring $(RINGDIR)/groupstore.builder ring
-	$(MAKE) ringversion
+	make ringversion
 
 ringversion:
 	go get github.com/pandemicsyn/ringver
