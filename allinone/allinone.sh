@@ -27,6 +27,13 @@ echo "export GOPATH=/root/go" >> /$USER/.bashrc
 echo "export PATH=\$PATH:\$GOPATH/bin" >> /$USER/.bashrc
 source /$USER/.bashrc
 
+echo "Install Glide"
+mkdir -p $GOPATH/src/github.com/Masterminds
+cd $GOPATH/src/github.com/Masterminds
+git clone git@github.com:Masterminds/glide
+cd glide
+make install
+
 echo "Setting up megacfs repo"
 mkdir -p $GOPATH/src/github.com/getcfs
 cd $GOPATH/src/github.com/getcfs/
