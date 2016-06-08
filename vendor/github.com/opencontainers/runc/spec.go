@@ -9,9 +9,9 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/codegangsta/cli"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/urfave/cli"
 )
 
 var specCommand = cli.Command{
@@ -42,9 +42,9 @@ command in a new hello-world container named container1:
     tar -C rootfs -xf hello-world.tar
     runc spec
     sed -i 's;"sh";"/hello";' ` + specConfig + `
-    runc start container1
+    runc run container1
 
-In the start command above, "container1" is the name for the instance of the
+In the run command above, "container1" is the name for the instance of the
 container that you are starting. The name you provide for the container instance
 must be unique on your host.
 

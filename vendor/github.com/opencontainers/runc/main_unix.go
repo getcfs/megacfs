@@ -6,9 +6,9 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/codegangsta/cli"
 	"github.com/opencontainers/runc/libcontainer"
 	_ "github.com/opencontainers/runc/libcontainer/nsenter"
+	"github.com/urfave/cli"
 )
 
 func init() {
@@ -21,7 +21,7 @@ func init() {
 var initCommand = cli.Command{
 	Name:  "init",
 	Usage: `initialize the namespaces and launch the process (do not call it outside of runc)`,
-	Action: func(context *cli.Context) {
+	Action: func(context *cli.Context) error {
 		factory, _ := libcontainer.New("")
 		if err := factory.StartInitialization(); err != nil {
 			// as the error is sent back to the parent there is no need to log
