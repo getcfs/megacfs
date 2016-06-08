@@ -16,10 +16,10 @@ import (
 	"github.com/getcfs/fuse"
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/pkg/profile"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"gopkg.in/urfave/cli.v2"
+	cli "gopkg.in/urfave/cli.v2"
 )
 
 var regions = map[string]string{
