@@ -1,0 +1,18 @@
+[Unit]
+Description=thehook
+After=syslog.target network.target
+
+[Service]
+Type=simple
+User=CHANGEME
+EnvironmentFile=-/etc/default/thehook
+ExecStart=/usr/local/bin/thehook
+RestartSec=5
+Restart=on-failure
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=thehook
+
+[Install]
+WantedBy=multi-user.target
