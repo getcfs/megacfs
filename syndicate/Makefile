@@ -3,8 +3,6 @@ VERSION := $(shell cat VERSION)
 ITTERATION := $(shell date +%s)
 DDIR = /etc/syndicate
 RINGDIR = /etc/syndicate/ring
-VV = $(shell ringver /etc/syndicate/ring/valuestore.ring)
-GV = $(shell ringver /etc/syndicate/ring/groupstore.ring)
 
 deps:
 	go get -u ./...
@@ -64,7 +62,7 @@ ring:
 ringversion:
 	go get github.com/pandemicsyn/ringver
 	go install github.com/pandemicsyn/ringver
-	cp -av $(RINGDIR)/valuestore.ring $(RINGDIR)/$(VV)-valuestore.ring
-	cp -av $(RINGDIR)/valuestore.builder $(RINGDIR)/$(VV)-valuestore.builder
-	cp -av $(RINGDIR)/groupstore.ring $(RINGDIR)/$(GV)-groupstore.ring
-	cp -av $(RINGDIR)/groupstore.builder $(RINGDIR)/$(GV)-groupstore.builder
+	cp -av $(RINGDIR)/valuestore.ring $(RINGDIR)/$(shell ringver /etc/syndicate/ring/valuestore.ring)-valuestore.ring
+	cp -av $(RINGDIR)/valuestore.builder $(RINGDIR)/$(shell ringver /etc/syndicate/ring/valuestore.ring)-valuestore.builder
+	cp -av $(RINGDIR)/groupstore.ring $(RINGDIR)/$(shell ringver /etc/syndicate/ring/groupstore.ring)-groupstore.ring
+	cp -av $(RINGDIR)/groupstore.builder $(RINGDIR)/$(shell ringver /etc/syndicate/ring/groupstore.ring)-groupstore.builder
