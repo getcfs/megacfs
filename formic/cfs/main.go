@@ -421,14 +421,22 @@ func main() {
 				allowOther := false
 				debugOff := true
 				// process file system options
-				if c.Args().Get(2) == "-o" {
-					if c.Args().Get(3) != "" {
-						clargs := getArgs(c.Args().Get(3))
-						// crapy debug log handling :)
-						if _, ok := clargs["debug"]; ok {
-							debugOff = false
+				if c.Args().Get(2) != "" {
+					if c.Args().Get(2) == "-o" {
+						if c.Args().Get(3) != "" {
+							clargs := getArgs(c.Args().Get(3))
+							// crapy debug log handling :)
+							if _, ok := clargs["debug"]; ok {
+								debugOff = false
+							}
+							_, allowOther = clargs["allow_other"]
+						} else {
+							log.Println("Cannot have a -o with no options")
+							os.Exit(1)
 						}
-						_, allowOther = clargs["allow_other"]
+					} else {
+						log.Println("Invalid Syntax for options")
+						os.Exit(1)
 					}
 				}
 				if debugOff {
