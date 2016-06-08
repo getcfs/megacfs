@@ -75,9 +75,11 @@ cp -av formic/packaging/root/usr/share/formicd/systemd/formicd.service /lib/syst
 systemctl daemon-reload
 
 echo "setting up first rings with dummy nodes"
+cd $GOPATH/src/github.com/getcfs/megacfs/syndicate
 make ring
 
 echo "generating custom ssl cert"
+go get -u github.com/cloudflare/cfssl/cmd/...
 cd /etc/syndicate/cfssl
 TENDOT=$(ifconfig | awk -F "[: ]+" '/inet addr:/ { if ($4 != "127.0.0.1") print $4 }' | egrep "^10\.")
 sed -e "s/TENDOTME/$TENDOT/g" /etc/syndicate/cfssl/localhost.json.tmpl | sed -e "s/HOSTNAMEME/`hostname -f`/g" > /etc/syndicate/cfssl/localhost.json
