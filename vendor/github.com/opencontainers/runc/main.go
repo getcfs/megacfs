@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/codegangsta/cli"
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/urfave/cli"
 )
 
 // version will be populated by the Makefile, read from
@@ -37,7 +37,7 @@ The root filesystem contains the contents of the container.
 
 To start a new instance of a container:
 
-    # runc start [ -b bundle ] <container-id>
+    # runc run [ -b bundle ] <container-id>
 
 Where "<container-id>" is your name for the instance of the container that you
 are starting. The name you provide for the container instance must be unique on
