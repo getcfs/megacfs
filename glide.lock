@@ -1,8 +1,8 @@
 hash: a797e626fa5578d80854690541f427aac42282fde9a74bf4171d865a614d51bc
-updated: 2016-06-03T14:03:01.223203428-05:00
+updated: 2016-06-08T12:37:36.674326807-05:00
 imports:
 - name: github.com/beevik/ntp
-  version: f0545e6f2c3cb0d0a2ed115b88c539d8e5247ef3
+  version: 8ed1e691d326c0ab1169cacbc1e8b5c988089c04
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
@@ -12,17 +12,17 @@ imports:
 - name: github.com/cloudfoundry/gosigar
   version: c32d31af94b0e9d3b2877e49c1a581ad5a793343
 - name: github.com/coreos/go-systemd
-  version: 4484981625c1a6a2ecb40a390fcb6a9bcfee76e3
+  version: 6dc8b843c670f2027cc26b164935635840a40526
   subpackages:
   - activation
   - util
   - dbus
 - name: github.com/coreos/pkg
-  version: 7f080b6c11ac2d2347c3cd7521e810207ea1a041
+  version: db59686ef7fbc1c63a2325fe702be75bcfe7eedf
   subpackages:
   - dlopen
 - name: github.com/docker/go-connections
-  version: c7838b258fbfa3fe88eecfb2a0e08ea0dbd6a646
+  version: 990a1a1a70b0da4c4cb70e117971a4f0babfbf1a
   subpackages:
   - sockets
 - name: github.com/docker/go-plugins-helpers
@@ -56,7 +56,7 @@ imports:
 - name: github.com/godbus/dbus
   version: 32c6cc29c14570de4cf6d7e7737d68fb2d01ad15
 - name: github.com/gogo/protobuf
-  version: 7883e1468d48d969e1c3ce4bcde89b6a7dd4adc4
+  version: 318371cbef6bab80e8d1c69b470fffa79eebfb54
   subpackages:
   - proto
 - name: github.com/golang/protobuf
@@ -77,7 +77,7 @@ imports:
 - name: github.com/Microsoft/go-winio
   version: 4f1a71750d95a5a8a46c40a67ffbed8129c2f138
 - name: github.com/opencontainers/runc
-  version: c6f09f95f2811d070f3a96177d97f187d13d9a89
+  version: e34cb45a49beb83ababfa32df43b8e7e27f0ac51
   subpackages:
   - libcontainer/user
 - name: github.com/pandemicsyn/cmdctrl
@@ -102,7 +102,7 @@ imports:
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: a3a8fe85f2579bcfec713dbfacbdd0797a792f3a
+  version: 3a184ff7dfd46b9091030bf2e56c71112b0ddb0e
   subpackages:
   - expfmt
   - log
@@ -117,9 +117,9 @@ imports:
 - name: github.com/russross/blackfriday
   version: 1d6b8e9301e720b08a8938b8c25c018285885438
 - name: github.com/satori/go.uuid
-  version: f9ab0dce87d815821e221626b772e3475a0d2749
+  version: 879c5887cd475cd7864858769793b2ceb0d44feb
 - name: github.com/shirou/gopsutil
-  version: 586bb697f3ec9f8ec08ffefe18f521a64534037c
+  version: e9afb36ccf661e1a596d7f852bd02a4d9b71c7ae
   subpackages:
   - disk
   - mem
@@ -137,11 +137,11 @@ imports:
 - name: github.com/StackExchange/wmi
   version: f3e2bae1e0cb5aef83e319133eabfee30013a4a5
 - name: golang.org/x/crypto
-  version: 5bcd134fee4dd1475da17714aac19c0aa0142e2f
+  version: 77f4136a99ffb5ecdbdd0226bd5cb146cf56bc0e
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net
-  version: c4c3ea71919de159c9e246d7be66deb7f0a39a58
+  version: 313cf39d4ac368181bce6960ac9be9e7cee67e68
   subpackages:
   - context
   - http2
@@ -156,7 +156,7 @@ imports:
   - unix
   - windows
 - name: google.golang.org/grpc
-  version: ce6213360cb8fadd0b08f9513406176ec931c5f7
+  version: 2991ee27f867c664f435417735d5024f43d0d201
   subpackages:
   - codes
   - credentials
@@ -167,5 +167,5 @@ imports:
   - naming
   - transport
 - name: gopkg.in/urfave/cli.v2
-  version: 2f3de598bfaffd51808189c45d4cb2ca442d2896
+  version: 3f702904c5bbdce408b9ddc511b94bbc4d919fcb
 devImports: []
