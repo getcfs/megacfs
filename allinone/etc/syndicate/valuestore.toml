@@ -1,0 +1,30 @@
+[CmdCtrlConfig]
+ListenAddress = "0.0.0.0:4444"
+CertFile = "/var/lib/oort-value/server.crt"
+KeyFile = "/var/lib/oort-value/server.key"
+UseTLS = true
+Enabled = true
+
+[OortValueStoreConfig]
+MaxClients = 8192
+Profile = false
+Debug = false
+InsecureSkipVerify = false
+CertFile = "/var/lib/oort-value/server.crt"
+KeyFile = "/var/lib/oort-value/server.key"
+CAFile = "/var/lib/oort-value/ca.pem"
+MutualTLS = true
+MetricsAddr = ":9200"
+
+[ValueStoreConfig]
+Scale = 0.1
+CompactionInterval = 42
+ValueCap = 4194302
+Path = "/var/lib/oort-value/data"
+
+[TCPMsgRingConfig]
+UseTLS = true
+CertFile = "/var/lib/oort-value/server.crt"
+KeyFile = "/var/lib/oort-value/server.key"
+CAFile = "/var/lib/oort-value/ca.pem"
+MutualTLS = true
