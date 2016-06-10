@@ -220,7 +220,7 @@ type {{.T}}StoreConfig struct {
     // the Path or TOCPath device grows above this threshold, writes will be
     // automatically disabled.
     // 0 will use the default; a negative value will disable the check.
-    // default: 0.95 (95%)
+    // default: 0.94 (94%)
     DiskUsageDisableThreshold float32
     // DiskUsageReenableThreshold controls when to automatically re-enable
     // writes; the number is a percentage (1 == 100%). If writes are
@@ -266,7 +266,7 @@ type {{.T}}StoreConfig struct {
     // the number is a percentage (1 == 100%). If the percentage of used memory
     // grows above this threshold, writes will be automatically disabled.
     // 0 will use the default; a negative value will disable the check.
-    // default: 0.95 (95%)
+    // default: 0.94 (94%)
     MemUsageDisableThreshold float32
     // MemUsageReenableThreshold controls when to automatically re-enable
     // writes; the number is a percentage (1 == 100%). If writes are
@@ -803,7 +803,7 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         }
     }
     if cfg.DiskUsageDisableThreshold == 0 {
-        cfg.DiskUsageDisableThreshold = 0.95
+        cfg.DiskUsageDisableThreshold = 0.94
     }
     if cfg.DiskUsageDisableThreshold < 0 {
         cfg.DiskUsageDisableThreshold = 0
@@ -876,7 +876,7 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         }
     }
     if cfg.MemUsageDisableThreshold == 0 {
-        cfg.MemUsageDisableThreshold = 0.95
+        cfg.MemUsageDisableThreshold = 0.94
     }
     if cfg.MemUsageDisableThreshold < 0 {
         cfg.MemUsageDisableThreshold = 0
