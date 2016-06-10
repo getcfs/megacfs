@@ -63,6 +63,3 @@ install:
 
 up:
 	glide up -u
-
-# Example of updating a single dependency (and its dependencies):
-#   glide get -s -u -v github.com/gholt/store

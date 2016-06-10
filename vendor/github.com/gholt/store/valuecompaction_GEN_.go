@@ -186,7 +186,7 @@ func (store *defaultValueStore) compactionWorker(jobChan chan *valueCompactionJo
 			continue
 		}
 		// TODO: This 1000 should be in the Config.
-		// If total is less than 100, it'll automatically get compacted.
+		// If total is less than 1000, it'll automatically get compacted.
 		if total < 1000 {
 			atomic.AddInt32(&store.smallFileCompactions, 1)
 		} else {
@@ -319,8 +319,22 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 						atomic.AddUint32(&stale, 1)
 						continue
 					}
+					// Must assume entry was deleted and the tombstone has
+					// expired; must not resurrect and if there had been a read
+					// error on initial startup but now compaction can read the
+					// value, it's better to just let replication from another
+					// node take place anyway.
+					if timestampBits == 0 { // not found
+						atomic.AddUint32(&stale, 1)
+						continue
+					}
 					timestampBits, value, err := store.read(wr.KeyA, wr.KeyB, value[:0])
-					if err != nil && !IsNotFound(err) {
+					// Same as above note about timestampBits == 0.
+					if IsNotFound(err) {
+						atomic.AddUint32(&stale, 1)
+						continue
+					}
+					if err != nil {
 						store.logError("compactFile: error reading while compacting %s: %s", nametoc, err)
 						atomic.AddUint32(&readErrorCount, 1)
 						// Keeps going, but the readErrorCount will let it know
