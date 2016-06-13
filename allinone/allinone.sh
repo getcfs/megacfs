@@ -63,7 +63,7 @@ ln -s /etc/syndicate/cfssl/ca.pem /var/lib/formic/ca.pem
 ln -s /etc/syndicate/cfssl/localhost-key.pem /var/lib/formic/client.key
 ln -s /etc/syndicate/cfssl/localhost.pem /var/lib/formic/client.crt
 ln -s $GOPATH/bin/cfs /sbin/cfs
-echo -e '#!/bin/sh\ncfs mount -o $4 $1 $2 > /dev/null &' > /sbin/mount.cfs
+echo -e '#!/bin/sh\ncfs mount $1 $2 -o $4 > /dev/null &' > /sbin/mount.cfs
 chmod +x /sbin/mount.cfs
 
 echo "Installing startup scripts"
@@ -117,4 +117,3 @@ mount /mnt/test
 echo
 echo "you should have a cfs file system mounted at /mnt/test"
 echo
-
