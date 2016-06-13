@@ -189,6 +189,7 @@ func copyAttr(dst *fuse.Attr, src *pb.Attr) {
 	dst.Crtime = time.Unix(src.Crtime, 0)
 	dst.Uid = src.Uid
 	dst.Gid = src.Gid
+	dst.Blocks = dst.Size / 512 // set Blocks so df works without the --apparent-size flag
 }
 
 // Get a context that includes fsid
