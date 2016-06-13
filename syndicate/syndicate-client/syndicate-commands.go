@@ -143,6 +143,20 @@ func (s *SyndClient) setTierCmd(id uint64, tiers []string) error {
 	return nil
 }
 
+func (s *SyndClient) restartNodeCmd(id uint64) error {
+	ctx, _ := context.WithTimeout(context.Background(), 180*time.Second)
+	c, err := s.client.RestartNode(ctx, &pb.Node{Id: id})
+	if err != nil {
+		return err
+	}
+	report := [][]string{
+		[]string{"Status:", fmt.Sprintf("%v", c.Status)},
+		[]string{"Msg:", fmt.Sprintf("%v", c.Msg)},
+	}
+	fmt.Print(brimtext.Align(report, nil))
+	return nil
+}
+
 func (s *SyndClient) printNodeConfigCmd(id uint64) error {
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	c, err := s.client.GetNodeConfig(ctx, &pb.Node{Id: id})

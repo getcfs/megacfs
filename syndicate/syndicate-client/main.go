@@ -46,7 +46,6 @@ func helpCmd() error {
 # cmdctrl based commands
 start <cmdctrladdress>      #attempts to start the remote nodes backend
 stop <cmdctrladdress>       #attempts to stop the remote nodes backend
-restart <cmdctrladdress>    #attempts to restart the remote nodes backend
 exit <cmdctrladdress>       #attempts to exit the remote node
 ccupgrade <ccaddr> <ver>    #DEPRECATED asks the node to upgrade itself 
 ccsoftwareversion <ccaddr>  #DEPRECATED gets the currently running version from the node
@@ -73,6 +72,7 @@ active <nodeid> true|false
 capacity <nodeid> <uint32>
 addrs <nodeid> 1.1.1.1,2.2.2.2,...
 tiers <nodeid> SomeTier,SomeTier2,...
+restart <nodeid>           #attempts to restart the node
 `, u.Username)
 }
 
@@ -110,15 +110,6 @@ func (s *SyndClient) mainEntry(args []string) error {
 			return err
 		}
 		return c.startNodeCmd()
-	case "restart":
-		if len(args) != 2 {
-			return helpCmd()
-		}
-		c, err := NewCmdCtrlClient(args[1])
-		if err != nil {
-			return err
-		}
-		return c.restartNodeCmd()
 	case "stop":
 		if len(args) != 2 {
 			return helpCmd()
@@ -274,6 +265,15 @@ func (s *SyndClient) mainEntry(args []string) error {
 			}
 		}
 		return nil
+	case "restart":
+		if len(args) != 2 {
+			return helpCmd()
+		}
+		id, err := strconv.ParseUint(args[1], 0, 64)
+		if err != nil {
+			return err
+		}
+		return s.restartNodeCmd(id)
 	case "upgradesoftware":
 		if len(args) != 2 {
 			return helpCmd()
