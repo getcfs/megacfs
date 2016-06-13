@@ -44,9 +44,13 @@ type FancySlackMessage struct {
 	Attachments []SlackMessage `json:"attachments"`
 }
 
+type SimpleSlackMessage struct {
+	Text string `json:"text"`
+}
+
 func execEvent(e HookMsg) {
 	msg := FancySlackMessage{}
-	msg.Text = fmt.Sprintf("!! Triggered CI Deploy for version %s !!", e.Version)
+	msg.Text = fmt.Sprintf("!! Result for version %s !!", e.Version)
 	for _, cmd := range conf.Commands {
 		am := SlackMessage{}
 		r, err := runCmd(cmd, []string{e.Version})
@@ -81,18 +85,19 @@ func execEvent(e HookMsg) {
 		}
 		msg.Attachments = append(msg.Attachments, am)
 	}
-	log.Println(postToSlack(msg))
+	payload, _ := json.Marshal(msg)
+	log.Println(postToSlack(payload))
 }
 
-func postToSlack(msg FancySlackMessage) error {
-	payload, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
+func postToSlack(payload []byte) error {
 	req, _ := http.NewRequest("POST", conf.slackURL, bytes.NewBuffer(payload))
 	req.Header.Add("content-type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	defer res.Body.Close()
+	if err != nil {
+		log.Println(err.Error())
+		return fmt.Errorf("Error posting to slack")
+	}
 	if res.StatusCode != 200 {
 		log.Printf("%s", payload)
 		log.Println(res.StatusCode)
@@ -149,6 +154,11 @@ func ciHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go execEvent(event)
+	msg := SimpleSlackMessage{
+		Text: fmt.Sprintf("!! Starting deploy of %s !!", event.Version),
+	}
+	payload, _ := json.Marshal(msg)
+	log.Println(postToSlack(payload))
 	fmt.Fprintf(w, "CI Event in progress")
 	return
 }
