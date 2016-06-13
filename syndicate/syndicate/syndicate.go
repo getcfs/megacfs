@@ -838,6 +838,19 @@ func (s *Server) nodeInRing(hostname string, addrs []string) bool {
 	return false
 }
 
+func (s *Server) RestartNode(c context.Context, n *pb.Node) (*pb.NodeStatus, error) {
+	s.Lock()
+	defer s.Unlock()
+	var err error
+	node := s.r.Node(n.Id)
+	if node == nil {
+		return &pb.NodeStatus{Status: false}, fmt.Errorf("Node not found")
+	}
+	result := &pb.NodeStatus{}
+	result.Status, result.Msg, err = s.managedNodes[n.Id].Restart()
+	return result, err
+}
+
 func (s *Server) RegisterNode(c context.Context, r *pb.RegisterRequest) (*pb.NodeConfig, error) {
 	s.Lock()
 	defer s.Unlock()
