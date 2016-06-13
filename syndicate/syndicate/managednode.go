@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	_FH_STOP_NODE_TIMEOUT = 60
+	_FH_STOP_NODE_TIMEOUT = 180
 )
 
 var (
 	DEFAULT_CTX_TIMEOUT = 10 * time.Second
+	RESTART_CTX_TIMEOUT = 180 * time.Second
 )
 
 func ParseManagedNodeAddress(addr string, port int) (string, error) {
@@ -68,6 +69,7 @@ type ManagedNode interface {
 	Disconnect() error
 	Ping() (bool, string, error)
 	Stop() error
+	Restart() (bool, string, error)
 	RingUpdate(*[]byte, int64) (bool, error)
 	Lock()
 	Unlock()
@@ -175,6 +177,18 @@ func (n *managedNode) Stop() error {
 	}
 	n.active = status.Status
 	return nil
+}
+
+// Restart a remote node
+func (n *managedNode) Restart() (bool, string, error) {
+	n.Lock()
+	defer n.Unlock()
+	ctx, _ := context.WithTimeout(context.Background(), RESTART_CTX_TIMEOUT*time.Second)
+	status, err := n.client.Restart(ctx, &cc.EmptyMsg{})
+	if err != nil {
+		return false, "", err
+	}
+	return status.Status, status.Msg, nil
 }
 
 // RingUpdate lets you push a ring update to a remote node
