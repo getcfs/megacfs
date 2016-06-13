@@ -426,7 +426,14 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 	t.Qtime = tsm
 	t.FsId = []byte("1") // TODO: Make sure this gets set when we are tracking fsids
 	inode, err := o.GetInode(ctx, d.Id)
-	if err != nil {
+	if store.IsNotFound(err) {
+		// file wasn't found. attempt to remove the group store entry
+		err = o.comms.DeleteGroupItem(ctx, parent, []byte(name))
+		if err != nil {
+			return 1, err
+		}
+		return 0, nil
+	} else if err != nil {
 		return 1, err
 	}
 	t.Blocks = inode.Blocks

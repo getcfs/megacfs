@@ -314,6 +314,7 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 			})
 			data = fuse.AppendDirent(data, fuse.Dirent{
 				Name: "..",
+				Inode: 1, // TODO: not sure what value this should be, but this seems to work fine.
 				Type: fuse.DT_Dir,
 			})
 			for _, de := range d.DirEntries {
