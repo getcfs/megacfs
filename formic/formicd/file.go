@@ -424,6 +424,34 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 	if err != nil {
 		return 1, err
 	}
+	if fuse.DirentType(d.Type) == fuse.DT_Dir {
+		fsid, err := GetFsId(ctx)
+		if err != nil {
+			return 1, err
+		}
+		inode, err := o.GetInode(ctx, d.Id)
+		if err != nil {
+			return 1, err
+		}
+		items, err := o.comms.ReadGroup(ctx, formic.GetID(fsid.Bytes(), uint64(inode.Inode), 0))
+		if err != nil {
+			return 1, err
+		}
+		// return error if directory is not empty
+		dirent := &pb.DirEntry{}
+		for _, item := range items {
+			err = formic.Unmarshal(item.Value, dirent)
+			log.Println("dir remove item:", dirent)
+			if err != nil {
+				return 1, err
+			}
+			if dirent.Tombstone != nil {
+				// Skip deleted entries
+				continue
+			}
+			return 1, err
+		}
+	}
 	// TODO: More error handling needed
 	// TODO: Handle possible race conditions where user writes and deletes the same file over and over
 	// Mark the item deleted in the group
