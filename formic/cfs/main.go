@@ -468,6 +468,8 @@ func main() {
 						fuse.DefaultPermissions(),
 						fuse.MaxReadahead(128*1024),
 						fuse.AsyncRead(),
+						fuse.WritebackCache(),
+						fuse.AutoInvalData(),
 					)
 				} else {
 					cfs, err = fuse.Mount(
@@ -479,8 +481,8 @@ func main() {
 						fuse.DefaultPermissions(),
 						fuse.MaxReadahead(128*1024),
 						fuse.AsyncRead(),
-						//fuse.WritebackCache(), // Waiting on concurrent chunk update fix
-						//fuse.AutoInvalData(),  // requires https://github.com/bazil/fuse/pull/137
+						fuse.WritebackCache(),
+						fuse.AutoInvalData(),
 					)
 				}
 				if err != nil {
