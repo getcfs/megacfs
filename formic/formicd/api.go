@@ -297,13 +297,22 @@ func (s *apiServer) Write(ctx context.Context, r *pb.WriteRequest) (*pb.WriteRes
 		if err != nil {
 			return &pb.WriteResponse{Status: 1}, err
 		}
-		s.updateChan <- &UpdateItem{
-			id:        formic.GetID(fsid.Bytes(), r.Inode, 0),
-			block:     block,
-			blocksize: uint64(s.blocksize),
-			size:      uint64(len(payload)),
-			mtime:     time.Now().Unix(),
-		}
+		err = s.fs.Update(
+			ctx,
+			formic.GetID(fsid.Bytes(), r.Inode, 0),
+			block,
+			uint64(s.blocksize),
+			uint64(r.Offset + int64(len(r.Payload))),
+			time.Now().Unix(),
+		)
+		//s.updateChan <- &UpdateItem{
+		//	id:        formic.GetID(fsid.Bytes(), r.Inode, 0),
+		//	block:     block,
+		//	blocksize: uint64(s.blocksize),
+		//	//size:      uint64(len(payload)),
+		//	size:	uint64(r.Offset + int64(len(r.Payload))),
+		//	mtime:     time.Now().Unix(),
+		//}
 		cur += sendSize
 		block += 1
 	}

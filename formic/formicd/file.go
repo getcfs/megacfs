@@ -23,6 +23,7 @@ const (
 	InodeEntryVersion = 1
 	DirEntryVersion   = 1
 	FileBlockVersion  = 1
+	MaxRetries = 10
 )
 
 type FileService interface {
@@ -77,6 +78,12 @@ func (o *StoreComms) WriteValue(ctx context.Context, id, data []byte) error {
 	keyA, keyB := murmur3.Sum128(id)
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	oldTimestampMicro, err := o.vstore.Write(ctx, keyA, keyB, timestampMicro, data)
+	retries := 0
+	for (oldTimestampMicro >= timestampMicro) && (retries < MaxRetries) {
+		retries++
+		timestampMicro = brimtime.TimeToUnixMicro(time.Now())
+		oldTimestampMicro, err = o.vstore.Write(ctx, keyA, keyB, timestampMicro, data)
+	}
 	if err != nil {
 		return err
 	}
@@ -470,10 +477,13 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 		n.Blocks = block + 1
 		n.LastBlock = size
 		n.BlockSize = blocksize
-		n.Attr.Size = blocksize*block + size
+		//n.Attr.Size = blocksize*block + size
 	} else if block == (blocks - 1) {
 		n.LastBlock = size
-		n.Attr.Size = blocksize*block + size
+		//n.Attr.Size = blocksize*block + size
+	}
+	if size > n.Attr.Size {
+		n.Attr.Size = size
 	}
 	if mtime > n.Attr.Mtime {
 		n.Attr.Mtime = mtime
