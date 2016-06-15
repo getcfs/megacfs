@@ -441,7 +441,6 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 		dirent := &pb.DirEntry{}
 		for _, item := range items {
 			err = formic.Unmarshal(item.Value, dirent)
-			log.Println("dir remove item:", dirent)
 			if err != nil {
 				return 1, err
 			}
