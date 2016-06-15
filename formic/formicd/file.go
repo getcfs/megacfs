@@ -23,7 +23,7 @@ const (
 	InodeEntryVersion = 1
 	DirEntryVersion   = 1
 	FileBlockVersion  = 1
-	MaxRetries = 10
+	MaxRetries        = 10
 )
 
 type FileService interface {
@@ -345,7 +345,7 @@ func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string
 	// Get the id
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
 	if store.IsNotFound(err) {
-		return "", &pb.Attr{}, nil
+		return "", &pb.Attr{}, formic.ErrNotFound
 	} else if err != nil {
 		return "", &pb.Attr{}, err
 	}
