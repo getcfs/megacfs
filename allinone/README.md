@@ -8,3 +8,13 @@
 -      token        test
 -      filesystem   test
 -      mount point  /mnt/test
+
+
+
+
+- aioutil.sh will let you install a couple of tools
+-      FancyVIM
+-      prompt with current get branch
+-      Install PROTOBUFF
+
+BUILDPROTOBUF=yes FANCYVIM=yes FANCYPROMPT=yes bash aioutil.sh
