@@ -7,9 +7,12 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/spaolacci/murmur3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 )
 
 var ErrZeroValue = errors.New("Got 0 length message")
+var ErrNotFound = grpc.Errorf(codes.Code(5), "Not Found")
 
 func GetID(fsid []byte, inode, block uint64) []byte {
 	// TODO: Figure out what arrangement we want to use for the hash
