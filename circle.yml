@@ -36,11 +36,9 @@ test:
 deployment:
   master:
     branch: master
-    owner: getcfs
     commands:
         - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && utils/ghr -t $GITHUB_TOKEN -u getcfs --replace --prerelease pre-`cat VERSION` $BUILDPATH
   production:
     branch: prod
-    owner: getcfs
     commands:
         - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && utils/ghr -t $GITHUB_TOKEN -u getcfs `cat VERSION` $BUILDPATH && http $THEHOOK_HOST key=$THEHOOK_KEY version=`cat VERSION`
