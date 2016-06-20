@@ -36,9 +36,15 @@
 - `./runtests` test runner with coverage tracking by default
 - testing on OS X
 - testing on Windows
+- `UintFlag`, `Uint64Flag`, and `Int64Flag` types and supporting code
+
+### Changed
+- Use spaces for alignment in help/usage output instead of tabs, making the
+  output alignment consistent regardless of tab width
 
 ### Fixed
 - Printing of command aliases in help text
+- Printing of visible flags for both struct and struct pointer flags
 
 ## [1.17.0] - 2016-05-09
 ### Added

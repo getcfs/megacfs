@@ -24,7 +24,7 @@ type CmdCtrlClient struct {
 func NewCmdCtrlClient(address string) (*CmdCtrlClient, error) {
 	var err error
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})

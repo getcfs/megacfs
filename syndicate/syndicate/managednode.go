@@ -106,7 +106,7 @@ func NewManagedNode(o *ManagedNodeOpts) (ManagedNode, error) {
 	node.grpcOpts = o.GrpcOpts
 
 	// TODO: push tls setup out of NewManagedNode
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
@@ -133,7 +133,7 @@ func (n *managedNode) Connect() error {
 	n.Lock()
 	defer n.Unlock()
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	var err error
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
