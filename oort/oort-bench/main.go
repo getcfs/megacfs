@@ -78,7 +78,7 @@ func ValueStreamWrite(c *ValueClientConfig) {
 	defer c.wg.Done()
 	var err error
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
@@ -118,7 +118,7 @@ func GroupStreamWrite(c *GroupClientConfig) {
 	defer c.wg.Done()
 	var err error
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
@@ -157,7 +157,7 @@ func ValueStreamRead(c *ValueClientConfig) {
 	defer c.wg.Done()
 	var err error
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
@@ -190,7 +190,7 @@ func GroupStreamRead(c *GroupClientConfig) {
 	defer c.wg.Done()
 	var err error
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
@@ -223,7 +223,7 @@ func ValueWrite(c *ValueClientConfig) {
 	defer c.wg.Done()
 	var err error
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
@@ -257,7 +257,7 @@ func GroupWrite(c *GroupClientConfig) {
 	defer c.wg.Done()
 	var err error
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
@@ -291,7 +291,7 @@ func ValueRead(c *ValueClientConfig) {
 	defer c.wg.Done()
 	var err error
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
@@ -315,7 +315,7 @@ func GroupRead(c *GroupClientConfig) {
 	defer c.wg.Done()
 	var err error
 	var opts []grpc.DialOption
-	var creds credentials.TransportAuthenticator
+	var creds credentials.TransportCredentials
 	creds = credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
