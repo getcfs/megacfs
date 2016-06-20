@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/getcfs/megacfs/formic"
 	pb "github.com/getcfs/megacfs/formic/proto"
 
 	"github.com/getcfs/fuse"
@@ -236,15 +237,14 @@ func (f *fs) handleLookup(r *fuse.LookupRequest) {
 
 	l, err := f.rpc.api.Lookup(f.getContext(), &pb.LookupRequest{Name: r.Name, Parent: uint64(r.Node)})
 
+	if err == formic.ErrNotFound {
+		log.Printf("ENOENT Lookup(%s)", r.Name)
+		r.RespondError(fuse.ENOENT)
+		return
+	}
 	if err != nil {
 		log.Printf("Lookup failed(%s): %s", r.Name, err)
 		r.RespondError(fuse.EIO)
-		return
-	}
-	// If there is no name then it wasn't found
-	if l.Name != r.Name {
-		log.Printf("ENOENT Lookup(%s)", r.Name)
-		r.RespondError(fuse.ENOENT)
 		return
 	}
 	resp.Node = fuse.NodeID(l.Attr.Inode)
@@ -314,9 +314,9 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 				Type:  fuse.DT_Dir,
 			})
 			data = fuse.AppendDirent(data, fuse.Dirent{
-				Name: "..",
+				Name:  "..",
 				Inode: 1, // TODO: not sure what value this should be, but this seems to work fine.
-				Type: fuse.DT_Dir,
+				Type:  fuse.DT_Dir,
 			})
 			for _, de := range d.DirEntries {
 				if de == nil || de.Name == "" {
