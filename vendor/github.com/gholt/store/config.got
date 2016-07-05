@@ -50,16 +50,6 @@ type {{.T}}StoreConfig struct {
     // ValueCap indicates the maximum number of bytes any given value may be.
     // Defaults to 1,048,576 bytes.
     ValueCap int
-    // BackgroundInterval indicates the minimum number of seconds between the
-    // starts of background passes (such as discarding expired tombstones
-    // [deletion markers]). If set to 6 seconds and the passes take 1 seconds
-    // to run, they will wait 5 seconds (with a small amount of randomization)
-    // between the stop of one run and the start of the next. This is really
-    // just meant to keep nearly empty structures from using a lot of resources
-    // doing nearly nothing. Normally, you'd want your background passes to be
-    // running constantly so that they are as fast as possible and the load
-    // constant. The default of 6 seconds is almost always fine.
-    BackgroundInterval int
     // Workers indicates how many goroutines may be used for various tasks
     // (processing incoming writes and batching them to disk, background tasks,
     // etc.). This will also have an impact on memory usage. Defaults to
@@ -98,8 +88,11 @@ type {{.T}}StoreConfig struct {
     // RecoveryBatchSize indicates how many keys to set in a batch while
     // performing recovery (initial start up). Defaults to 1,048,576 keys.
     RecoveryBatchSize int
-    // TombstoneDiscardInterval overrides the BackgroundInterval value just for
-    // discard passes (discarding expired tombstones [deletion markers]).
+    // TombstoneDiscardInterval indicates the minimum number of seconds between
+    // the starts of background passes to discard expired tombstones [deletion
+    // markers]. If set to 300 seconds and a pass takes 100 seconds to run, it
+    // will wait 200 seconds (with a small amount of randomization) before
+    // starting the next pass. Default: 300 seconds
     TombstoneDiscardInterval int
     // TombstoneDiscardBatchSize indicates how many items to queue up before
     // pausing a scan, issuing the actual discards, and resuming the scan
@@ -108,14 +101,19 @@ type {{.T}}StoreConfig struct {
     // TombstoneAge indicates how many seconds old a deletion marker may be
     // before it is permanently removed. Defaults to 14,400 seconds (4 hours).
     TombstoneAge int
+    // TombstoneDiscardWorkers indicates how many goroutines may be used for
+    // discard passes (discarding expired tombstones [deletion markers]).
+    // Defaults to 1 worker.
+    TombstoneDiscardWorkers int
     // ReplicationIgnoreRecent indicates how many seconds old a value should be
     // before it is included in replication processing. Defaults to 60 seconds.
     ReplicationIgnoreRecent int
-    // OutPullReplicationInterval overrides the BackgroundInterval value just
-    // for outgoing pull replication passes.
+    // OutPullReplicationInterval is much like TombstoneDiscardInterval but for
+    // outgoing pull replication passes. Default: 60 seconds
     OutPullReplicationInterval int
     // OutPullReplicationWorkers indicates how many goroutines may be used for
-    // an outgoing pull replication pass. Defaults to Workers.
+    // an outgoing pull replication pass. Defaults to Workers / 10 with a
+    // minimum of 1.
     OutPullReplicationWorkers int
     // OutPullReplicationMsgs indicates how many outgoing pull-replication
     // messages can be buffered before blocking on creating more. Defaults to
@@ -146,11 +144,12 @@ type {{.T}}StoreConfig struct {
     // an outgoing response message to an incoming pull replication message can
     // be pending before just discarding it. Defaults to MsgTimeout.
     InPullReplicationResponseMsgTimeout int
-    // PushReplicationInterval overrides the BackgroundInterval value just for
-    // outgoing push replication passes.
+    // PushReplicationInterval is much like TombstoneDiscardInterval but for
+    // outgoing push replication passes. Default: 60 seconds
     PushReplicationInterval int
-    // PushReplicationWorkers indicates how many goroutines may be used for
-    // an outgoing push replication pass. Defaults to Workers.
+    // PushReplicationWorkers indicates how many goroutines may be used for an
+    // outgoing push replication pass. Defaults to Workers / 10 with minimum of
+    // 1.
     PushReplicationWorkers int
     // PushReplicationMsgTimeout indicates the maximum milliseconds an
     // outgoing push replication message can be pending before just discarding
@@ -188,11 +187,11 @@ type {{.T}}StoreConfig struct {
     // be buffered before blocking on creating more. Defaults to
     // InBulkSetWorkers * 4.
     OutBulkSetAckMsgs int
-    // CompactionInterval overrides the BackgroundInterval value just for
-    // compaction passes.
+    // CompactionInterval is much like TombstoneDiscardInterval but for
+    // compaction passes. Default: 600 seconds
     CompactionInterval int
     // CompactionWorkers indicates how much concurrency is allowed for
-    // compaction. Defaults to Workers.
+    // compaction. Defaults to 1.
     CompactionWorkers int
     // CompactionThreshold indicates how much waste a given file may have
     // before it is compacted. Defaults to 0.10 (10%).
@@ -242,8 +241,8 @@ type {{.T}}StoreConfig struct {
     // page; this depends on the PageSize value and the internal struct size
     // for the store.
     FlusherThreshold int32
-    // AuditInterval is like BackgroundInterval but just for audit passes. The
-    // default audit interval is 604,800 seconds (1 week).
+    // AuditInterval is much like TombstoneDiscardInterval but for audit
+    // passes. Default: 604,800 seconds (1 week).
     AuditInterval int
     // AuditAgeThreshold indicates how old a given file must be before it
     // is considered for an audit. Defaults to 604,800 seconds (1 week).
@@ -329,17 +328,6 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
     }
     if cfg.ValueCap > 1048576 {
         cfg.ValueCap = 1048576
-    }
-    if env := os.Getenv("{{.TT}}STORE_BACKGROUND_INTERVAL"); env != "" {
-        if val, err := strconv.Atoi(env); err == nil {
-            cfg.BackgroundInterval = val
-        }
-    }
-    if cfg.BackgroundInterval == 0 {
-        cfg.BackgroundInterval = 6
-    }
-    if cfg.BackgroundInterval < 1 {
-        cfg.BackgroundInterval = 1
     }
     if env := os.Getenv("{{.TT}}STORE_WORKERS"); env != "" {
         if val, err := strconv.Atoi(env); err == nil {
@@ -466,7 +454,7 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         }
     }
     if cfg.TombstoneDiscardInterval == 0 {
-        cfg.TombstoneDiscardInterval = cfg.BackgroundInterval
+        cfg.TombstoneDiscardInterval = 300
     }
     if cfg.TombstoneDiscardInterval < 1 {
         cfg.TombstoneDiscardInterval = 1
@@ -493,6 +481,17 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
     if cfg.TombstoneAge < 0 {
         cfg.TombstoneAge = 0
     }
+    if env := os.Getenv("{{.TT}}STORE_TOMBSTONE_DISCARD_WORKERS"); env != "" {
+        if val, err := strconv.Atoi(env); err == nil {
+            cfg.TombstoneDiscardWorkers = val
+        }
+    }
+    if cfg.TombstoneDiscardWorkers == 0 {
+        cfg.TombstoneDiscardWorkers = cfg.Workers
+    }
+    if cfg.TombstoneDiscardWorkers < 1 {
+        cfg.TombstoneDiscardWorkers = 1
+    }
     if env := os.Getenv("{{.TT}}STORE_REPLICATION_IGNORE_RECENT"); env != "" {
         if val, err := strconv.Atoi(env); err == nil {
             cfg.ReplicationIgnoreRecent = val
@@ -510,7 +509,7 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         }
     }
     if cfg.OutPullReplicationInterval == 0 {
-        cfg.OutPullReplicationInterval = cfg.BackgroundInterval
+        cfg.OutPullReplicationInterval = 60
     }
     if cfg.OutPullReplicationInterval < 1 {
         cfg.OutPullReplicationInterval = 1
@@ -521,7 +520,7 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         }
     }
     if cfg.OutPullReplicationWorkers == 0 {
-        cfg.OutPullReplicationWorkers = cfg.Workers
+        cfg.OutPullReplicationWorkers = cfg.Workers / 10
     }
     if cfg.OutPullReplicationWorkers < 1 {
         cfg.OutPullReplicationWorkers = 1
@@ -609,7 +608,7 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         }
     }
     if cfg.PushReplicationInterval == 0 {
-        cfg.PushReplicationInterval = cfg.BackgroundInterval
+        cfg.PushReplicationInterval = 60
     }
     if cfg.PushReplicationInterval < 1 {
         cfg.PushReplicationInterval = 1
@@ -620,7 +619,7 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         }
     }
     if cfg.PushReplicationWorkers == 0 {
-        cfg.PushReplicationWorkers = cfg.Workers
+        cfg.PushReplicationWorkers = cfg.Workers / 10
     }
     if cfg.PushReplicationWorkers < 1 {
         cfg.PushReplicationWorkers = 1
@@ -741,7 +740,7 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         }
     }
     if cfg.CompactionInterval == 0 {
-        cfg.CompactionInterval = cfg.BackgroundInterval
+        cfg.CompactionInterval = 600
     }
     if cfg.CompactionInterval < 1 {
         cfg.CompactionInterval = 1
