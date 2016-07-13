@@ -18,7 +18,7 @@ import (
 	"github.com/getcfs/megacfs/formic/flother"
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/store"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"github.com/spaolacci/murmur3"
 	"golang.org/x/net/context"
 )
@@ -302,9 +302,13 @@ func (s *apiServer) Write(ctx context.Context, r *pb.WriteRequest) (*pb.WriteRes
 			formic.GetID(fsid.Bytes(), r.Inode, 0),
 			block,
 			uint64(s.blocksize),
-			uint64(r.Offset + int64(len(r.Payload))),
+			uint64(r.Offset+int64(len(r.Payload))),
 			time.Now().Unix(),
 		)
+		if err != nil {
+			return &pb.WriteResponse{Status: 1}, err
+		}
+		// TODO: Should we queue on error instead?
 		//s.updateChan <- &UpdateItem{
 		//	id:        formic.GetID(fsid.Bytes(), r.Inode, 0),
 		//	block:     block,

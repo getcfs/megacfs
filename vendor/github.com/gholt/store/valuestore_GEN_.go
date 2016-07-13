@@ -71,6 +71,7 @@ type defaultValueStore struct {
 	bulkSetState            valueBulkSetState
 	bulkSetAckState         valueBulkSetAckState
 	disableEnableWritesLock sync.Mutex
+	readOnly                bool
 	userDisabled            bool
 	flusherState            valueFlusherState
 	watcherState            valueWatcherState
@@ -112,6 +113,7 @@ type defaultValueStore struct {
 	inPullReplicationDrops        int32
 	inPullReplicationInvalids     int32
 	expiredDeletions              int32
+	tombstoneDiscardNanoseconds   int64
 	compactions                   int32
 	smallFileCompactions          int32
 
@@ -385,6 +387,7 @@ func (store *defaultValueStore) EnableWrites(ctx context.Context) error {
 
 func (store *defaultValueStore) enableWrites(userCall bool) {
 	store.disableEnableWritesLock.Lock()
+	store.readOnly = false
 	if userCall || !store.userDisabled {
 		store.userDisabled = false
 		for _, c := range store.pendingWriteReqChans {
@@ -401,6 +404,7 @@ func (store *defaultValueStore) DisableWrites(ctx context.Context) error {
 
 func (store *defaultValueStore) disableWrites(userCall bool) {
 	store.disableEnableWritesLock.Lock()
+	store.readOnly = true
 	if userCall {
 		store.userDisabled = true
 	}

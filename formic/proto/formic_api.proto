@@ -271,7 +271,6 @@ message InodeEntry {
     map<string, bytes>  xattr = 9; // NOTE: Probably not the best long term way to do this
     uint64 blocks             = 10;
     uint64 blockSize          = 11;
-    uint64 lastBlock          = 12;
     bytes  fsId               = 13;
 }
 

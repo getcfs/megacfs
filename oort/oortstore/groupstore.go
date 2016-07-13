@@ -443,6 +443,11 @@ func (s *OortGroupStore) start() {
 			Name:      "SmallFileCompactions",
 			Help:      "Count of disk file sets compacted due to the entire file size being too small. For example, this may happen when the store is shutdown and restarted.",
 		})
+		mReadOnly := prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "Store",
+			Name:      "ReadOnly",
+			Help:      "Indicates when the store has been put in read-only mode, whether by an operator or automatically by the watcher.",
+		})
 		prometheus.Register(mRingChanges)
 		prometheus.Register(mRingChangeCloses)
 		prometheus.Register(mMsgToNodes)
@@ -507,6 +512,7 @@ func (s *OortGroupStore) start() {
 		prometheus.Register(mExpiredDeletions)
 		prometheus.Register(mCompactions)
 		prometheus.Register(mSmallFileCompactions)
+		prometheus.Register(mReadOnly)
 		tcpMsgRingStats := t.Stats(false)
 		for !tcpMsgRingStats.Shutdown {
 			time.Sleep(time.Minute)
@@ -579,6 +585,11 @@ func (s *OortGroupStore) start() {
 				mExpiredDeletions.Add(float64(s.ExpiredDeletions))
 				mCompactions.Add(float64(s.Compactions))
 				mSmallFileCompactions.Add(float64(s.SmallFileCompactions))
+				if s.ReadOnly {
+					mReadOnly.Set(1)
+				} else {
+					mReadOnly.Set(0)
+				}
 			} else {
 				log.Printf("%s\n", stats)
 			}
@@ -647,6 +658,7 @@ func (s *OortGroupStore) start() {
 		prometheus.Unregister(mExpiredDeletions)
 		prometheus.Unregister(mCompactions)
 		prometheus.Unregister(mSmallFileCompactions)
+		prometheus.Unregister(mReadOnly)
 	}(s.msgRing)
 }
 

@@ -255,7 +255,6 @@ func (o *OortFS) SetAttr(ctx context.Context, id []byte, attr *pb.Attr, v uint32
 	if valid.Size() {
 		if n.Attr.Size == 0 {
 			n.Blocks = 0
-			n.LastBlock = 0
 		}
 		n.Attr.Size = attr.Size
 	}
@@ -499,15 +498,9 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 	if err != nil {
 		return err
 	}
-	blocks := n.Blocks
-	if block >= blocks {
+	if block >= n.Blocks {
 		n.Blocks = block + 1
-		n.LastBlock = size
 		n.BlockSize = blocksize
-		//n.Attr.Size = blocksize*block + size
-	} else if block == (blocks - 1) {
-		n.LastBlock = size
-		//n.Attr.Size = blocksize*block + size
 	}
 	if size > n.Attr.Size {
 		n.Attr.Size = size
