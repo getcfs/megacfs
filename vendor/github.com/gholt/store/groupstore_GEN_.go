@@ -71,6 +71,7 @@ type defaultGroupStore struct {
 	bulkSetState            groupBulkSetState
 	bulkSetAckState         groupBulkSetAckState
 	disableEnableWritesLock sync.Mutex
+	readOnly                bool
 	userDisabled            bool
 	flusherState            groupFlusherState
 	watcherState            groupWatcherState
@@ -120,6 +121,7 @@ type defaultGroupStore struct {
 	inPullReplicationDrops        int32
 	inPullReplicationInvalids     int32
 	expiredDeletions              int32
+	tombstoneDiscardNanoseconds   int64
 	compactions                   int32
 	smallFileCompactions          int32
 
@@ -396,6 +398,7 @@ func (store *defaultGroupStore) EnableWrites(ctx context.Context) error {
 
 func (store *defaultGroupStore) enableWrites(userCall bool) {
 	store.disableEnableWritesLock.Lock()
+	store.readOnly = false
 	if userCall || !store.userDisabled {
 		store.userDisabled = false
 		for _, c := range store.pendingWriteReqChans {
@@ -412,6 +415,7 @@ func (store *defaultGroupStore) DisableWrites(ctx context.Context) error {
 
 func (store *defaultGroupStore) disableWrites(userCall bool) {
 	store.disableEnableWritesLock.Lock()
+	store.readOnly = true
 	if userCall {
 		store.userDisabled = true
 	}
@@ -481,6 +485,9 @@ func (store *defaultGroupStore) ReadGroup(ctx context.Context, keyA uint64, keyB
 	i := 0
 	for _, item := range items {
 		timestampMicro, value, err := store.read(keyA, keyB, item.ChildKeyA, item.ChildKeyB, nil)
+		if err != nil && err != errNotFound {
+			atomic.AddInt32(&store.readGroupErrors, 1)
+		}
 		if err == nil && timestampMicro&_TSB_DELETION == 0 {
 			rv[i].ChildKeyA = item.ChildKeyA
 			rv[i].ChildKeyB = item.ChildKeyB

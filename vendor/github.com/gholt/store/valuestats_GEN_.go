@@ -105,6 +105,9 @@ type ValueStoreStats struct {
 	// ExpiredDeletions is the number of recent deletes that have become old
 	// enough to be completely discarded.
 	ExpiredDeletions int32
+	// TombstoneDiscardNanoseconds is how long the last tombstone discard pass
+	// took.
+	TombstoneDiscardNanoseconds int64
 	// Compactions is the number of disk file sets compacted due to their
 	// contents exceeding a staleness threshold. For example, this happens when
 	// enough of the values have been overwritten or deleted in more recent
@@ -138,6 +141,9 @@ type ValueStoreStats struct {
 	MemUsed uint64
 	// MemSize is the size in bytes of total memory on the system.
 	MemSize uint64
+	// ReadOnly indicates when the system has been put in read-only mode,
+	// whether by DisableWrites or automatically by the watcher.
+	ReadOnly bool
 
 	debug                      bool
 	freeableMemBlockChansCap   int
@@ -215,6 +221,7 @@ func (store *defaultValueStore) Stats(ctx context.Context, debug bool) (fmt.Stri
 		InPullReplicationDrops:        atomic.LoadInt32(&store.inPullReplicationDrops),
 		InPullReplicationInvalids:     atomic.LoadInt32(&store.inPullReplicationInvalids),
 		ExpiredDeletions:              atomic.LoadInt32(&store.expiredDeletions),
+		TombstoneDiscardNanoseconds:   atomic.LoadInt64(&store.tombstoneDiscardNanoseconds),
 		Compactions:                   atomic.LoadInt32(&store.compactions),
 		SmallFileCompactions:          atomic.LoadInt32(&store.smallFileCompactions),
 		DiskFree:                      atomic.LoadUint64(&store.watcherState.diskFree),
@@ -227,6 +234,9 @@ func (store *defaultValueStore) Stats(ctx context.Context, debug bool) (fmt.Stri
 		MemUsed:                       atomic.LoadUint64(&store.watcherState.memUsed),
 		MemSize:                       atomic.LoadUint64(&store.watcherState.memSize),
 	}
+	store.disableEnableWritesLock.Lock()
+	stats.ReadOnly = store.readOnly
+	store.disableEnableWritesLock.Unlock()
 	atomic.AddInt32(&store.lookups, -stats.Lookups)
 	atomic.AddInt32(&store.lookupErrors, -stats.LookupErrors)
 
