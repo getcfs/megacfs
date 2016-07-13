@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/user"
 	"strings"
 	"sync"
 
@@ -88,10 +89,23 @@ var goVersion string
 func main() {
 
 	// try to read config file
+	configured := false
 	config := map[string]string{}
-	f, err := ioutil.ReadFile("./.cfs.json")
+	user, err := user.Current()
+	if err != nil {
+		log.Fatalf("Unable to identify curent user: %v", err)
+		os.Exit(1)
+	}
+	var configfile string
+	if user.HomeDir != "" {
+		configfile = user.HomeDir + "/.cfs.json"
+	} else {
+		configfile = ".cfs.json"
+	}
+	f, err := ioutil.ReadFile(configfile)
 	if err == nil {
 		json.Unmarshal(f, &config)
+		configured = true
 	}
 	region, _ := config["region"]
 	username, _ := config["username"]
@@ -108,7 +122,6 @@ func main() {
 		fmt.Println("    list         list all filesystems")
 		fmt.Println("    create       create a new filesytem")
 		fmt.Println("    show         show filesystem details")
-		fmt.Println("    update       update filesystem details")
 		fmt.Println("    delete       delete an existing filesystem")
 		fmt.Println("    grant        grant access to a filesystem")
 		fmt.Println("    revoke       revoke access to a filesystem")
@@ -118,7 +131,7 @@ func main() {
 		fmt.Println("Examples:")
 		fmt.Println("    cfs configure")
 		fmt.Println("    cfs create <name>")
-		fmt.Println("    cfs grant <fsid> <ip>")
+		fmt.Println("    cfs grant <ip> <fsid>")
 		fmt.Println("    cfs mount <region>:<fsid> <mountpoint>")
 		os.Exit(1)
 	}
@@ -141,6 +154,7 @@ func main() {
 		fmt.Println("go version:", goVersion)
 		os.Exit(0)
 	case "configure":
+		fmt.Println("This is an interactive session to configure the cfs client.")
 		fmt.Print("CFS Region: ")
 		fmt.Scan(&region)
 		fmt.Print("CFS Username: ")
@@ -157,7 +171,7 @@ func main() {
 			fmt.Println("Error writing config file: %v", err)
 			os.Exit(1)
 		}
-		err = ioutil.WriteFile("./.cfs.json", c, 0600)
+		err = ioutil.WriteFile(configfile, c, 0600)
 		if err != nil {
 			fmt.Println("Error writing config file: %v", err)
 			os.Exit(1)
@@ -165,6 +179,10 @@ func main() {
 		fmt.Println()
 		os.Exit(0)
 	case "list":
+		if !configured {
+			fmt.Println("You must run \"cfs configure\" first.")
+			os.Exit(1)
+		}
 		f := flag.NewFlagSet("list", flag.ContinueOnError)
 		f.Usage = func() {
 			fmt.Println("Usage:")
@@ -194,15 +212,21 @@ func main() {
 			log.Fatalf("Error unmarshalling response: %v", err)
 			os.Exit(1)
 		}
-		fmt.Printf("%-36s    %s    %s\n", "ID", "Name", "Status")
+		fmt.Printf("%-36s    %s\n", "ID", "Name")
 		for _, fs := range data {
-			fmt.Printf("%-36s    %s    %s\n", fs["id"], fs["name"], fs["status"])
+			fmt.Printf("%-36s    %s\n", fs["id"], fs["name"])
 		}
 	case "show":
+		if !configured {
+			fmt.Println("You must run \"cfs configure\" first.")
+			os.Exit(1)
+		}
 		f := flag.NewFlagSet("show", flag.ContinueOnError)
 		f.Usage = func() {
 			fmt.Println("Usage:")
 			fmt.Println("    cfs show <fsid>")
+			fmt.Println("Example:")
+			fmt.Println("    cfs show 11111111-1111-1111-1111-111111111111")
 			os.Exit(1)
 		}
 		f.Parse(flag.Args()[1:])
@@ -231,15 +255,22 @@ func main() {
 		}
 		fmt.Println("ID:", data["id"])
 		fmt.Println("Name:", data["name"])
-		fmt.Println("Status:", data["status"])
+		//fmt.Println("Status:", data["status"])
 		for _, ip := range data["addrs"].([]interface{}) {
 			fmt.Println("IP:", ip)
 		}
 	case "create":
+		if !configured {
+			fmt.Println("You must run \"cfs configure\" first.")
+			os.Exit(1)
+		}
 		f := flag.NewFlagSet("create", flag.ContinueOnError)
 		f.Usage = func() {
 			fmt.Println("Usage:")
 			fmt.Println("    cfs create <name>")
+			fmt.Println("Examples:")
+			fmt.Println("    cfs create myfs")
+			fmt.Println("    cfs create \"name with spaces\"")
 			os.Exit(1)
 		}
 		f.Parse(flag.Args()[1:])
@@ -263,10 +294,16 @@ func main() {
 		c.Close()
 		fmt.Println("ID:",res.Data)
 	case "delete":
+		if !configured {
+			fmt.Println("You must run \"cfs configure\" first.")
+			os.Exit(1)
+		}
 		f := flag.NewFlagSet("delete", flag.ContinueOnError)
 		f.Usage = func() {
 			fmt.Println("Usage:")
 			fmt.Println("    cfs delete <fsid>")
+			fmt.Println("Example:")
+			fmt.Println("    cfs delete 11111111-1111-1111-1111-111111111111")
 			os.Exit(1)
 		}
 		f.Parse(flag.Args()[1:])
@@ -290,10 +327,16 @@ func main() {
 		c.Close()
 		fmt.Println(res.Data)
 	case "grant":
+		if !configured {
+			fmt.Println("You must run \"cfs configure\" first.")
+			os.Exit(1)
+		}
 		f := flag.NewFlagSet("grant", flag.ContinueOnError)
 		f.Usage = func() {
 			fmt.Println("Usage:")
 			fmt.Println("    cfs grant <ip> <fsid>")
+			fmt.Println("Example:")
+			fmt.Println("    cfs grant 1.1.1.1 11111111-1111-1111-1111-111111111111")
 			os.Exit(1)
 		}
 		f.Parse(flag.Args()[1:])
@@ -309,19 +352,24 @@ func main() {
 		}
 		c := setupWS(addr)
 		ws := pb.NewFileSystemAPIClient(c)
-		res, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
+		_, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 		if err != nil {
 			log.Fatalf("Request Error: %v", err)
 			c.Close()
 			os.Exit(1)
 		}
 		c.Close()
-		fmt.Println(res.Data)
 	case "revoke":
+		if !configured {
+			fmt.Println("You must run \"cfs configure\" first.")
+			os.Exit(1)
+		}
 		f := flag.NewFlagSet("revoke", flag.ContinueOnError)
 		f.Usage = func() {
 			fmt.Println("Usage:")
 			fmt.Println("    cfs revoke <ip> <fsid>")
+			fmt.Println("Example:")
+			fmt.Println("    cfs revoke 1.1.1.1 11111111-1111-1111-1111-111111111111")
 			os.Exit(1)
 		}
 		f.Parse(flag.Args()[1:])
@@ -337,23 +385,25 @@ func main() {
 		}
 		c := setupWS(addr)
 		ws := pb.NewFileSystemAPIClient(c)
-		res, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
+		_, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 		if err != nil {
 			log.Fatalf("Request Error: %v", err)
 			c.Close()
 			os.Exit(1)
 		}
 		c.Close()
-		fmt.Println(res.Data)
 	case "mount":
 		f := flag.NewFlagSet("mount", flag.ContinueOnError)
 		f.Usage = func() {
 			fmt.Println("Usage:")
-			fmt.Println("    cfs mount [options] <region>:<fsid> <mountpoint>")
+			fmt.Println("    cfs mount [-o option,...] <region>:<fsid> <mountpoint>")
 			fmt.Println("Options:")
-			fmt.Println("    -o, --options")
+			fmt.Println("    -o debug          enables debug output")
+			fmt.Println("    -o ro             mount the filesystem read only")
+			fmt.Println("    -o allow_other    allow access to other users")
 			fmt.Println("Examples:")
-			fmt.Println("    cfs mount -o debug iad:11111111-1111-1111-1111-111111111111 /mnt/test")
+			fmt.Println("    cfs mount iad:11111111-1111-1111-1111-111111111111 /mnt/test")
+			fmt.Println("    cfs mount -o debug,ro iad:11111111-1111-1111-1111-111111111111 /mnt/test")
 			os.Exit(1)
 		}
 		var options string
@@ -376,19 +426,7 @@ func main() {
 			fmt.Println("Invalid region:", region)
 			os.Exit(1)
 		}
-		//fmt.Printf("region: %s, fsid: %s, mountpoint: %s, addr: %s, options: %s\n", region, fsid, mountpoint, addr, options)
-		fusermountPath()
-		allowOther := false
-		debugOff := true
-		clargs := getArgs(options)
-		if _, ok := clargs["debug"]; ok {
-			debugOff = false
-		}
-		_, allowOther = clargs["allow_other"]
-		if debugOff {
-			log.SetFlags(0)
-			log.SetOutput(ioutil.Discard)
-		}
+
 		// Setup grpc
 		var opts []grpc.DialOption
 		creds := credentials.NewTLS(&tls.Config{
@@ -400,40 +438,49 @@ func main() {
 			log.Fatalf("failed to dial: %v", err)
 		}
 		defer conn.Close()
-		var cfs *fuse.Conn
-		if allowOther {
-			cfs, err = fuse.Mount(
-				mountpoint,
-				fuse.FSName("cfs"),
-				fuse.Subtype("cfs"),
-				fuse.LocalVolume(),
-				fuse.VolumeName("CFS"),
-				fuse.AllowOther(),
-				fuse.DefaultPermissions(),
-				fuse.MaxReadahead(128*1024),
-				fuse.AsyncRead(),
-				fuse.WritebackCache(),
-				fuse.AutoInvalData(),
-			)
-		} else {
-			cfs, err = fuse.Mount(
-				mountpoint,
-				fuse.FSName("cfs"),
-				fuse.Subtype("cfs"),
-				fuse.LocalVolume(),
-				fuse.VolumeName("CFS"),
-				fuse.DefaultPermissions(),
-				fuse.MaxReadahead(128*1024),
-				fuse.AsyncRead(),
-				fuse.WritebackCache(),
-				fuse.AutoInvalData(),
-			)
+
+		// handle fuse mount options
+		mountOptions := []fuse.MountOption{
+			fuse.FSName("cfs"),
+			fuse.Subtype("cfs"),
+			fuse.DefaultPermissions(),
+			fuse.MaxReadahead(128*1024),
+			fuse.AsyncRead(),
+			//fuse.WritebackCache(),
+			//fuse.AutoInvalData(),
 		}
+
+		// parse mount options string
+		clargs := getArgs(options)
+
+		// handle debug mount option
+		_, debug := clargs["debug"]
+		if !debug {
+			log.SetFlags(0)
+			log.SetOutput(ioutil.Discard)
+		}
+
+		// handle allow_other mount option
+		_, allowOther := clargs["allow_other"]
+		if allowOther {
+			mountOptions = append(mountOptions, fuse.AllowOther())
+		}
+
+		// handle ro mount option
+		_, readOnly := clargs["ro"]
+		if readOnly {
+			mountOptions = append(mountOptions, fuse.ReadOnly())
+		}
+
+		// perform fuse mount
+		fusermountPath()
+		cfs, err := fuse.Mount(mountpoint, mountOptions...)
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer cfs.Close()
 
+		// setup rpc client
 		rpc := newrpc(conn)
 		fs := newfs(cfs, rpc, fsid)
 		err = fs.InitFs()
@@ -453,16 +500,9 @@ func main() {
 	}
 }
 
-// getArgs is passed a command line and breaks it up into commands
-// the valid format is <device> <mount point> -o [Options]
 func getArgs(args string) map[string]string {
-	// Setup declarations
-	var optList []string
-	requiredOptions := []string{}
 	clargs := make(map[string]string)
-
-	// process options -o
-	optList = strings.Split(args, ",")
+	optList := strings.Split(args, ",")
 	for _, item := range optList {
 		if strings.Contains(item, "=") {
 			value := strings.Split(item, "=")
@@ -476,17 +516,6 @@ func getArgs(args string) map[string]string {
 			clargs[item] = ""
 		}
 	}
-
-	// Verify required options exist
-	for _, v := range requiredOptions {
-		_, ok := clargs[v]
-		if !ok {
-			log.Printf("%s is a required option", v)
-			os.Exit(1)
-		}
-	}
-
-	// load in device and mountPoint
 	return clargs
 }
 
