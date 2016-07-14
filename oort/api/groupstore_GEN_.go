@@ -49,7 +49,7 @@ type groupStore struct {
 
 // NewGroupStore creates a GroupStore connection via grpc to the given
 // address.
-func NewGroupStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) (store.GroupStore, error) {
+func NewGroupStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.GroupStore {
 	stor := &groupStore{
 		addr:             addr,
 		ftlsc:            ftlsConfig,
@@ -123,7 +123,7 @@ func NewGroupStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts .
 	}
 	go stor.handleReadGroupStream()
 
-	return stor, nil
+	return stor
 }
 
 func (stor *groupStore) Startup(ctx context.Context) error {

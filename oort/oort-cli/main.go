@@ -325,7 +325,7 @@ func (c *Client) getValueClient() error {
 		return err
 	}
 	if c.vdirect != "" {
-		c.vstore, err = api.NewValueStore(c.vdirect, 10, tlsConfig, opts...)
+		c.vstore = api.NewValueStore(c.vdirect, 10, tlsConfig, opts...)
 	} else {
 		c.vstore = api.NewReplValueStore(&api.ReplValueStoreConfig{
 			AddressIndex:       2,
@@ -361,7 +361,7 @@ func (c *Client) getGroupClient() error {
 		return err
 	}
 	if c.gdirect != "" {
-		c.gstore, err = api.NewGroupStore(c.gdirect, 10, tlsConfig, opts...)
+		c.gstore = api.NewGroupStore(c.gdirect, 10, tlsConfig, opts...)
 	} else {
 		c.gstore = api.NewReplGroupStore(&api.ReplGroupStoreConfig{
 			AddressIndex:       2,
