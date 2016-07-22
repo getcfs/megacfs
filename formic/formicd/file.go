@@ -653,7 +653,12 @@ func (o *OortFS) Rename(ctx context.Context, oldParent, newParent []byte, oldNam
 	if err != nil {
 		return &pb.RenameResponse{}, err
 	}
-	// TODO: Handle orphaned data from overwrites
+	// Be sure that old data is deleted
+	// TODO: It would be better to create the tombstone for the delete, and only queue the delete if the are sure the new write happens
+	_, err = o.Remove(ctx, newParent, newName)
+	if err != nil {
+		return &pb.RenameResponse{}, err
+	}
 	// Create new entry
 	d.Name = newName
 	b, err = formic.Marshal(d)
