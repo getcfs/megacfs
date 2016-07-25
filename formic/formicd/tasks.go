@@ -1,11 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/getcfs/megacfs/formic"
 	"github.com/gholt/store"
 
+	pb "github.com/getcfs/megacfs/formic/proto"
 	"golang.org/x/net/context"
 )
 
@@ -45,19 +48,23 @@ func (u *Updatinator) run() {
 }
 
 type DeleteItem struct {
-	parent []byte
-	name   string
+	ts *pb.Tombstone
 }
+
+// TODO: Crawl the deleted folders to look for deletes to cleanup
+// TODO: We should have sort of backoff in case of failures, so it isn't trying a delete over and over again if there are failures
 
 type Deletinator struct {
-	in chan *DeleteItem
-	fs FileService
+	in    chan *DeleteItem
+	fs    FileService
+	comms *StoreComms
 }
 
-func newDeletinator(in chan *DeleteItem, fs FileService) *Deletinator {
+func newDeletinator(in chan *DeleteItem, fs FileService, comms *StoreComms) *Deletinator {
 	return &Deletinator{
-		in: in,
-		fs: fs,
+		in:    in,
+		fs:    fs,
+		comms: comms,
 	}
 }
 
@@ -65,30 +72,10 @@ func (d *Deletinator) run() {
 	// TODO: Parallelize this thing?
 	for {
 		todelete := <-d.in
-		log.Println("Deleting: ", todelete)
-		// TODO: Need better context
-		ctx := context.Background()
-		// Get the dir entry info
-		dirent, err := d.fs.GetDirent(ctx, todelete.parent, todelete.name)
-		if store.IsNotFound(err) {
-			// NOTE: If it isn't found then it is likely deleted.
-			//       Do we need to do more to ensure this?
-			//       Skip for now
-			continue
-		}
-		if err != nil {
-			// TODO Better error handling?
-			// re-q the id, to try again later
-			log.Print("Delete error getting dirent: ", err)
-			d.in <- todelete
-			continue
-		}
-		ts := dirent.Tombstone
-		if ts == nil {
-			// TODO: probably an overwrite. just remove old file
-			continue
-		}
+		ts := todelete.ts
+		log.Println("Deleting: ", ts)
 		deleted := uint64(0)
+		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		for b := uint64(0); b < ts.Blocks; b++ {
 			// Delete each block
 			id := formic.GetID(ts.FsId, ts.Inode, b+1)
@@ -106,14 +93,15 @@ func (d *Deletinator) run() {
 				d.in <- todelete
 				continue
 			}
-			err = d.fs.DeleteListing(ctx, todelete.parent, todelete.name, ts.Dtime)
-			if err != nil && !store.IsNotFound(err) && err != ErrStoreHasNewerValue {
-				log.Println("  Err: ", err)
-				// TODO: Better error handling
-				// Ignore for now to be picked up later?
-			}
 		} else {
 			// If all artifacts are not deleted requeue for later
+			d.in <- todelete
+		}
+		// All artifacts are deleted so remove the delete tombstone
+		log.Println("Done Deleting: ", ts)
+		err := d.comms.DeleteGroupItem(ctx, formic.GetDeletedID(ts.FsId), []byte(fmt.Sprintf("%d", ts.Inode)))
+		if err != nil && !store.IsNotFound(err) {
+			// Failed to remove so queue again to retry later
 			d.in <- todelete
 		}
 	}
