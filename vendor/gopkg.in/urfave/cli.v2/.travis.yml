@@ -23,28 +23,25 @@ matrix:
   - go: 1.6.2
     os: osx
     env: pip_install="sudo pip install"
-  - go: 1.1.2
-    install: go get -v .
-    before_script: echo skipping gfmxr on ${TRAVIS_GO_VERSION}
-    script:
-    - ./runtests vet
-    - ./runtests test
 
 before_script:
 - $pip_install flake8
+- go get github.com/urfave/gfmrun/...
+- go get golang.org/x/tools/cmd/goimports
 - if [ ! -f node_modules/.bin/markdown-toc ] ; then
     npm install markdown-toc ;
   fi
 - mkdir -p ${GOPATH%%:*}/src/gopkg.in/urfave
 - rm -rvf ${GOPATH%%:*}/src/gopkg.in/urfave/cli.v2
+- rm -rvf ${GOPATH%%:*}/pkg/*/gopkg.in/urfave/cli.v2.a
 - ln -sv ${TRAVIS_BUILD_DIR} ${GOPATH%%:*}/src/gopkg.in/urfave/cli.v2
-- go get github.com/urfave/gfmxr/...
 
 script:
 - flake8 runtests cli-v1-to-v2
+- ./runtests gen
 - ./runtests vet
 - ./runtests test
-- ./runtests gfmxr
+- ./runtests gfmrun
 - ./cli-v1-to-v2 --selftest
 - ./runtests migrations
 - ./runtests toc

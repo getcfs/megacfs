@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"syscall"
 
 	"github.com/opencontainers/runc/libcontainer/apparmor"
@@ -19,9 +18,10 @@ import (
 )
 
 type linuxStandardInit struct {
-	pipe      io.ReadWriteCloser
-	parentPid int
-	config    *initConfig
+	pipe       io.ReadWriteCloser
+	parentPid  int
+	stateDirFD int
+	config     *initConfig
 }
 
 func (l *linuxStandardInit) getSessionRingParams() (string, uint32, uint32) {
@@ -44,17 +44,19 @@ func (l *linuxStandardInit) getSessionRingParams() (string, uint32, uint32) {
 // the kernel
 const PR_SET_NO_NEW_PRIVS = 0x26
 
-func (l *linuxStandardInit) Init(s chan os.Signal) error {
-	ringname, keepperms, newperms := l.getSessionRingParams()
+func (l *linuxStandardInit) Init() error {
+	if !l.config.Config.NoNewKeyring {
+		ringname, keepperms, newperms := l.getSessionRingParams()
 
-	// do not inherit the parent's session keyring
-	sessKeyId, err := keyctl.JoinSessionKeyring(ringname)
-	if err != nil {
-		return err
-	}
-	// make session keyring searcheable
-	if err := keyctl.ModKeyringPerm(sessKeyId, keepperms, newperms); err != nil {
-		return err
+		// do not inherit the parent's session keyring
+		sessKeyId, err := keyctl.JoinSessionKeyring(ringname)
+		if err != nil {
+			return err
+		}
+		// make session keyring searcheable
+		if err := keyctl.ModKeyringPerm(sessKeyId, keepperms, newperms); err != nil {
+			return err
+		}
 	}
 
 	var console *linuxConsole
@@ -142,28 +144,35 @@ func (l *linuxStandardInit) Init(s chan os.Signal) error {
 		return err
 	}
 	// compare the parent from the inital start of the init process and make sure that it did not change.
-	// if the parent changes that means it died and we were reparened to something else so we should
+	// if the parent changes that means it died and we were reparented to something else so we should
 	// just kill ourself and not cause problems for someone else.
 	if syscall.Getppid() != l.parentPid {
 		return syscall.Kill(syscall.Getpid(), syscall.SIGKILL)
 	}
-	if l.config.Config.Seccomp != nil && l.config.NoNewPrivileges {
-		if err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
-			return err
-		}
-	}
 	// check for the arg before waiting to make sure it exists and it is returned
-	// as a create time error
+	// as a create time error.
 	name, err := exec.LookPath(l.config.Args[0])
 	if err != nil {
 		return err
 	}
-	// close the pipe to signal that we have completed our init
+	// close the pipe to signal that we have completed our init.
 	l.pipe.Close()
-	// wait for the signal to exec the users process
-	<-s
-	// clean up the signal handler
-	signal.Stop(s)
-	close(s)
-	return syscall.Exec(name, l.config.Args[0:], os.Environ())
+	// wait for the fifo to be opened on the other side before
+	// exec'ing the users process.
+	fd, err := syscall.Openat(l.stateDirFD, execFifoFilename, os.O_WRONLY|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return newSystemErrorWithCause(err, "openat exec fifo")
+	}
+	if _, err := syscall.Write(fd, []byte("0")); err != nil {
+		return newSystemErrorWithCause(err, "write 0 exec fifo")
+	}
+	if l.config.Config.Seccomp != nil && l.config.NoNewPrivileges {
+		if err := seccomp.InitSeccomp(l.config.Config.Seccomp); err != nil {
+			return newSystemErrorWithCause(err, "init seccomp")
+		}
+	}
+	if err := syscall.Exec(name, l.config.Args[0:], os.Environ()); err != nil {
+		return newSystemErrorWithCause(err, "exec user process")
+	}
+	return nil
 }
