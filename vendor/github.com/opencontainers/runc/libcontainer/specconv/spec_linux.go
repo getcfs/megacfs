@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -145,6 +144,7 @@ type CreateOpts struct {
 	CgroupName       string
 	UseSystemdCgroup bool
 	NoPivotRoot      bool
+	NoNewKeyring     bool
 	Spec             *specs.Spec
 }
 
@@ -170,11 +170,12 @@ func CreateLibcontainerConfig(opts *CreateOpts) (*configs.Config, error) {
 		labels = append(labels, fmt.Sprintf("%s=%s", k, v))
 	}
 	config := &configs.Config{
-		Rootfs:      rootfsPath,
-		NoPivotRoot: opts.NoPivotRoot,
-		Readonlyfs:  spec.Root.Readonly,
-		Hostname:    spec.Hostname,
-		Labels:      append(labels, fmt.Sprintf("bundle=%s", cwd)),
+		Rootfs:       rootfsPath,
+		NoPivotRoot:  opts.NoPivotRoot,
+		Readonlyfs:   spec.Root.Readonly,
+		Hostname:     spec.Hostname,
+		Labels:       append(labels, fmt.Sprintf("bundle=%s", cwd)),
+		NoNewKeyring: opts.NoNewKeyring,
 	}
 
 	exists := false
@@ -226,9 +227,6 @@ func CreateLibcontainerConfig(opts *CreateOpts) (*configs.Config, error) {
 	config.Sysctl = spec.Linux.Sysctl
 	if spec.Linux.Resources != nil && spec.Linux.Resources.OOMScoreAdj != nil {
 		config.OomScoreAdj = *spec.Linux.Resources.OOMScoreAdj
-	}
-	for _, g := range spec.Process.User.AdditionalGids {
-		config.AdditionalGroups = append(config.AdditionalGroups, strconv.FormatUint(uint64(g), 10))
 	}
 	createHooks(spec, config)
 	config.MountLabel = spec.Linux.MountLabel
@@ -392,7 +390,14 @@ func createCgroupConfig(name string, useSystemdCgroup bool, spec *specs.Spec) (*
 		}
 		if r.BlockIO.WeightDevice != nil {
 			for _, wd := range r.BlockIO.WeightDevice {
-				weightDevice := configs.NewWeightDevice(wd.Major, wd.Minor, *wd.Weight, *wd.LeafWeight)
+				var weight, leafWeight uint16
+				if wd.Weight != nil {
+					weight = *wd.Weight
+				}
+				if wd.LeafWeight != nil {
+					leafWeight = *wd.LeafWeight
+				}
+				weightDevice := configs.NewWeightDevice(wd.Major, wd.Minor, weight, leafWeight)
 				c.Resources.BlkioWeightDevice = append(c.Resources.BlkioWeightDevice, weightDevice)
 			}
 		}
@@ -432,7 +437,7 @@ func createCgroupConfig(name string, useSystemdCgroup bool, spec *specs.Spec) (*
 	}
 	if r.Network != nil {
 		if r.Network.ClassID != nil {
-			c.Resources.NetClsClassid = string(*r.Network.ClassID)
+			c.Resources.NetClsClassid = *r.Network.ClassID
 		}
 		for _, m := range r.Network.Priorities {
 			c.Resources.NetPrioIfpriomap = append(c.Resources.NetPrioIfpriomap, &configs.IfPrioMap{

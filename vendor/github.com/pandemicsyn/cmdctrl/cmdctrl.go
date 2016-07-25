@@ -1,6 +1,10 @@
 package cmdctrl
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"io/ioutil"
 	"net"
 	"time"
 
@@ -29,11 +33,14 @@ type CCServer struct {
 }
 
 type ConfigOpts struct {
-	ListenAddress string
-	CertFile      string
-	KeyFile       string
-	UseTLS        bool
-	Enabled       bool
+	ListenAddress      string
+	CAFile             string
+	CertFile           string
+	KeyFile            string
+	UseTLS             bool
+	Enabled            bool
+	MutualTLS          bool
+	InsecureSkipVerify bool
 }
 
 func NewCCServer(c CmdCtrl, cfg *ConfigOpts) *CCServer {
@@ -43,6 +50,36 @@ func NewCCServer(c CmdCtrl, cfg *ConfigOpts) *CCServer {
 	}
 }
 
+func mutualTLS(c ConfigOpts) (*tls.Config, error) {
+	tlsConf := &tls.Config{}
+	if c.MutualTLS {
+		caCert, err := ioutil.ReadFile(c.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to load ca cert %s: %s", c.CAFile, err.Error())
+		}
+		clientCertPool := x509.NewCertPool()
+		if ok := clientCertPool.AppendCertsFromPEM(caCert); !ok {
+			return nil, fmt.Errorf("Unable to append cert %s to pool.", c.CAFile)
+		}
+		strictness := tls.RequireAndVerifyClientCert
+		tlsConf = &tls.Config{
+			ClientAuth:               strictness,
+			ClientCAs:                clientCertPool,
+			CipherSuites:             []uint16{tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384},
+			PreferServerCipherSuites: true,
+			MinVersion:               uint16(tls.VersionTLS12),
+		}
+		tlsConf.BuildNameToCertificate()
+	}
+	cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
+	if err != nil {
+		return nil, err
+	}
+	tlsConf.Certificates = []tls.Certificate{cert}
+	tlsConf.InsecureSkipVerify = c.InsecureSkipVerify
+	return tlsConf, nil
+}
+
 func (cc *CCServer) Serve() error {
 	l, err := net.Listen("tcp", cc.cfg.ListenAddress)
 	if err != nil {
@@ -50,11 +87,20 @@ func (cc *CCServer) Serve() error {
 	}
 	var opts []grpc.ServerOption
 	if cc.cfg.UseTLS {
-		creds, err := credentials.NewServerTLSFromFile(cc.cfg.CertFile, cc.cfg.KeyFile)
-		if err != nil {
-			return err
+		if cc.cfg.MutualTLS {
+			mtc, err := mutualTLS(*cc.cfg)
+			if err != nil {
+				return err
+			}
+			creds := credentials.NewTLS(mtc)
+			opts = []grpc.ServerOption{grpc.Creds(creds)}
+		} else {
+			creds, err := credentials.NewServerTLSFromFile(cc.cfg.CertFile, cc.cfg.KeyFile)
+			if err != nil {
+				return err
+			}
+			opts = []grpc.ServerOption{grpc.Creds(creds)}
 		}
-		opts = []grpc.ServerOption{grpc.Creds(creds)}
 	}
 	s := grpc.NewServer(opts...)
 	pb.RegisterCmdCtrlServer(s, cc)

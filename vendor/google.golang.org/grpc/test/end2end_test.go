@@ -90,7 +90,8 @@ var (
 var raceMode bool // set by race_test.go in race mode
 
 type testServer struct {
-	security string // indicate the authentication protocol used by this server.
+	security  string // indicate the authentication protocol used by this server.
+	earlyFail bool   // whether to error out the execution of a service handler prematurely.
 }
 
 func (s *testServer) EmptyCall(ctx context.Context, in *testpb.Empty) (*testpb.Empty, error) {
@@ -219,6 +220,9 @@ func (s *testServer) StreamingInputCall(stream testpb.TestService_StreamingInput
 		}
 		p := in.GetPayload().GetBody()
 		sum += len(p)
+		if s.earlyFail {
+			return grpc.Errorf(codes.NotFound, "not found")
+		}
 	}
 }
 
@@ -404,10 +408,9 @@ func (te *test) tearDown() {
 // modify it before calling its startServer and clientConn methods.
 func newTest(t *testing.T, e env) *test {
 	te := &test{
-		t:          t,
-		e:          e,
-		testServer: &testServer{security: e.security},
-		maxStream:  math.MaxUint32,
+		t:         t,
+		e:         e,
+		maxStream: math.MaxUint32,
 	}
 	te.ctx, te.cancel = context.WithCancel(context.Background())
 	return te
@@ -415,7 +418,8 @@ func newTest(t *testing.T, e env) *test {
 
 // startServer starts a gRPC server listening. Callers should defer a
 // call to te.tearDown to clean up.
-func (te *test) startServer() {
+func (te *test) startServer(ts testpb.TestServiceServer) {
+	te.testServer = ts
 	e := te.e
 	te.t.Logf("Running test in %s environment...", e.name)
 	sopts := []grpc.ServerOption{grpc.MaxConcurrentStreams(te.maxStream)}
@@ -545,7 +549,39 @@ func testTimeoutOnDeadServer(t *testing.T, e env) {
 		"grpc: Conn.resetTransport failed to create client transport: connection error",
 		"grpc: Conn.resetTransport failed to create client transport: connection error: desc = \"transport: dial unix",
 	)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
+	defer te.tearDown()
+
+	cc := te.clientConn()
+	tc := testpb.NewTestServiceClient(cc)
+	if _, err := tc.EmptyCall(context.Background(), &testpb.Empty{}, grpc.FailFast(false)); err != nil {
+		t.Fatalf("TestService/EmptyCall(_, _) = _, %v, want _, <nil>", err)
+	}
+	te.srv.Stop()
+	ctx, _ := context.WithTimeout(context.Background(), time.Millisecond)
+	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}, grpc.FailFast(false)); grpc.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("TestService/EmptyCall(%v, _) = _, %v, want _, error code: %d", ctx, err, codes.DeadlineExceeded)
+	}
+	awaitNewConnLogOutput()
+}
+
+func TestFailFast(t *testing.T) {
+	defer leakCheck(t)()
+	for _, e := range listTestEnv() {
+		testFailFast(t, e)
+	}
+}
+
+func testFailFast(t *testing.T, e env) {
+	te := newTest(t, e)
+	te.userAgent = testAppUA
+	te.declareLogNoise(
+		"transport: http2Client.notifyError got notified that the client transport was broken EOF",
+		"grpc: Conn.transportMonitor exits due to: grpc: the client connection is closing",
+		"grpc: Conn.resetTransport failed to create client transport: connection error",
+		"grpc: Conn.resetTransport failed to create client transport: connection error: desc = \"transport: dial unix",
+	)
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -553,14 +589,23 @@ func testTimeoutOnDeadServer(t *testing.T, e env) {
 	if _, err := tc.EmptyCall(context.Background(), &testpb.Empty{}); err != nil {
 		t.Fatalf("TestService/EmptyCall(_, _) = _, %v, want _, <nil>", err)
 	}
+	// Stop the server and tear down all the exisiting connections.
 	te.srv.Stop()
-	// Set -1 as the timeout to make sure if transportMonitor gets error
-	// notification in time the failure path of the 1st invoke of
-	// ClientConn.wait hits the deadline exceeded error.
-	ctx, _ := context.WithTimeout(context.Background(), -1)
-	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}); grpc.Code(err) != codes.DeadlineExceeded {
-		t.Fatalf("TestService/EmptyCall(%v, _) = _, %v, want _, error code: %d", ctx, err, codes.DeadlineExceeded)
+	// Loop until the server teardown is propagated to the client.
+	for {
+		if _, err := tc.EmptyCall(context.Background(), &testpb.Empty{}); grpc.Code(err) == codes.Unavailable {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+	// The client keeps reconnecting and ongoing fail-fast RPCs should fail with code.Unavailable.
+	if _, err := tc.EmptyCall(context.Background(), &testpb.Empty{}); grpc.Code(err) != codes.Unavailable {
+		t.Fatalf("TestService/EmptyCall(_, _, _) = _, %v, want _, error code: %d", err, codes.Unavailable)
+	}
+	if _, err := tc.StreamingInputCall(context.Background()); grpc.Code(err) != codes.Unavailable {
+		t.Fatalf("TestService/StreamingInputCall(_) = _, %v, want _, error code: %d", err, codes.Unavailable)
+	}
+
 	awaitNewConnLogOutput()
 }
 
@@ -585,7 +630,7 @@ func testHealthCheckOnSuccess(t *testing.T, e env) {
 	hs := health.NewHealthServer()
 	hs.SetServingStatus("grpc.health.v1.Health", 1)
 	te.healthServer = hs
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -611,11 +656,12 @@ func testHealthCheckOnFailure(t *testing.T, e env) {
 	hs := health.NewHealthServer()
 	hs.SetServingStatus("grpc.health.v1.HealthCheck", 1)
 	te.healthServer = hs
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
-	if _, err := healthCheck(0*time.Second, cc, "grpc.health.v1.Health"); err != grpc.Errorf(codes.DeadlineExceeded, "context deadline exceeded") {
+	wantErr := grpc.Errorf(codes.DeadlineExceeded, "context deadline exceeded")
+	if _, err := healthCheck(0*time.Second, cc, "grpc.health.v1.Health"); !equalErrors(err, wantErr) {
 		t.Fatalf("Health/Check(_, _) = _, %v, want _, error code %d", err, codes.DeadlineExceeded)
 	}
 	awaitNewConnLogOutput()
@@ -634,10 +680,10 @@ func TestHealthCheckOff(t *testing.T) {
 
 func testHealthCheckOff(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	want := grpc.Errorf(codes.Unimplemented, "unknown service grpc.health.v1.Health")
-	if _, err := healthCheck(1*time.Second, te.clientConn(), ""); err != want {
+	if _, err := healthCheck(1*time.Second, te.clientConn(), ""); !equalErrors(err, want) {
 		t.Fatalf("Health/Check(_, _) = _, %v, want _, %v", err, want)
 	}
 }
@@ -653,7 +699,7 @@ func testHealthCheckServingStatus(t *testing.T, e env) {
 	te := newTest(t, e)
 	hs := health.NewHealthServer()
 	te.healthServer = hs
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -664,7 +710,8 @@ func testHealthCheckServingStatus(t *testing.T, e env) {
 	if out.Status != healthpb.HealthCheckResponse_SERVING {
 		t.Fatalf("Got the serving status %v, want SERVING", out.Status)
 	}
-	if _, err := healthCheck(1*time.Second, cc, "grpc.health.v1.Health"); err != grpc.Errorf(codes.NotFound, "unknown service") {
+	wantErr := grpc.Errorf(codes.NotFound, "unknown service")
+	if _, err := healthCheck(1*time.Second, cc, "grpc.health.v1.Health"); !equalErrors(err, wantErr) {
 		t.Fatalf("Health/Check(_, _) = _, %v, want _, error code %d", err, codes.NotFound)
 	}
 	hs.SetServingStatus("grpc.health.v1.Health", healthpb.HealthCheckResponse_SERVING)
@@ -695,7 +742,7 @@ func TestErrorChanNoIO(t *testing.T) {
 
 func testErrorChanNoIO(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	tc := testpb.NewTestServiceClient(te.clientConn())
@@ -714,7 +761,7 @@ func TestEmptyUnaryWithUserAgent(t *testing.T) {
 func testEmptyUnaryWithUserAgent(t *testing.T, e env) {
 	te := newTest(t, e)
 	te.userAgent = testAppUA
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -740,13 +787,13 @@ func TestFailedEmptyUnary(t *testing.T) {
 
 func testFailedEmptyUnary(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
 	ctx := metadata.NewContext(context.Background(), testMetadata)
 	wantErr := grpc.Errorf(codes.DataLoss, "missing expected user-agent")
-	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}); err != wantErr {
+	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}); !equalErrors(err, wantErr) {
 		t.Fatalf("TestService/EmptyCall(_, _) = _, %v, want _, %v", err, wantErr)
 	}
 }
@@ -760,7 +807,7 @@ func TestLargeUnary(t *testing.T) {
 
 func testLargeUnary(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -797,7 +844,7 @@ func TestMetadataUnaryRPC(t *testing.T) {
 
 func testMetadataUnaryRPC(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -843,7 +890,7 @@ func TestMalformedHTTP2Metadata(t *testing.T) {
 
 func testMalformedHTTP2Metadata(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -879,7 +926,7 @@ func performOneRPC(t *testing.T, tc testpb.TestServiceClient, wg *sync.WaitGroup
 		ResponseSize: proto.Int32(respSize),
 		Payload:      payload,
 	}
-	reply, err := tc.UnaryCall(context.Background(), req)
+	reply, err := tc.UnaryCall(context.Background(), req, grpc.FailFast(false))
 	if err != nil {
 		t.Errorf("TestService/UnaryCall(_, _) = _, %v, want _, <nil>", err)
 		return
@@ -905,7 +952,7 @@ func TestRetry(t *testing.T) {
 func testRetry(t *testing.T, e env) {
 	te := newTest(t, e)
 	te.declareLogNoise("transport: http2Client.notifyError got notified that the client transport was broken")
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -954,7 +1001,7 @@ func TestRPCTimeout(t *testing.T) {
 // TODO(zhaoq): Have a better test coverage of timeout and cancellation mechanism.
 func testRPCTimeout(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -991,7 +1038,7 @@ func TestCancel(t *testing.T) {
 func testCancel(t *testing.T, e env) {
 	te := newTest(t, e)
 	te.declareLogNoise("grpc: the client connection is closing; please retry")
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -1029,7 +1076,7 @@ func testCancelNoIO(t *testing.T, e env) {
 	te := newTest(t, e)
 	te.declareLogNoise("http2Client.notifyError got notified that the client transport was broken")
 	te.maxStream = 1 // Only allows 1 live stream per server transport.
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -1099,16 +1146,13 @@ func TestNoService(t *testing.T) {
 
 func testNoService(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.testServer = nil // register nothing
-	te.startServer()
+	te.startServer(nil)
 	defer te.tearDown()
 
 	cc := te.clientConn()
 	tc := testpb.NewTestServiceClient(cc)
 
-	// Make sure setting ack has been sent.
-	time.Sleep(20 * time.Millisecond)
-	stream, err := tc.FullDuplexCall(te.ctx)
+	stream, err := tc.FullDuplexCall(te.ctx, grpc.FailFast(false))
 	if err != nil {
 		t.Fatalf("%v.FullDuplexCall(_) = _, %v, want <nil>", tc, err)
 	}
@@ -1126,7 +1170,7 @@ func TestPingPong(t *testing.T) {
 
 func testPingPong(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -1186,7 +1230,7 @@ func TestMetadataStreamingRPC(t *testing.T) {
 
 func testMetadataStreamingRPC(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -1257,7 +1301,7 @@ func TestServerStreaming(t *testing.T) {
 
 func testServerStreaming(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -1312,7 +1356,7 @@ func TestFailedServerStreaming(t *testing.T) {
 
 func testFailedServerStreaming(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -1331,8 +1375,9 @@ func testFailedServerStreaming(t *testing.T, e env) {
 	if err != nil {
 		t.Fatalf("%v.StreamingOutputCall(_) = _, %v, want <nil>", tc, err)
 	}
-	if _, err := stream.Recv(); err != grpc.Errorf(codes.DataLoss, "got extra metadata") {
-		t.Fatalf("%v.Recv() = _, %v, want _, %v", stream, err, grpc.Errorf(codes.DataLoss, "got extra metadata"))
+	wantErr := grpc.Errorf(codes.DataLoss, "got extra metadata")
+	if _, err := stream.Recv(); !equalErrors(err, wantErr) {
+		t.Fatalf("%v.Recv() = _, %v, want _, %v", stream, err, wantErr)
 	}
 }
 
@@ -1367,8 +1412,7 @@ func TestServerStreaming_Concurrent(t *testing.T) {
 
 func testServerStreaming_Concurrent(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.testServer = concurrentSendServer{}
-	te.startServer()
+	te.startServer(concurrentSendServer{})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -1426,7 +1470,7 @@ func TestClientStreaming(t *testing.T) {
 
 func testClientStreaming(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -1459,6 +1503,46 @@ func testClientStreaming(t *testing.T, e env) {
 	}
 }
 
+func TestClientStreamingError(t *testing.T) {
+	defer leakCheck(t)()
+	for _, e := range listTestEnv() {
+		testClientStreamingError(t, e)
+	}
+}
+
+func testClientStreamingError(t *testing.T, e env) {
+	te := newTest(t, e)
+	te.startServer(&testServer{security: e.security, earlyFail: true})
+	defer te.tearDown()
+	tc := testpb.NewTestServiceClient(te.clientConn())
+
+	stream, err := tc.StreamingInputCall(te.ctx)
+	if err != nil {
+		t.Fatalf("%v.StreamingInputCall(_) = _, %v, want <nil>", tc, err)
+	}
+	payload, err := newPayload(testpb.PayloadType_COMPRESSABLE, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := &testpb.StreamingInputCallRequest{
+		Payload: payload,
+	}
+	// The 1st request should go through.
+	if err := stream.Send(req); err != nil {
+		t.Fatalf("%v.Send(%v) = %v, want <nil>", stream, req, err)
+	}
+	for {
+		if err := stream.Send(req); err != io.EOF {
+			continue
+		}
+		if _, err := stream.CloseAndRecv(); grpc.Code(err) != codes.NotFound {
+			t.Fatalf("%v.CloseAndRecv() = %v, want error %d", stream, err, codes.NotFound)
+		}
+		break
+	}
+}
+
 func TestExceedMaxStreamsLimit(t *testing.T) {
 	defer leakCheck(t)()
 	for _, e := range listTestEnv() {
@@ -1474,7 +1558,7 @@ func testExceedMaxStreamsLimit(t *testing.T, e env) {
 		"grpc: the client connection is closing",
 	)
 	te.maxStream = 1 // Only allows 1 live stream per server transport.
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -1515,7 +1599,7 @@ func testStreamsQuotaRecovery(t *testing.T, e env) {
 		"grpc: the client connection is closing",
 	)
 	te.maxStream = 1 // Allows 1 live stream.
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	cc := te.clientConn()
@@ -1566,7 +1650,7 @@ func testCompressServerHasNoSupport(t *testing.T, e env) {
 	te := newTest(t, e)
 	te.serverCompression = false
 	te.clientCompression = true
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -1622,7 +1706,7 @@ func testCompressOK(t *testing.T, e env) {
 	te := newTest(t, e)
 	te.serverCompression = true
 	te.clientCompression = true
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
@@ -1685,7 +1769,7 @@ func errInjector(ctx context.Context, req interface{}, info *grpc.UnaryServerInf
 func testUnaryServerInterceptor(t *testing.T, e env) {
 	te := newTest(t, e)
 	te.unaryInt = errInjector
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	tc := testpb.NewTestServiceClient(te.clientConn())
@@ -1716,7 +1800,7 @@ func fullDuplexOnly(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServ
 func testStreamServerInterceptor(t *testing.T, e env) {
 	te := newTest(t, e)
 	te.streamInt = fullDuplexOnly
-	te.startServer()
+	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 
 	tc := testpb.NewTestServiceClient(te.clientConn())
@@ -1780,12 +1864,12 @@ func TestClientRequestBodyError_UnexpectedEOF(t *testing.T) {
 
 func testClientRequestBodyError_UnexpectedEOF(t *testing.T, e env) {
 	te := newTest(t, e)
-	te.testServer = &funcServer{unaryCall: func(ctx context.Context, in *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
+	ts := &funcServer{unaryCall: func(ctx context.Context, in *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
 		errUnexpectedCall := errors.New("unexpected call func server method")
 		t.Error(errUnexpectedCall)
 		return nil, errUnexpectedCall
 	}}
-	te.startServer()
+	te.startServer(ts)
 	defer te.tearDown()
 	te.withServerTester(func(st *serverTester) {
 		st.writeHeadersGRPC(1, "/grpc.testing.TestService/UnaryCall")
@@ -1805,12 +1889,12 @@ func TestClientRequestBodyError_CloseAfterLength(t *testing.T) {
 func testClientRequestBodyError_CloseAfterLength(t *testing.T, e env) {
 	te := newTest(t, e)
 	te.declareLogNoise("Server.processUnaryRPC failed to write status")
-	te.testServer = &funcServer{unaryCall: func(ctx context.Context, in *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
+	ts := &funcServer{unaryCall: func(ctx context.Context, in *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
 		errUnexpectedCall := errors.New("unexpected call func server method")
 		t.Error(errUnexpectedCall)
 		return nil, errUnexpectedCall
 	}}
-	te.startServer()
+	te.startServer(ts)
 	defer te.tearDown()
 	te.withServerTester(func(st *serverTester) {
 		st.writeHeadersGRPC(1, "/grpc.testing.TestService/UnaryCall")
@@ -1830,11 +1914,11 @@ func TestClientRequestBodyError_Cancel(t *testing.T) {
 func testClientRequestBodyError_Cancel(t *testing.T, e env) {
 	te := newTest(t, e)
 	gotCall := make(chan bool, 1)
-	te.testServer = &funcServer{unaryCall: func(ctx context.Context, in *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
+	ts := &funcServer{unaryCall: func(ctx context.Context, in *testpb.SimpleRequest) (*testpb.SimpleResponse, error) {
 		gotCall <- true
 		return new(testpb.SimpleResponse), nil
 	}}
-	te.startServer()
+	te.startServer(ts)
 	defer te.tearDown()
 	te.withServerTester(func(st *serverTester) {
 		st.writeHeadersGRPC(1, "/grpc.testing.TestService/UnaryCall")
@@ -1867,12 +1951,12 @@ func TestClientRequestBodyError_Cancel_StreamingInput(t *testing.T) {
 func testClientRequestBodyError_Cancel_StreamingInput(t *testing.T, e env) {
 	te := newTest(t, e)
 	recvErr := make(chan error, 1)
-	te.testServer = &funcServer{streamingInputCall: func(stream testpb.TestService_StreamingInputCallServer) error {
+	ts := &funcServer{streamingInputCall: func(stream testpb.TestService_StreamingInputCallServer) error {
 		_, err := stream.Recv()
 		recvErr <- err
 		return nil
 	}}
-	te.startServer()
+	te.startServer(ts)
 	defer te.tearDown()
 	te.withServerTester(func(st *serverTester) {
 		st.writeHeadersGRPC(1, "/grpc.testing.TestService/StreamingInputCall")
@@ -1887,7 +1971,7 @@ func testClientRequestBodyError_Cancel_StreamingInput(t *testing.T, e env) {
 			t.Fatal("timeout waiting for error")
 		}
 		if se, ok := got.(transport.StreamError); !ok || se.Code != codes.Canceled {
-			t.Errorf("error = %#v; want transport.StreamError with code Canceled")
+			t.Errorf("error = %#v; want transport.StreamError with code Canceled", got)
 		}
 	})
 }
@@ -2081,4 +2165,8 @@ func (fw *filterWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 	return fw.dst.Write(p)
+}
+
+func equalErrors(l, r error) bool {
+	return grpc.Code(l) == grpc.Code(r) && grpc.ErrorDesc(l) == grpc.ErrorDesc(r)
 }

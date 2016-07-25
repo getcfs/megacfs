@@ -100,10 +100,15 @@ func newHTTP2Server(conn net.Conn, maxStreams uint32, authInfo credentials.AuthI
 	if maxStreams == 0 {
 		maxStreams = math.MaxUint32
 	} else {
-		settings = append(settings, http2.Setting{http2.SettingMaxConcurrentStreams, maxStreams})
+		settings = append(settings, http2.Setting{
+			ID:  http2.SettingMaxConcurrentStreams,
+			Val: maxStreams,
+		})
 	}
 	if initialWindowSize != defaultWindowSize {
-		settings = append(settings, http2.Setting{http2.SettingInitialWindowSize, uint32(initialWindowSize)})
+		settings = append(settings, http2.Setting{
+			ID:  http2.SettingInitialWindowSize,
+			Val: uint32(initialWindowSize)})
 	}
 	if err := framer.writeSettings(true, settings...); err != nil {
 		return nil, ConnectionErrorf("transport: %v", err)
@@ -359,11 +364,7 @@ func (t *http2Server) handleData(f *http2.DataFrame) {
 		// Received the end of stream from the client.
 		s.mu.Lock()
 		if s.state != streamDone {
-			if s.state == streamWriteDone {
-				s.state = streamDone
-			} else {
-				s.state = streamReadDone
-			}
+			s.state = streamReadDone
 		}
 		s.mu.Unlock()
 		s.write(recvMsg{err: io.EOF})
@@ -450,7 +451,7 @@ func (t *http2Server) WriteHeader(s *Stream, md metadata.MD) error {
 	}
 	s.headerOk = true
 	s.mu.Unlock()
-	if _, err := wait(s.ctx, t.shutdownChan, t.writableChan); err != nil {
+	if _, err := wait(s.ctx, nil, t.shutdownChan, t.writableChan); err != nil {
 		return err
 	}
 	t.hBuf.Reset()
@@ -490,7 +491,7 @@ func (t *http2Server) WriteStatus(s *Stream, statusCode codes.Code, statusDesc s
 		headersSent = true
 	}
 	s.mu.Unlock()
-	if _, err := wait(s.ctx, t.shutdownChan, t.writableChan); err != nil {
+	if _, err := wait(s.ctx, nil, t.shutdownChan, t.writableChan); err != nil {
 		return err
 	}
 	t.hBuf.Reset()
@@ -539,7 +540,7 @@ func (t *http2Server) Write(s *Stream, data []byte, opts *Options) error {
 	}
 	s.mu.Unlock()
 	if writeHeaderFrame {
-		if _, err := wait(s.ctx, t.shutdownChan, t.writableChan); err != nil {
+		if _, err := wait(s.ctx, nil, t.shutdownChan, t.writableChan); err != nil {
 			return err
 		}
 		t.hBuf.Reset()
@@ -567,13 +568,13 @@ func (t *http2Server) Write(s *Stream, data []byte, opts *Options) error {
 		size := http2MaxFrameLen
 		s.sendQuotaPool.add(0)
 		// Wait until the stream has some quota to send the data.
-		sq, err := wait(s.ctx, t.shutdownChan, s.sendQuotaPool.acquire())
+		sq, err := wait(s.ctx, nil, t.shutdownChan, s.sendQuotaPool.acquire())
 		if err != nil {
 			return err
 		}
 		t.sendQuotaPool.add(0)
 		// Wait until the transport has some quota to send the data.
-		tq, err := wait(s.ctx, t.shutdownChan, t.sendQuotaPool.acquire())
+		tq, err := wait(s.ctx, nil, t.shutdownChan, t.sendQuotaPool.acquire())
 		if err != nil {
 			if _, ok := err.(StreamError); ok {
 				t.sendQuotaPool.cancel()
@@ -599,7 +600,7 @@ func (t *http2Server) Write(s *Stream, data []byte, opts *Options) error {
 		t.framer.adjustNumWriters(1)
 		// Got some quota. Try to acquire writing privilege on the
 		// transport.
-		if _, err := wait(s.ctx, t.shutdownChan, t.writableChan); err != nil {
+		if _, err := wait(s.ctx, nil, t.shutdownChan, t.writableChan); err != nil {
 			if _, ok := err.(StreamError); ok {
 				// Return the connection quota back.
 				t.sendQuotaPool.add(ps)
