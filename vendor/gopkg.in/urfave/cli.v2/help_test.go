@@ -9,8 +9,7 @@ import (
 
 func Test_ShowAppHelp_NoAuthor(t *testing.T) {
 	output := new(bytes.Buffer)
-	app := NewApp()
-	app.Writer = output
+	app := &App{Writer: output}
 
 	c := NewContext(app, nil, nil)
 
@@ -23,8 +22,7 @@ func Test_ShowAppHelp_NoAuthor(t *testing.T) {
 
 func Test_ShowAppHelp_NoVersion(t *testing.T) {
 	output := new(bytes.Buffer)
-	app := NewApp()
-	app.Writer = output
+	app := &App{Writer: output}
 
 	app.Version = ""
 
@@ -39,8 +37,7 @@ func Test_ShowAppHelp_NoVersion(t *testing.T) {
 
 func Test_ShowAppHelp_HideVersion(t *testing.T) {
 	output := new(bytes.Buffer)
-	app := NewApp()
-	app.Writer = output
+	app := &App{Writer: output}
 
 	app.HideVersion = true
 
@@ -116,7 +113,7 @@ func Test_Version_Custom_Flags(t *testing.T) {
 }
 
 func Test_helpCommand_Action_ErrorIfNoTopic(t *testing.T) {
-	app := NewApp()
+	app := &App{}
 
 	set := flag.NewFlagSet("test", 0)
 	set.Parse([]string{"foo"})
@@ -143,8 +140,25 @@ func Test_helpCommand_Action_ErrorIfNoTopic(t *testing.T) {
 	}
 }
 
+func Test_helpCommand_InHelpOutput(t *testing.T) {
+	app := &App{}
+	output := &bytes.Buffer{}
+	app.Writer = output
+	app.Run([]string{"test", "--help"})
+
+	s := output.String()
+
+	if strings.Contains(s, "\nCOMMANDS:\nGLOBAL OPTIONS:\n") {
+		t.Fatalf("empty COMMANDS section detected: %q", s)
+	}
+
+	if !strings.Contains(s, "help, h") {
+		t.Fatalf("missing \"help, h\": %q", s)
+	}
+}
+
 func Test_helpSubcommand_Action_ErrorIfNoTopic(t *testing.T) {
-	app := NewApp()
+	app := &App{}
 
 	set := flag.NewFlagSet("test", 0)
 	set.Parse([]string{"foo"})

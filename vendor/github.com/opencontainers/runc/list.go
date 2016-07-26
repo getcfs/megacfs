@@ -16,7 +16,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-const formatOptions = `table(default) or json`
+const formatOptions = `table or json`
 
 // containerState represents the platform agnostic pieces relating to a
 // running container's status and state
@@ -38,10 +38,22 @@ type containerState struct {
 var listCommand = cli.Command{
 	Name:  "list",
 	Usage: "lists containers started by runc with the given root",
+	ArgsUsage: `
+
+Where the given root is specified via the global option "--root"
+(default: "/run/runc").
+
+EXAMPLE 1:
+To list containers created via the default "--root":
+       runc list
+
+EXAMPLE 2:
+To list containers created using a non-default value for "--root":
+       runc --root value list`,
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name:  "format, f",
-			Value: "",
+			Value: "table",
 			Usage: `select one of: ` + formatOptions,
 		},
 		cli.BoolFlag{
@@ -63,7 +75,7 @@ var listCommand = cli.Command{
 		}
 
 		switch context.String("format") {
-		case "", "table":
+		case "table":
 			w := tabwriter.NewWriter(os.Stdout, 12, 1, 3, ' ', 0)
 			fmt.Fprint(w, "ID\tPID\tSTATUS\tBUNDLE\tCREATED\n")
 			for _, item := range s {

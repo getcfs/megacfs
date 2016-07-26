@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"hash"
 	"hash/crc32"
 	"log"
@@ -185,7 +186,7 @@ func NewOortFS(comms *StoreComms) *OortFS {
 	}
 	// TODO: How big should the chan be, or should we have another in memory queue that feeds the chan?
 	o.deleteChan = make(chan *DeleteItem, 1000)
-	deletes := newDeletinator(o.deleteChan, o)
+	deletes := newDeletinator(o.deleteChan, o, comms)
 	go deletes.run()
 	return o
 }
@@ -295,10 +296,6 @@ func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, na
 		if err != nil {
 			return "", &pb.Attr{}, err
 		}
-		// Return an error if entry already exists and is not a tombstone
-		if p.Tombstone == nil {
-			return "", &pb.Attr{}, nil
-		}
 	}
 	var direntType fuse.DirentType
 	if isdir {
@@ -353,9 +350,6 @@ func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string
 	if err != nil {
 		return "", &pb.Attr{}, err
 	}
-	if d.Tombstone != nil {
-		return "", &pb.Attr{}, nil
-	}
 	// Get the Inode entry
 	b, err = o.GetChunk(ctx, d.Id)
 	if err != nil {
@@ -400,10 +394,6 @@ func (o *OortFS) ReadDirAll(ctx context.Context, id []byte) (*pb.ReadDirAllRespo
 		if err != nil {
 			return &pb.ReadDirAllResponse{}, err
 		}
-		if dirent.Tombstone != nil {
-			// Skip deleted entries
-			continue
-		}
 		e.DirEntries = append(e.DirEntries, &pb.DirEnt{Name: dirent.Name, Type: dirent.Type})
 	}
 	sort.Sort(ByDirent(e.DirEntries))
@@ -423,11 +413,11 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 	if err != nil {
 		return 1, err
 	}
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return 1, err
+	}
 	if fuse.DirentType(d.Type) == fuse.DT_Dir {
-		fsid, err := GetFsId(ctx)
-		if err != nil {
-			return 1, err
-		}
 		inode, err := o.GetInode(ctx, d.Id)
 		if err != nil {
 			return 1, err
@@ -437,27 +427,17 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 			return 1, err
 		}
 		// return error if directory is not empty
-		dirent := &pb.DirEntry{}
-		for _, item := range items {
-			err = formic.Unmarshal(item.Value, dirent)
-			if err != nil {
-				return 1, err
-			}
-			if dirent.Tombstone != nil {
-				// Skip deleted entries
-				continue
-			}
-			return 1, err
+		if len(items) > 0 {
+			return 1, formic.ErrNotEmpty
 		}
 	}
 	// TODO: More error handling needed
 	// TODO: Handle possible race conditions where user writes and deletes the same file over and over
-	// Mark the item deleted in the group
 	t := &pb.Tombstone{}
 	tsm := brimtime.TimeToUnixMicro(time.Now())
 	t.Dtime = tsm
 	t.Qtime = tsm
-	t.FsId = []byte("1") // TODO: Make sure this gets set when we are tracking fsids
+	t.FsId = fsid.Bytes()
 	inode, err := o.GetInode(ctx, d.Id)
 	if store.IsNotFound(err) {
 		// file wasn't found. attempt to remove the group store entry
@@ -471,21 +451,21 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 	}
 	t.Blocks = inode.Blocks
 	t.Inode = inode.Inode
-	d.Tombstone = t
-	b, err = formic.Marshal(d)
+	// Write the Tombstone to the delete listing for the fsid
+	err = o.comms.WriteGroupTS(ctx, formic.GetDeletedID(fsid.Bytes()), []byte(fmt.Sprintf("%d", t.Inode)), b, tsm)
 	if err != nil {
 		return 1, err
 	}
-	// NOTE: The tsm-1 is kind of a hack because the timestamp needs to be updated on this write, but if we choose tsm, once the actual delete comes through, it will not work because it is going to try to delete with a timestamp of tsm.
-	err = o.comms.WriteGroupTS(ctx, parent, []byte(name), b, tsm-1)
-	if err != nil {
-		return 1, err // Not really sure what should be done here to try to recover from err
-	}
 	o.deleteChan <- &DeleteItem{
-		parent: parent,
-		name:   name,
+		ts: t,
 	}
-	return 0, nil
+	// Delete the original from the listing
+	err = o.comms.DeleteGroupItemTS(ctx, parent, []byte(name), tsm)
+	if err != nil {
+		return 1, err
+	} else {
+		return 0, nil
+	}
 }
 
 func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size uint64, mtime int64) error {
@@ -673,7 +653,12 @@ func (o *OortFS) Rename(ctx context.Context, oldParent, newParent []byte, oldNam
 	if err != nil {
 		return &pb.RenameResponse{}, err
 	}
-	// TODO: Handle orphaned data from overwrites
+	// Be sure that old data is deleted
+	// TODO: It would be better to create the tombstone for the delete, and only queue the delete if the are sure the new write happens
+	_, err = o.Remove(ctx, newParent, newName)
+	if err != nil {
+		return &pb.RenameResponse{}, err
+	}
 	// Create new entry
 	d.Name = newName
 	b, err = formic.Marshal(d)

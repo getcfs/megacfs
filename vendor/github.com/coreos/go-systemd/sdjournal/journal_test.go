@@ -16,11 +16,13 @@
 package sdjournal
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,55 +178,168 @@ func TestNewJournalFromDir(t *testing.T) {
 	j.Close()
 }
 
-func TestJournalGetEntry(t *testing.T) {
+func setupJournalRoundtrip() (*Journal, map[string]string, error) {
 	j, err := NewJournal()
 	if err != nil {
-		t.Fatalf("Error opening journal: %s", err)
+		return nil, nil, fmt.Errorf("Error opening journal: %s", err)
 	}
 
 	if j == nil {
-		t.Fatal("Got a nil journal")
+		return nil, nil, fmt.Errorf("Got a nil journal")
 	}
-
-	defer j.Close()
 
 	j.FlushMatches()
 
-	matchField := "TESTJOURNALGETENTRY"
+	matchField := "TESTJOURNALENTRY"
 	matchValue := fmt.Sprintf("%d", time.Now().UnixNano())
 	m := Match{Field: matchField, Value: matchValue}
 	err = j.AddMatch(m.String())
 	if err != nil {
-		t.Fatalf("Error adding matches to journal: %s", err)
+		return nil, nil, fmt.Errorf("Error adding matches to journal: %s", err)
 	}
 
-	want := fmt.Sprintf("test journal get entry message %s", time.Now())
-	err = journal.Send(want, journal.PriInfo, map[string]string{matchField: matchValue})
+	msg := fmt.Sprintf("test journal get entry message %s", time.Now())
+	data := map[string]string{matchField: matchValue}
+	err = journal.Send(msg, journal.PriInfo, data)
 	if err != nil {
-		t.Fatalf("Error writing to journal: %s", err)
+		return nil, nil, fmt.Errorf("Error writing to journal: %s", err)
 	}
 
-	r := j.Wait(time.Duration(1) * time.Second)
-	if r < 0 {
-		t.Fatalf("Error waiting to journal")
-	}
+	time.Sleep(time.Duration(1) * time.Second)
 
 	n, err := j.Next()
 	if err != nil {
-		t.Fatalf("Error reading to journal: %s", err)
+		return nil, nil, fmt.Errorf("Error reading from journal: %s", err)
 	}
 
 	if n == 0 {
-		t.Fatalf("Error reading to journal: %s", io.EOF)
+		return nil, nil, fmt.Errorf("Error reading from journal: %s", io.EOF)
 	}
+
+	data["MESSAGE"] = msg
+
+	return j, data, nil
+}
+
+func TestJournalGetData(t *testing.T) {
+	j, wantEntry, err := setupJournalRoundtrip()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	defer j.Close()
+
+	for k, v := range wantEntry {
+		data := fmt.Sprintf("%s=%s", k, v)
+
+		dataStr, err := j.GetData(k)
+		if err != nil {
+			t.Fatalf("GetData() error: %v", err)
+		}
+
+		if dataStr != data {
+			t.Fatalf("Invalid data for \"%s\": got %s, want %s", k, dataStr, data)
+		}
+
+		dataBytes, err := j.GetDataBytes(k)
+		if err != nil {
+			t.Fatalf("GetDataBytes() error: %v", err)
+		}
+
+		if string(dataBytes) != data {
+			t.Fatalf("Invalid data bytes for \"%s\": got %s, want %s", k, string(dataBytes), data)
+		}
+
+		valStr, err := j.GetDataValue(k)
+		if err != nil {
+			t.Fatalf("GetDataValue() error: %v", err)
+		}
+
+		if valStr != v {
+			t.Fatalf("Invalid data value for \"%s\": got %s, want %s", k, valStr, v)
+		}
+
+		valBytes, err := j.GetDataValueBytes(k)
+		if err != nil {
+			t.Fatalf("GetDataValueBytes() error: %v", err)
+		}
+
+		if string(valBytes) != v {
+			t.Fatalf("Invalid data value bytes for \"%s\": got %s, want %s", k, string(valBytes), v)
+		}
+	}
+}
+
+func TestJournalGetEntry(t *testing.T) {
+	j, wantEntry, err := setupJournalRoundtrip()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	defer j.Close()
 
 	entry, err := j.GetEntry()
 	if err != nil {
 		t.Fatalf("Error getting the entry to journal: %s", err)
 	}
 
-	got := entry.Fields["MESSAGE"]
-	if got != want {
-		t.Fatalf("Bad result for entry.Fields[\"MESSAGE\"]: got %s, want %s", got, want)
+	for k, wantV := range wantEntry {
+		gotV := entry.Fields[k]
+		if gotV != wantV {
+			t.Fatalf("Bad result for entry.Fields[\"%s\"]: got %s, want %s", k, gotV, wantV)
+		}
+	}
+}
+
+// Check for incorrect read into small buffers,
+// see https://github.com/coreos/go-systemd/issues/172
+func TestJournalReaderSmallReadBuffer(t *testing.T) {
+	// Write a long entry ...
+	delim := "%%%%%%"
+	longEntry := strings.Repeat("a", 256)
+	matchField := "TESTJOURNALREADERSMALLBUF"
+	matchValue := fmt.Sprintf("%d", time.Now().UnixNano())
+	r, err := NewJournalReader(JournalReaderConfig{
+		Since: time.Duration(-15) * time.Second,
+		Matches: []Match{
+			{
+				Field: matchField,
+				Value: matchValue,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Error opening journal: %s", err)
+	}
+	if r == nil {
+		t.Fatal("Got a nil reader")
+	}
+	defer r.Close()
+
+	want := fmt.Sprintf("%slongentry %s%s", delim, longEntry, delim)
+	err = journal.Send(want, journal.PriInfo, map[string]string{matchField: matchValue})
+	if err != nil {
+		t.Fatal("Error writing to journal", err)
+	}
+	time.Sleep(time.Second)
+
+	// ... and try to read it back piece by piece via a small buffer
+	finalBuff := new(bytes.Buffer)
+	var e error
+	for c := -1; c != 0 && e == nil; {
+		smallBuf := make([]byte, 5)
+		c, e = r.Read(smallBuf)
+		if c > len(smallBuf) {
+			t.Fatalf("Got unexpected read length: %d vs %d", c, len(smallBuf))
+		}
+		_, _ = finalBuff.Write(smallBuf)
+	}
+	b := finalBuff.String()
+	got := strings.Split(b, delim)
+	if len(got) != 3 {
+		t.Fatalf("Got unexpected entry %s", b)
+	}
+	if got[1] != strings.Trim(want, delim) {
+		t.Fatalf("Got unexpected message %s", got[1])
 	}
 }
