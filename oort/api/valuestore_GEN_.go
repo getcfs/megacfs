@@ -41,7 +41,7 @@ type valueStore struct {
 
 // NewValueStore creates a ValueStore connection via grpc to the given
 // address.
-func NewValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) (store.ValueStore, error) {
+func NewValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.ValueStore {
 	stor := &valueStore{
 		addr:             addr,
 		ftlsc:            ftlsConfig,
@@ -93,7 +93,7 @@ func NewValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts .
 	}
 	go stor.handleDeleteStream()
 
-	return stor, nil
+	return stor
 }
 
 func (stor *valueStore) Startup(ctx context.Context) error {

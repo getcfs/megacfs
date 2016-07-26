@@ -168,12 +168,12 @@ func main() {
 		}
 		c, err := json.MarshalIndent(config, "", "  ")
 		if err != nil {
-			fmt.Println("Error writing config file: %v", err)
+			fmt.Printf("Error writing config file: %v\n", err)
 			os.Exit(1)
 		}
 		err = ioutil.WriteFile(configfile, c, 0600)
 		if err != nil {
-			fmt.Println("Error writing config file: %v", err)
+			fmt.Printf("Error writing config file: %v\n", err)
 			os.Exit(1)
 		}
 		fmt.Println()
@@ -292,7 +292,7 @@ func main() {
 			os.Exit(1)
 		}
 		c.Close()
-		fmt.Println("ID:",res.Data)
+		fmt.Println("ID:", res.Data)
 	case "delete":
 		if !configured {
 			fmt.Println("You must run \"cfs configure\" first.")
@@ -413,7 +413,7 @@ func main() {
 			f.Usage()
 		}
 		region_fsid := f.Args()[0]
-		parts := strings.Split(region_fsid,":")
+		parts := strings.Split(region_fsid, ":")
 		if len(parts) != 2 {
 			fmt.Println("Invalid filesystem:", region_fsid)
 			f.Usage()
@@ -444,7 +444,7 @@ func main() {
 			fuse.FSName("cfs"),
 			fuse.Subtype("cfs"),
 			fuse.DefaultPermissions(),
-			fuse.MaxReadahead(128*1024),
+			fuse.MaxReadahead(128 * 1024),
 			fuse.AsyncRead(),
 			//fuse.WritebackCache(),
 			//fuse.AutoInvalData(),
