@@ -13,9 +13,9 @@ import (
 
 var ErrZeroValue = errors.New("Got 0 length message")
 
-// NOTE: Go Vet for some reason doesn't like the following Errorf (ignore gholt)
-var ErrNotFound = grpc.Errorf(codes.NotFound, "Not Found")
-var ErrNotEmpty = grpc.Errorf(codes.FailedPrecondition, "Not Empty")
+var gerf = grpc.Errorf // To avoid a `go vet` quirk
+var ErrNotFound = gerf(codes.NotFound, "Not Found")
+var ErrNotEmpty = gerf(codes.FailedPrecondition, "Not Empty")
 
 func GetID(fsid []byte, inode, block uint64) []byte {
 	// TODO: Figure out what arrangement we want to use for the hash
