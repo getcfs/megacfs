@@ -22,6 +22,7 @@ import (
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/criurpc"
+	"github.com/opencontainers/runc/libcontainer/system"
 	"github.com/opencontainers/runc/libcontainer/utils"
 	"github.com/syndtr/gocapability/capability"
 	"github.com/vishvananda/netlink/nl"
@@ -29,23 +30,20 @@ import (
 
 const stdioFdCount = 3
 
-// InitContinueSignal is used to signal the container init process to
-// start the users specified process after the container create has finished.
-const InitContinueSignal = syscall.SIGCONT
-
 type linuxContainer struct {
-	id            string
-	root          string
-	config        *configs.Config
-	cgroupManager cgroups.Manager
-	initPath      string
-	initArgs      []string
-	initProcess   parentProcess
-	criuPath      string
-	m             sync.Mutex
-	criuVersion   int
-	state         containerState
-	created       time.Time
+	id                   string
+	root                 string
+	config               *configs.Config
+	cgroupManager        cgroups.Manager
+	initPath             string
+	initArgs             []string
+	initProcess          parentProcess
+	initProcessStartTime string
+	criuPath             string
+	m                    sync.Mutex
+	criuVersion          int
+	state                containerState
+	created              time.Time
 }
 
 // State represents a running container's state
@@ -174,6 +172,13 @@ func (c *linuxContainer) Stats() (*Stats, error) {
 func (c *linuxContainer) Set(config configs.Config) error {
 	c.m.Lock()
 	defer c.m.Unlock()
+	status, err := c.currentStatus()
+	if err != nil {
+		return err
+	}
+	if status == Stopped {
+		return newGenericError(fmt.Errorf("container not running"), ContainerNotRunning)
+	}
 	c.config = &config
 	return c.cgroupManager.Set(c.config)
 }
@@ -195,14 +200,37 @@ func (c *linuxContainer) Run(process *Process) error {
 	if err != nil {
 		return err
 	}
-	isInit := status == Stopped
-	if err := c.start(process, isInit); err != nil {
+	if err := c.start(process, status == Stopped); err != nil {
 		return err
 	}
-	if isInit {
-		return process.ops.signal(InitContinueSignal)
+	if status == Stopped {
+		return c.exec()
 	}
 	return nil
+}
+
+func (c *linuxContainer) Exec() error {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return c.exec()
+}
+
+func (c *linuxContainer) exec() error {
+	path := filepath.Join(c.root, execFifoFilename)
+	f, err := os.OpenFile(path, os.O_RDONLY, 0)
+	if err != nil {
+		return newSystemErrorWithCause(err, "open exec fifo for reading")
+	}
+	defer f.Close()
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return err
+	}
+	if len(data) > 0 {
+		os.Remove(path)
+		return nil
+	}
+	return fmt.Errorf("cannot start an already running container")
 }
 
 func (c *linuxContainer) start(process *Process, isInit bool) error {
@@ -226,9 +254,12 @@ func (c *linuxContainer) start(process *Process, isInit bool) error {
 		c.state = &createdState{
 			c: c,
 		}
-		if err := c.updateState(parent); err != nil {
+		state, err := c.updateState(parent)
+		if err != nil {
 			return err
 		}
+		c.initProcessStartTime = state.InitProcessStartTime
+
 		if c.config.Hooks != nil {
 			s := configs.HookState{
 				Version:    c.config.Version,
@@ -262,17 +293,21 @@ func (c *linuxContainer) newParentProcess(p *Process, doInit bool) (parentProces
 	if err != nil {
 		return nil, newSystemErrorWithCause(err, "creating new init pipe")
 	}
-	cmd, err := c.commandTemplate(p, childPipe)
+	rootDir, err := os.Open(c.root)
+	if err != nil {
+		return nil, err
+	}
+	cmd, err := c.commandTemplate(p, childPipe, rootDir)
 	if err != nil {
 		return nil, newSystemErrorWithCause(err, "creating new command template")
 	}
 	if !doInit {
-		return c.newSetnsProcess(p, cmd, parentPipe, childPipe)
+		return c.newSetnsProcess(p, cmd, parentPipe, childPipe, rootDir)
 	}
-	return c.newInitProcess(p, cmd, parentPipe, childPipe)
+	return c.newInitProcess(p, cmd, parentPipe, childPipe, rootDir)
 }
 
-func (c *linuxContainer) commandTemplate(p *Process, childPipe *os.File) (*exec.Cmd, error) {
+func (c *linuxContainer) commandTemplate(p *Process, childPipe, rootDir *os.File) (*exec.Cmd, error) {
 	cmd := &exec.Cmd{
 		Path: c.initPath,
 		Args: c.initArgs,
@@ -284,8 +319,10 @@ func (c *linuxContainer) commandTemplate(p *Process, childPipe *os.File) (*exec.
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
-	cmd.ExtraFiles = append(p.ExtraFiles, childPipe)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("_LIBCONTAINER_INITPIPE=%d", stdioFdCount+len(cmd.ExtraFiles)-1))
+	cmd.ExtraFiles = append(p.ExtraFiles, childPipe, rootDir)
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("_LIBCONTAINER_INITPIPE=%d", stdioFdCount+len(cmd.ExtraFiles)-2),
+		fmt.Sprintf("_LIBCONTAINER_STATEDIR=%d", stdioFdCount+len(cmd.ExtraFiles)-1))
 	// NOTE: when running a container with no PID namespace and the parent process spawning the container is
 	// PID1 the pdeathsig is being delivered to the container's init process by the kernel for some reason
 	// even with the parent still running.
@@ -295,7 +332,7 @@ func (c *linuxContainer) commandTemplate(p *Process, childPipe *os.File) (*exec.
 	return cmd, nil
 }
 
-func (c *linuxContainer) newInitProcess(p *Process, cmd *exec.Cmd, parentPipe, childPipe *os.File) (*initProcess, error) {
+func (c *linuxContainer) newInitProcess(p *Process, cmd *exec.Cmd, parentPipe, childPipe, rootDir *os.File) (*initProcess, error) {
 	cmd.Env = append(cmd.Env, "_LIBCONTAINER_INITTYPE="+string(initStandard))
 	nsMaps := make(map[configs.NamespaceType]string)
 	for _, ns := range c.config.Namespaces {
@@ -318,10 +355,11 @@ func (c *linuxContainer) newInitProcess(p *Process, cmd *exec.Cmd, parentPipe, c
 		process:       p,
 		bootstrapData: data,
 		sharePidns:    sharePidns,
+		rootDir:       rootDir,
 	}, nil
 }
 
-func (c *linuxContainer) newSetnsProcess(p *Process, cmd *exec.Cmd, parentPipe, childPipe *os.File) (*setnsProcess, error) {
+func (c *linuxContainer) newSetnsProcess(p *Process, cmd *exec.Cmd, parentPipe, childPipe, rootDir *os.File) (*setnsProcess, error) {
 	cmd.Env = append(cmd.Env, "_LIBCONTAINER_INITTYPE="+string(initSetns))
 	state, err := c.currentState()
 	if err != nil {
@@ -342,6 +380,7 @@ func (c *linuxContainer) newSetnsProcess(p *Process, cmd *exec.Cmd, parentPipe, 
 		config:        c.newInitConfig(p),
 		process:       p,
 		bootstrapData: data,
+		rootDir:       rootDir,
 	}, nil
 }
 
@@ -351,6 +390,7 @@ func (c *linuxContainer) newInitConfig(process *Process) *initConfig {
 		Args:             process.Args,
 		Env:              process.Env,
 		User:             process.User,
+		AdditionalGroups: process.AdditionalGroups,
 		Cwd:              process.Cwd,
 		Console:          process.consolePath,
 		Capabilities:     process.Capabilities,
@@ -360,6 +400,7 @@ func (c *linuxContainer) newInitConfig(process *Process) *initConfig {
 		AppArmorProfile:  c.config.AppArmorProfile,
 		ProcessLabel:     c.config.ProcessLabel,
 		Rlimits:          c.config.Rlimits,
+		ExecFifoPath:     filepath.Join(c.root, execFifoFilename),
 	}
 	if process.NoNewPrivileges != nil {
 		cfg.NoNewPrivileges = *process.NoNewPrivileges
@@ -1008,7 +1049,7 @@ func (c *linuxContainer) criuNotifications(resp *criurpc.CriuResp, process *Proc
 		}); err != nil {
 			return err
 		}
-		if err := c.updateState(r); err != nil {
+		if _, err := c.updateState(r); err != nil {
 			return err
 		}
 		if err := os.Remove(filepath.Join(c.root, "checkpoint")); err != nil {
@@ -1020,13 +1061,17 @@ func (c *linuxContainer) criuNotifications(resp *criurpc.CriuResp, process *Proc
 	return nil
 }
 
-func (c *linuxContainer) updateState(process parentProcess) error {
+func (c *linuxContainer) updateState(process parentProcess) (*State, error) {
 	c.initProcess = process
 	state, err := c.currentState()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return c.saveState(state)
+	err = c.saveState(state)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 func (c *linuxContainer) saveState(s *State) error {
@@ -1074,6 +1119,21 @@ func (c *linuxContainer) refreshState() error {
 	return c.state.transition(&stoppedState{c: c})
 }
 
+// doesInitProcessExist checks if the init process is still the same process
+// as the initial one, it could happen that the original process has exited
+// and a new process has been created with the same pid, in this case, the
+// container would already be stopped.
+func (c *linuxContainer) doesInitProcessExist(initPid int) (bool, error) {
+	startTime, err := system.GetProcessStartTime(initPid)
+	if err != nil {
+		return false, newSystemErrorWithCausef(err, "getting init process %d start time", initPid)
+	}
+	if c.initProcessStartTime != startTime {
+		return false, nil
+	}
+	return true, nil
+}
+
 func (c *linuxContainer) runType() (Status, error) {
 	if c.initProcess == nil {
 		return Stopped, nil
@@ -1088,6 +1148,11 @@ func (c *linuxContainer) runType() (Status, error) {
 			return Stopped, nil
 		}
 		return Stopped, newSystemErrorWithCausef(err, "sending signal 0 to pid %d", pid)
+	}
+	// check if the process is still the original init process.
+	exist, err := c.doesInitProcessExist(pid)
+	if !exist || err != nil {
+		return Stopped, err
 	}
 	// check if the process that is running is the init process or the user's process.
 	// this is the difference between the container Running and Created.

@@ -7,6 +7,8 @@ import "errors"
 //go:generate got config.got groupconfig_GEN_.go TT=GROUP T=Group t=group
 //go:generate got store.got valuestore_GEN_.go TT=VALUE T=Value t=value R,Lookup,Read,Write,Delete
 //go:generate got store.got groupstore_GEN_.go TT=GROUP T=Group t=group R,Lookup,Read,Write,Delete,LookupGroup,ReadGroup
+//go:generate got poolstore.got valuepoolstore_GEN_.go TT=VALUE T=Value t=value
+//go:generate got poolstore.got grouppoolstore_GEN_.go TT=GROUP T=Group t=group
 //go:generate got replstore.got valuereplstore_GEN_.go TT=VALUE T=Value t=value
 //go:generate got replstore.got groupreplstore_GEN_.go TT=GROUP T=Group t=group
 //go:generate got replstore_test.got valuereplstore_GEN_test.go TT=VALUE T=Value t=value

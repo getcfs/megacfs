@@ -204,29 +204,12 @@ func (rs *ReplValueStore) storesFor(ctx context.Context, keyA uint64) ([]*replVa
 			if ss[i] == nil {
 				ss[i] = rs.stores[as[i]]
 				if ss[i] == nil {
-					var err error
 					tc := make(chan struct{}, rs.concurrentRequestsPerStore)
 					for i := cap(tc); i > 0; i-- {
 						tc <- struct{}{}
 					}
 					ss[i] = &replValueStoreAndTicketChan{ticketChan: tc}
-					ss[i].store, err = NewValueStore(as[i], rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
-					if err != nil {
-						ss[i].store = errorValueStore(fmt.Sprintf("could not create store for %s: %s", as[i], err))
-						// Launch goroutine to clear out the error store after
-						// some time so a retry will occur.
-						go func(addr string) {
-							time.Sleep(time.Duration(rs.failedConnectRetryDelay) * time.Second)
-							rs.storesLock.Lock()
-							s := rs.stores[addr]
-							if s != nil {
-								if _, ok := s.store.(errorValueStore); ok {
-									rs.stores[addr] = nil
-								}
-							}
-							rs.storesLock.Unlock()
-						}(as[i])
-					}
+					ss[i].store = NewValueStore(as[i], rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
 					rs.stores[as[i]] = ss[i]
 					select {
 					case <-ctx.Done():
