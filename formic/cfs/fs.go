@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"reflect"
 	"sync"
 	"time"
 
@@ -237,7 +238,7 @@ func (f *fs) handleLookup(r *fuse.LookupRequest) {
 
 	l, err := f.rpc.api.Lookup(f.getContext(), &pb.LookupRequest{Name: r.Name, Parent: uint64(r.Node)})
 
-	if err == formic.ErrNotFound {
+	if reflect.DeepEqual(err, formic.ErrNotFound) {
 		log.Printf("ENOENT Lookup(%s)", r.Name)
 		r.RespondError(fuse.ENOENT)
 		return
