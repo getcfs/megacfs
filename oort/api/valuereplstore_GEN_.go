@@ -27,6 +27,7 @@ type ReplValueStore struct {
 	logDebugOn                 bool
 	addressIndex               int
 	valueCap                   int
+	poolSize                   int
 	concurrentRequestsPerStore int
 	failedConnectRetryDelay    int
 	ftlsConfig                 *ftls.Config
@@ -57,6 +58,7 @@ func NewReplValueStore(c *ReplValueStoreConfig) *ReplValueStore {
 		logDebugOn:                 cfg.LogDebug != nil,
 		addressIndex:               cfg.AddressIndex,
 		valueCap:                   int(cfg.ValueCap),
+		poolSize:                   cfg.PoolSize,
 		concurrentRequestsPerStore: cfg.ConcurrentRequestsPerStore,
 		failedConnectRetryDelay:    cfg.FailedConnectRetryDelay,
 		ftlsConfig:                 cfg.StoreFTLSConfig,
@@ -209,7 +211,7 @@ func (rs *ReplValueStore) storesFor(ctx context.Context, keyA uint64) ([]*replVa
 						tc <- struct{}{}
 					}
 					ss[i] = &replValueStoreAndTicketChan{ticketChan: tc}
-					ss[i].store = NewValueStore(as[i], rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
+					ss[i].store = NewPoolValueStore(as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
 					rs.stores[as[i]] = ss[i]
 					select {
 					case <-ctx.Done():
@@ -337,6 +339,7 @@ func (rs *ReplValueStore) ringServerConnector(exitChan chan struct{}) {
 // Otherwise, you will need to call SetRing yourself to inform the
 // ReplValueStore of which backends to connect to.
 func (rs *ReplValueStore) Startup(ctx context.Context) error {
+	fmt.Println("GLH 1")
 	rs.ringLock.Lock()
 	if rs.ringServerExitChan == nil {
 		rs.ringServerExitChan = make(chan struct{})
@@ -399,6 +402,7 @@ func (rs *ReplValueStore) ValueCap(ctx context.Context) (uint32, error) {
 }
 
 func (rs *ReplValueStore) Lookup(ctx context.Context, keyA, keyB uint64) (int64, uint32, error) {
+	fmt.Println("GLH 7")
 	type rettype struct {
 		timestampMicro int64
 		length         uint32
@@ -461,6 +465,7 @@ func (rs *ReplValueStore) Lookup(ctx context.Context, keyA, keyB uint64) (int64,
 }
 
 func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, value []byte) (int64, []byte, error) {
+	fmt.Println("GLH 2")
 	type rettype struct {
 		timestampMicro int64
 		value          []byte
@@ -470,6 +475,7 @@ func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, va
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
 		rs.logDebug("replValueStore Read %x %x: error from storesFor: %s", keyA, keyB, err)
+		fmt.Println("GLH 2a", 0, nil, err)
 		return 0, nil, err
 	}
 	for _, s := range stores {
@@ -479,8 +485,10 @@ func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, va
 			select {
 			case <-s.ticketChan:
 				ret.timestampMicro, ret.value, err = s.store.Read(ctx, keyA, keyB, nil)
+				fmt.Println("GLH 2 0", err)
 				s.ticketChan <- struct{}{}
 			case <-ctx.Done():
+				fmt.Println("GLH 2 1")
 				err = ctx.Err()
 			}
 			if err != nil {
@@ -516,6 +524,7 @@ func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, va
 			nferrs[i] = v
 		}
 		rs.logDebug("replValueStore Read %x %x: returning at point1: %d %d %v", keyA, keyB, timestampMicro, len(rvalue), nferrs)
+		fmt.Println("GLH 2b", timestampMicro, rvalue, nferrs)
 		return timestampMicro, rvalue, nferrs
 	}
 	if len(errs) < len(stores) {
@@ -523,13 +532,16 @@ func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, va
 	}
 	if errs == nil {
 		rs.logDebug("replValueStore Read %x %x: returning at point2: %d %d", keyA, keyB, timestampMicro, len(rvalue))
+		fmt.Println("GLH 2c", timestampMicro, rvalue, nil)
 		return timestampMicro, rvalue, nil
 	}
 	rs.logDebug("replValueStore Read %x %x: returning at point3: %d %d %v", keyA, keyB, timestampMicro, len(rvalue), errs)
+	fmt.Println("GLH 2d", timestampMicro, rvalue, errs)
 	return timestampMicro, rvalue, errs
 }
 
 func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64, value []byte) (int64, error) {
+	fmt.Println("GLH 3")
 	if len(value) == 0 {
 		panic(fmt.Sprintf("REMOVEME ReplValueStore asked to Write a zlv"))
 	}
@@ -588,6 +600,7 @@ func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, t
 }
 
 func (rs *ReplValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64) (int64, error) {
+	fmt.Println("GLH 4")
 	type rettype struct {
 		oldTimestampMicro int64
 		err               ReplValueStoreError

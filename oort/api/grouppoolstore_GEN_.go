@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/gholt/store"
@@ -11,81 +10,62 @@ import (
 )
 
 type PoolGroupStore struct {
-	addr          string
-	size          int
-	concurrency   int
-	ftlsConfig    *ftls.Config
-	opts          []grpc.DialOption
-	lock          sync.Mutex
-	storeChan     chan store.GroupStore
-	writesEnabled bool
+	addr        string
+	size        int
+	concurrency int
+	ftlsConfig  *ftls.Config
+	opts        []grpc.DialOption
+	stores      []store.GroupStore
+	storeChan   chan store.GroupStore
 }
 
-func NewGroupPoolStore(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *PoolGroupStore {
+func NewPoolGroupStore(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *PoolGroupStore {
 	ps := &PoolGroupStore{
-		addr:          addr,
-		size:          size,
-		concurrency:   concurrency,
-		ftlsConfig:    ftlsConfig,
-		opts:          opts,
-		writesEnabled: true,
-		storeChan:     make(chan store.GroupStore, size),
+		addr:        addr,
+		size:        size,
+		concurrency: concurrency,
+		ftlsConfig:  ftlsConfig,
+		opts:        opts,
+		stores:      make([]store.GroupStore, size),
+		storeChan:   make(chan store.GroupStore, size),
+	}
+	for i := 0; i < ps.size; i++ {
+		ps.stores[i] = NewGroupStore(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
+		ps.storeChan <- ps.stores[i]
 	}
 	return ps
 }
 
 func (ps *PoolGroupStore) Startup(ctx context.Context) error {
-	ps.lock.Lock()
-	if ps.storeChan != nil {
-		ps.lock.Unlock()
-		return nil
-	}
 	for i := 0; i < ps.size; i++ {
-		s := NewGroupStore(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
+		ps.stores[i].Startup(ctx)
 		select {
-		case ps.storeChan <- s:
 		case <-ctx.Done():
-			go func(sc chan store.GroupStore, sz int) {
-				for i := 0; i < sz; i++ {
-					s := <-sc
-					s.Shutdown(ctx)
-				}
-			}(ps.storeChan, ps.size)
-			ps.storeChan = nil
-			ps.lock.Unlock()
 			return ctx.Err()
+		default:
 		}
 	}
-	ps.lock.Unlock()
 	return nil
 }
 
 func (ps *PoolGroupStore) Shutdown(ctx context.Context) error {
-	ps.lock.Lock()
-	if ps.storeChan == nil {
-		ps.lock.Unlock()
-		return nil
-	}
 	for i := 0; i < ps.size; i++ {
-		s := <-ps.storeChan
-		s.Shutdown(ctx)
+		ps.stores[i].Shutdown(ctx)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 	}
-	ps.storeChan = nil
-	ps.lock.Unlock()
 	return nil
 }
 
 func (ps *PoolGroupStore) EnableWrites(ctx context.Context) error {
-	ps.lock.Lock()
-	ps.writesEnabled = true
-	ps.lock.Unlock()
+	// TODO: Should actually implement this feature.
 	return nil
 }
 
 func (ps *PoolGroupStore) DisableWrites(ctx context.Context) error {
-	ps.lock.Lock()
-	ps.writesEnabled = false
-	ps.lock.Unlock()
 	return nil
 }
 
@@ -112,7 +92,9 @@ func (ps *PoolGroupStore) ValueCap(ctx context.Context) (uint32, error) {
 func (ps *PoolGroupStore) Lookup(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64) (int64, uint32, error) {
 	select {
 	case s := <-ps.storeChan:
-		return s.Lookup(ctx, keyA, keyB, childKeyA, childKeyB)
+		a, b, c := s.Lookup(ctx, keyA, keyB, childKeyA, childKeyB)
+		ps.storeChan <- s
+		return a, b, c
 	case <-ctx.Done():
 		return 0, 0, ctx.Err()
 	}
@@ -121,7 +103,9 @@ func (ps *PoolGroupStore) Lookup(ctx context.Context, keyA uint64, keyB uint64, 
 func (ps *PoolGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, value []byte) (int64, []byte, error) {
 	select {
 	case s := <-ps.storeChan:
-		return s.Read(ctx, keyA, keyB, childKeyA, childKeyB, value)
+		a, b, c := s.Read(ctx, keyA, keyB, childKeyA, childKeyB, value)
+		ps.storeChan <- s
+		return a, b, c
 	case <-ctx.Done():
 		return 0, nil, ctx.Err()
 	}
@@ -130,7 +114,9 @@ func (ps *PoolGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, ch
 func (ps *PoolGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, timestampMicro int64, value []byte) (int64, error) {
 	select {
 	case s := <-ps.storeChan:
-		return s.Write(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro, value)
+		a, b := s.Write(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro, value)
+		ps.storeChan <- s
+		return a, b
 	case <-ctx.Done():
 		return 0, ctx.Err()
 	}
@@ -139,7 +125,9 @@ func (ps *PoolGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, c
 func (ps *PoolGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, timestampMicro int64) (int64, error) {
 	select {
 	case s := <-ps.storeChan:
-		return s.Delete(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro)
+		a, b := s.Delete(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro)
+		ps.storeChan <- s
+		return a, b
 	case <-ctx.Done():
 		return 0, ctx.Err()
 	}
@@ -148,7 +136,9 @@ func (ps *PoolGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 func (ps *PoolGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.LookupGroupItem, error) {
 	select {
 	case s := <-ps.storeChan:
-		return s.LookupGroup(ctx, parentKeyA, parentKeyB)
+		a, b := s.LookupGroup(ctx, parentKeyA, parentKeyB)
+		ps.storeChan <- s
+		return a, b
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -157,7 +147,9 @@ func (ps *PoolGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKey
 func (ps *PoolGroupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.ReadGroupItem, error) {
 	select {
 	case s := <-ps.storeChan:
-		return s.ReadGroup(ctx, parentKeyA, parentKeyB)
+		a, b := s.ReadGroup(ctx, parentKeyA, parentKeyB)
+		ps.storeChan <- s
+		return a, b
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}

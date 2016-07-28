@@ -27,6 +27,7 @@ type ReplGroupStore struct {
 	logDebugOn                 bool
 	addressIndex               int
 	valueCap                   int
+	poolSize                   int
 	concurrentRequestsPerStore int
 	failedConnectRetryDelay    int
 	ftlsConfig                 *ftls.Config
@@ -57,6 +58,7 @@ func NewReplGroupStore(c *ReplGroupStoreConfig) *ReplGroupStore {
 		logDebugOn:                 cfg.LogDebug != nil,
 		addressIndex:               cfg.AddressIndex,
 		valueCap:                   int(cfg.ValueCap),
+		poolSize:                   cfg.PoolSize,
 		concurrentRequestsPerStore: cfg.ConcurrentRequestsPerStore,
 		failedConnectRetryDelay:    cfg.FailedConnectRetryDelay,
 		ftlsConfig:                 cfg.StoreFTLSConfig,
@@ -209,7 +211,7 @@ func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]*replGr
 						tc <- struct{}{}
 					}
 					ss[i] = &replGroupStoreAndTicketChan{ticketChan: tc}
-					ss[i].store = NewGroupStore(as[i], rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
+					ss[i].store = NewPoolGroupStore(as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
 					rs.stores[as[i]] = ss[i]
 					select {
 					case <-ctx.Done():
@@ -337,6 +339,7 @@ func (rs *ReplGroupStore) ringServerConnector(exitChan chan struct{}) {
 // Otherwise, you will need to call SetRing yourself to inform the
 // ReplGroupStore of which backends to connect to.
 func (rs *ReplGroupStore) Startup(ctx context.Context) error {
+	fmt.Println("GLH 1")
 	rs.ringLock.Lock()
 	if rs.ringServerExitChan == nil {
 		rs.ringServerExitChan = make(chan struct{})
@@ -399,6 +402,7 @@ func (rs *ReplGroupStore) ValueCap(ctx context.Context) (uint32, error) {
 }
 
 func (rs *ReplGroupStore) Lookup(ctx context.Context, keyA, keyB uint64, childKeyA, childKeyB uint64) (int64, uint32, error) {
+	fmt.Println("GLH 7")
 	type rettype struct {
 		timestampMicro int64
 		length         uint32
@@ -461,6 +465,7 @@ func (rs *ReplGroupStore) Lookup(ctx context.Context, keyA, keyB uint64, childKe
 }
 
 func (rs *ReplGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, childKeyA, childKeyB uint64, value []byte) (int64, []byte, error) {
+	fmt.Println("GLH 2")
 	type rettype struct {
 		timestampMicro int64
 		value          []byte
@@ -470,6 +475,7 @@ func (rs *ReplGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, ch
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
 		rs.logDebug("replGroupStore Read %x %x %x %x: error from storesFor: %s", keyA, keyB, childKeyA, childKeyB, err)
+		fmt.Println("GLH 2a", 0, nil, err)
 		return 0, nil, err
 	}
 	for _, s := range stores {
@@ -479,8 +485,10 @@ func (rs *ReplGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, ch
 			select {
 			case <-s.ticketChan:
 				ret.timestampMicro, ret.value, err = s.store.Read(ctx, keyA, keyB, childKeyA, childKeyB, nil)
+				fmt.Println("GLH 2 0", err)
 				s.ticketChan <- struct{}{}
 			case <-ctx.Done():
+				fmt.Println("GLH 2 1")
 				err = ctx.Err()
 			}
 			if err != nil {
@@ -516,6 +524,7 @@ func (rs *ReplGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, ch
 			nferrs[i] = v
 		}
 		rs.logDebug("replGroupStore Read %x %x %x %x: returning at point1: %d %d %v", keyA, keyB, childKeyA, childKeyB, timestampMicro, len(rvalue), nferrs)
+		fmt.Println("GLH 2b", timestampMicro, rvalue, nferrs)
 		return timestampMicro, rvalue, nferrs
 	}
 	if len(errs) < len(stores) {
@@ -523,13 +532,16 @@ func (rs *ReplGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, ch
 	}
 	if errs == nil {
 		rs.logDebug("replGroupStore Read %x %x %x %x: returning at point2: %d %d", keyA, keyB, childKeyA, childKeyB, timestampMicro, len(rvalue))
+		fmt.Println("GLH 2c", timestampMicro, rvalue, nil)
 		return timestampMicro, rvalue, nil
 	}
 	rs.logDebug("replGroupStore Read %x %x %x %x: returning at point3: %d %d %v", keyA, keyB, childKeyA, childKeyB, timestampMicro, len(rvalue), errs)
+	fmt.Println("GLH 2d", timestampMicro, rvalue, errs)
 	return timestampMicro, rvalue, errs
 }
 
 func (rs *ReplGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, childKeyA, childKeyB uint64, timestampMicro int64, value []byte) (int64, error) {
+	fmt.Println("GLH 3")
 	if len(value) == 0 {
 		panic(fmt.Sprintf("REMOVEME ReplGroupStore asked to Write a zlv"))
 	}
@@ -588,6 +600,7 @@ func (rs *ReplGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, c
 }
 
 func (rs *ReplGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, childKeyA, childKeyB uint64, timestampMicro int64) (int64, error) {
+	fmt.Println("GLH 4")
 	type rettype struct {
 		oldTimestampMicro int64
 		err               ReplGroupStoreError
@@ -637,6 +650,7 @@ func (rs *ReplGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 }
 
 func (rs *ReplGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.LookupGroupItem, error) {
+	fmt.Println("GLH 5")
 	type rettype struct {
 		items []store.LookupGroupItem
 		err   ReplGroupStoreError
@@ -684,6 +698,7 @@ func (rs *ReplGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKey
 }
 
 func (rs *ReplGroupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.ReadGroupItem, error) {
+	fmt.Println("GLH 6")
 	type rettype struct {
 		items []store.ReadGroupItem
 		err   ReplGroupStoreError
