@@ -162,7 +162,7 @@ func main() {
 		fmt.Print("CFS APIKey: ")
 		fmt.Scan(&apikey)
 		config := map[string]string{
-			"region":   region,
+			"region":   strings.ToLower(region),
 			"username": username,
 			"apikey":   apikey,
 		}
@@ -418,7 +418,7 @@ func main() {
 			fmt.Println("Invalid filesystem:", region_fsid)
 			f.Usage()
 		}
-		region := parts[0]
+		region := strings.ToLower(parts[0])
 		fsid := parts[1]
 		mountpoint := f.Args()[1]
 		addr, ok := regions[region]
@@ -519,12 +519,14 @@ func getArgs(args string) map[string]string {
 	return clargs
 }
 
+// the mount command needs the path to fusermount
 func fusermountPath() {
 	// Grab the current path
 	currentPath := os.Getenv("PATH")
 	if len(currentPath) == 0 {
-		// using mount seem to not have a path
-		// fusermount is in /bin
+		// fusermount location for suse
+		os.Setenv("PATH", "/usr/bin")
+		// fusermount location on debian based distros
 		os.Setenv("PATH", "/bin")
 	}
 }
