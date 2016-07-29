@@ -524,10 +524,9 @@ func fusermountPath() {
 	// Grab the current path
 	currentPath := os.Getenv("PATH")
 	if len(currentPath) == 0 {
-		// fusermount location for suse
-		os.Setenv("PATH", "/usr/bin")
-		// fusermount location on debian based distros
-		os.Setenv("PATH", "/bin")
+		// fusermount location for suse  /usr/bin
+		// fusermount location on debian based distros /bin
+		os.Setenv("PATH", "/usr/bin:/bin")
 	}
 }
 
