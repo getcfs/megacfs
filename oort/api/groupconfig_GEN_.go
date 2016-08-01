@@ -30,7 +30,7 @@ type ReplGroupStoreConfig struct {
 	// PoolSize sets how many store connections can be used per store endpoint.
 	PoolSize int
 	// ConcurrentRequestsPerStore defines the concurrent requests per
-	// underlying connected store. Default: 10
+	// underlying connected store. Default: 1000
 	ConcurrentRequestsPerStore int
 	// FailedConnectRetryDelay defines how many seconds must pass before
 	// retrying a failed connection. Default: 15 seconds
@@ -75,7 +75,7 @@ func resolveReplGroupStoreConfig(c *ReplGroupStoreConfig) *ReplGroupStoreConfig 
 		cfg.PoolSize = 1
 	}
 	if cfg.ConcurrentRequestsPerStore == 0 {
-		cfg.ConcurrentRequestsPerStore = 10
+		cfg.ConcurrentRequestsPerStore = 1000
 	}
 	if cfg.ConcurrentRequestsPerStore < 1 {
 		cfg.ConcurrentRequestsPerStore = 1
