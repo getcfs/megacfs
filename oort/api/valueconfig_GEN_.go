@@ -27,8 +27,7 @@ type ReplValueStoreConfig struct {
 	// cap used. However, that's probably not really necessary and configuring
 	// a set value cap here is probably fine.
 	ValueCap uint32
-	// PoolSize sets how many store connections can be used per store end
-	// point.
+	// PoolSize sets how many store connections can be used per store endpoint.
 	PoolSize int
 	// ConcurrentRequestsPerStore defines the concurrent requests per
 	// underlying connected store. Default: 10
