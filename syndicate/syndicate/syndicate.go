@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/getcfs/megacfs/ftls"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
 	"github.com/gholt/ring"
-	"github.com/pandemicsyn/ftls"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 )

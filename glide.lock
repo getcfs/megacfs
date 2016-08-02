@@ -1,5 +1,5 @@
 hash: a797e626fa5578d80854690541f427aac42282fde9a74bf4171d865a614d51bc
-updated: 2016-08-02T17:29:38.016354059Z
+updated: 2016-08-02T18:37:34.690033155Z
 imports:
 - name: github.com/beevik/ntp
   version: 8ed1e691d326c0ab1169cacbc1e8b5c988089c04
@@ -84,8 +84,6 @@ imports:
   version: 37f39dc5cb1ad7209c92ccb81e40929a95b641d0
   subpackages:
   - api
-- name: github.com/pandemicsyn/ftls
-  version: 6f1dfe4d7dff637246eb5c450d06ac75db62a923
 - name: github.com/pandemicsyn/node_exporter
   version: 0294cedb0563d9923f8a5afa893c89e21fbb272b
   subpackages:
@@ -158,7 +156,7 @@ imports:
   - unix
   - windows
 - name: google.golang.org/grpc
-  version: 3de685a0edf1265c461206e48fb2bd18ae4c2eda
+  version: 24567366d382471fad8cc5e8ec34b657eed703e8
   subpackages:
   - codes
   - credentials
