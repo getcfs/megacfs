@@ -15,7 +15,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"reflect"
 	"time"
 
@@ -557,48 +559,40 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	return &pb.RevokeAddrFSResponse{Data: r.FSid}, nil
 }
 
+type ValidateResponse struct {
+        Access struct {
+                Token struct {
+			Tenant struct {
+                        	ID string `json:"id"`
+			} `json:"tenant"`
+                } `json:"token"`
+        } `json:"access"`
+}
+
 // validateToken ...
-func (s *FileSystemAPIServer) validateToken(t string) (string, error) {
-	var tData TokenRef
-	var aData AcctPayLoad
-	var tDataByte []byte
-	var aDataByte []byte
-	var err error
+func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
+	url := "https://identity.api.rackspacecloud.com/v2.0/tokens/" + token
+        req, err := http.NewRequest("GET", url, nil)
+        if err != nil {
+		return "", err
+        }
+	req.Header.Set("X-Auth-Token", token)
 
-	// Read Token
-	pKeyA, pKeyB := murmur3.Sum128([]byte("/token"))
-	cKeyA, cKeyB := murmur3.Sum128([]byte(t))
-	_, tDataByte, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		return "", errors.New("Not Found")
-	}
-	err = json.Unmarshal(tDataByte, &tData)
+	resp, err := http.DefaultClient.Do(req) // TODO: Is this safe for formic?
 	if err != nil {
-		log.Printf("TOKEN FAILED %v\n", err)
 		return "", err
 	}
+	defer resp.Body.Close()
 
-	// Read Account
-	pKeyA, pKeyB = murmur3.Sum128([]byte("/acct"))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(tData.AcctID))
-	_, aDataByte, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		return "", errors.New("Not Found")
-	}
-	err = json.Unmarshal(aDataByte, &aData)
-	if err != nil {
-		log.Printf("TOKEN FAILED %v\n", err)
-		return "", err
-	}
-
-	if tData.TokenID != aData.Token {
-		// Log Failed Operation
-		log.Printf("TOKEN FAIL %s\n", t)
+        if resp.StatusCode != 200 {
 		return "", errors.New("Invalid Token")
-	}
+        }
 
-	// Return Account UUID
-	// Log Operation
-	log.Printf("TOKEN SUCCESS %s\n", tData.AcctID)
-	return tData.AcctID, nil
+        // parse tenant from response
+        var validateResp ValidateResponse
+        r, _ := ioutil.ReadAll(resp.Body)
+        json.Unmarshal(r, &validateResp)
+        tenant := validateResp.Access.Token.Tenant.ID
+
+        return tenant, nil
 }
