@@ -4,6 +4,8 @@ CertFile = "/var/lib/oort-value/server.crt"
 KeyFile = "/var/lib/oort-value/server.key"
 UseTLS = true
 Enabled = true
+CAFile = "/var/lib/oort-value/ca.pem"
+MutualTLS = true
 
 [OortValueStoreConfig]
 MaxClients = 8192

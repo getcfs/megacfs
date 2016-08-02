@@ -239,6 +239,10 @@ func (t *http2Server) HandleStreams(handle func(*Stream)) {
 	}
 
 	frame, err := t.framer.readFrame()
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		t.Close()
+		return
+	}
 	if err != nil {
 		grpclog.Printf("transport: http2Server.HandleStreams failed to read frame: %v", err)
 		t.Close()
@@ -265,6 +269,11 @@ func (t *http2Server) HandleStreams(handle func(*Stream)) {
 				t.controlBuf.put(&resetStream{se.StreamID, se.Code})
 				continue
 			}
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				t.Close()
+				return
+			}
+			grpclog.Printf("transport: http2Server.HandleStreams failed to read frame: %v", err)
 			t.Close()
 			return
 		}
@@ -507,7 +516,7 @@ func (t *http2Server) WriteStatus(s *Stream, statusCode codes.Code, statusDesc s
 			Name:  "grpc-status",
 			Value: strconv.Itoa(int(statusCode)),
 		})
-	t.hEnc.WriteField(hpack.HeaderField{Name: "grpc-message", Value: grpcMessageEncode(statusDesc)})
+	t.hEnc.WriteField(hpack.HeaderField{Name: "grpc-message", Value: encodeGrpcMessage(statusDesc)})
 	// Attach the trailer metadata.
 	for k, v := range s.trailer {
 		// Clients don't tolerate reading restricted headers after some non restricted ones were sent.
@@ -680,6 +689,11 @@ func (t *http2Server) controller() {
 					t.framer.writeRSTStream(true, i.streamID, i.code)
 				case *goAway:
 					t.mu.Lock()
+					if t.state == closing {
+						t.mu.Unlock()
+						// The transport is closing.
+						return
+					}
 					sid := t.maxStreamID
 					t.state = draining
 					t.mu.Unlock()

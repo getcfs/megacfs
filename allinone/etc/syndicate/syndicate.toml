@@ -7,6 +7,7 @@ CmdCtrlPort = 4444
 StorePort = 6379
 CertFile = "/etc/syndicate/server.crt"
 KeyFile = "/etc/syndicate/server.key"
+CAFile = "/etc/syndicate/ca.pem"
 RingDir = "/etc/syndicate/ring"
 WeightAssignment = "self"
 
@@ -19,6 +20,7 @@ CmdCtrlPort = 4445
 StorePort = 6380
 CertFile = "/etc/syndicate/server.crt"
 KeyFile = "/etc/syndicate/server.key"
+CAFile = "/etc/syndicate/ca.pem"
 RingDir = "/etc/syndicate/ring"
 WeightAssignment = "self"
 

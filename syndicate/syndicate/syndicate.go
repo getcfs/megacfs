@@ -198,6 +198,7 @@ func NewServer(cfg *Config, servicename string, opts ...MockOpt) (*Server, error
 		KeyFile:   cfg.KeyFile,
 		CAFile:    cfg.CAFile,
 	}
+	log.Printf("%+v", cfg)
 	cOpts, err := ftls.NewGRPCClientDialOpt(tlsConf)
 	if err != nil {
 		return s, fmt.Errorf("Err setting up client ssl certs:", err.Error())
