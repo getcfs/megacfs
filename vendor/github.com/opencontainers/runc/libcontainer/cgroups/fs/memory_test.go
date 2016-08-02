@@ -227,16 +227,10 @@ func TestMemorySetKernelMemory(t *testing.T) {
 	helper.writeFileContents(map[string]string{
 		"memory.kmem.limit_in_bytes": strconv.Itoa(kernelMemoryBefore),
 	})
-	helper.writeFileContents(map[string]string{
-		"memory.kmem.max_usage_in_bytes": strconv.Itoa(kernelMemoryBefore),
-	})
-	helper.writeFileContents(map[string]string{
-		"tasks": "",
-	})
 
 	helper.CgroupData.config.Resources.KernelMemory = kernelMemoryAfter
 	memory := &MemoryGroup{}
-	if err := memory.SetKernelMemory(helper.CgroupPath, helper.CgroupData.config); err != nil {
+	if err := memory.Set(helper.CgroupPath, helper.CgroupData.config); err != nil {
 		t.Fatal(err)
 	}
 

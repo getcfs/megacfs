@@ -105,12 +105,6 @@ func NewManagedNode(o *ManagedNodeOpts) (ManagedNode, error) {
 	node.address = o.Address
 	node.grpcOpts = o.GrpcOpts
 
-	// TODO: push tls setup out of NewManagedNode
-	var creds credentials.TransportCredentials
-	creds = credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
-	node.grpcOpts = append(node.grpcOpts, grpc.WithTransportCredentials(creds))
 	node.conn, err = grpc.Dial(node.address, node.grpcOpts...)
 	if err != nil {
 		return &managedNode{}, fmt.Errorf("Failed to dial cmdctrl server for node %s: %v", node.address, err)
