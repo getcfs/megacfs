@@ -3,15 +3,15 @@ package main
 import (
 	"log"
 	"os"
-	"reflect"
 	"sync"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
 	"golang.org/x/net/context"
 
-	"github.com/getcfs/megacfs/formic"
 	pb "github.com/getcfs/megacfs/formic/proto"
 
 	"github.com/getcfs/fuse"
@@ -238,7 +238,7 @@ func (f *fs) handleLookup(r *fuse.LookupRequest) {
 
 	l, err := f.rpc.api.Lookup(f.getContext(), &pb.LookupRequest{Name: r.Name, Parent: uint64(r.Node)})
 
-	if reflect.DeepEqual(err, formic.ErrNotFound) {
+	if grpc.Code(err) == codes.NotFound {
 		log.Printf("ENOENT Lookup(%s)", r.Name)
 		r.RespondError(fuse.ENOENT)
 		return

@@ -27,6 +27,7 @@ type ReplGroupStore struct {
 	logDebugOn                 bool
 	addressIndex               int
 	valueCap                   int
+	poolSize                   int
 	concurrentRequestsPerStore int
 	failedConnectRetryDelay    int
 	ftlsConfig                 *ftls.Config
@@ -41,12 +42,7 @@ type ReplGroupStore struct {
 	ringClientID       string
 
 	storesLock sync.RWMutex
-	stores     map[string]*replGroupStoreAndTicketChan
-}
-
-type replGroupStoreAndTicketChan struct {
-	store      store.GroupStore
-	ticketChan chan struct{}
+	stores     map[string]store.GroupStore
 }
 
 func NewReplGroupStore(c *ReplGroupStoreConfig) *ReplGroupStore {
@@ -57,11 +53,12 @@ func NewReplGroupStore(c *ReplGroupStoreConfig) *ReplGroupStore {
 		logDebugOn:                 cfg.LogDebug != nil,
 		addressIndex:               cfg.AddressIndex,
 		valueCap:                   int(cfg.ValueCap),
+		poolSize:                   cfg.PoolSize,
 		concurrentRequestsPerStore: cfg.ConcurrentRequestsPerStore,
 		failedConnectRetryDelay:    cfg.FailedConnectRetryDelay,
 		ftlsConfig:                 cfg.StoreFTLSConfig,
 		grpcOpts:                   cfg.GRPCOpts,
-		stores:                     make(map[string]*replGroupStoreAndTicketChan),
+		stores:                     make(map[string]store.GroupStore),
 		ringServer:                 cfg.RingServer,
 		ringServerGRPCOpts:         cfg.RingServerGRPCOpts,
 		ringCachePath:              cfg.RingCachePath,
@@ -146,7 +143,7 @@ func (rs *ReplGroupStore) SetRing(r ring.Ring) {
 	}
 	rs.storesLock.RUnlock()
 	if len(shutdownAddrs) > 0 {
-		shutdownStores := make([]*replGroupStoreAndTicketChan, len(shutdownAddrs))
+		shutdownStores := make([]store.GroupStore, len(shutdownAddrs))
 		rs.storesLock.Lock()
 		for i, a := range shutdownAddrs {
 			shutdownStores[i] = rs.stores[a]
@@ -154,7 +151,7 @@ func (rs *ReplGroupStore) SetRing(r ring.Ring) {
 		}
 		rs.storesLock.Unlock()
 		for i, s := range shutdownStores {
-			if err := s.store.Shutdown(context.Background()); err != nil {
+			if err := s.Shutdown(context.Background()); err != nil {
 				rs.logDebug("replGroupStore: error during shutdown of store %s: %s", shutdownAddrs[i], err)
 			}
 		}
@@ -162,7 +159,7 @@ func (rs *ReplGroupStore) SetRing(r ring.Ring) {
 	rs.ringLock.Unlock()
 }
 
-func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]*replGroupStoreAndTicketChan, error) {
+func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]store.GroupStore, error) {
 	r := rs.Ring(ctx)
 	select {
 	case <-ctx.Done():
@@ -177,7 +174,7 @@ func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]*replGr
 	for i, n := range ns {
 		as[i] = n.Address(rs.addressIndex)
 	}
-	ss := make([]*replGroupStoreAndTicketChan, len(ns))
+	ss := make([]store.GroupStore, len(ns))
 	var someNil bool
 	rs.storesLock.RLock()
 	for i := len(ss) - 1; i >= 0; i-- {
@@ -204,12 +201,7 @@ func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]*replGr
 			if ss[i] == nil {
 				ss[i] = rs.stores[as[i]]
 				if ss[i] == nil {
-					tc := make(chan struct{}, rs.concurrentRequestsPerStore)
-					for i := cap(tc); i > 0; i-- {
-						tc <- struct{}{}
-					}
-					ss[i] = &replGroupStoreAndTicketChan{ticketChan: tc}
-					ss[i].store = NewGroupStore(as[i], rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
+					ss[i] = NewPoolGroupStore(as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
 					rs.stores[as[i]] = ss[i]
 					select {
 					case <-ctx.Done():
@@ -357,8 +349,8 @@ func (rs *ReplGroupStore) Shutdown(ctx context.Context) error {
 		rs.ringServerExitChan = nil
 	}
 	rs.storesLock.Lock()
-	for addr, stc := range rs.stores {
-		if err := stc.store.Shutdown(ctx); err != nil {
+	for addr, s := range rs.stores {
+		if err := s.Shutdown(ctx); err != nil {
 			rs.logDebug("replGroupStore: error during shutdown of store %s: %s", addr, err)
 		}
 		delete(rs.stores, addr)
@@ -410,18 +402,12 @@ func (rs *ReplGroupStore) Lookup(ctx context.Context, keyA, keyB uint64, childKe
 		return 0, 0, err
 	}
 	for _, s := range stores {
-		go func(s *replGroupStoreAndTicketChan) {
+		go func(s store.GroupStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				ret.timestampMicro, ret.length, err = s.store.Lookup(ctx, keyA, keyB, childKeyA, childKeyB)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
-			}
+			ret.timestampMicro, ret.length, err = s.Lookup(ctx, keyA, keyB, childKeyA, childKeyB)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s.store, err: err}
+				ret.err = &replGroupStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -473,18 +459,12 @@ func (rs *ReplGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, ch
 		return 0, nil, err
 	}
 	for _, s := range stores {
-		go func(s *replGroupStoreAndTicketChan) {
+		go func(s store.GroupStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				ret.timestampMicro, ret.value, err = s.store.Read(ctx, keyA, keyB, childKeyA, childKeyB, nil)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
-			}
+			ret.timestampMicro, ret.value, err = s.Read(ctx, keyA, keyB, childKeyA, childKeyB, nil)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s.store, err: err}
+				ret.err = &replGroupStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -546,21 +526,15 @@ func (rs *ReplGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, c
 		return 0, err
 	}
 	for _, s := range stores {
-		go func(s *replGroupStoreAndTicketChan) {
+		go func(s store.GroupStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				if len(value) == 0 {
-					panic(fmt.Sprintf("REMOVEME inside ReplGroupStore asked to Write a zlv"))
-				}
-				ret.oldTimestampMicro, err = s.store.Write(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro, value)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
+			if len(value) == 0 {
+				panic(fmt.Sprintf("REMOVEME inside ReplGroupStore asked to Write a zlv"))
 			}
+			ret.oldTimestampMicro, err = s.Write(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro, value)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s.store, err: err}
+				ret.err = &replGroupStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -598,18 +572,12 @@ func (rs *ReplGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 		return 0, err
 	}
 	for _, s := range stores {
-		go func(s *replGroupStoreAndTicketChan) {
+		go func(s store.GroupStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				ret.oldTimestampMicro, err = s.store.Delete(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
-			}
+			ret.oldTimestampMicro, err = s.Delete(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s.store, err: err}
+				ret.err = &replGroupStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -647,18 +615,12 @@ func (rs *ReplGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKey
 		return nil, err
 	}
 	for _, s := range stores {
-		go func(s *replGroupStoreAndTicketChan) {
+		go func(s store.GroupStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				ret.items, err = s.store.LookupGroup(ctx, parentKeyA, parentKeyB)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
-			}
+			ret.items, err = s.LookupGroup(ctx, parentKeyA, parentKeyB)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s.store, err: err}
+				ret.err = &replGroupStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -694,18 +656,12 @@ func (rs *ReplGroupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB 
 		return nil, err
 	}
 	for _, s := range stores {
-		go func(s *replGroupStoreAndTicketChan) {
+		go func(s store.GroupStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				ret.items, err = s.store.ReadGroup(ctx, parentKeyA, parentKeyB)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
-			}
+			ret.items, err = s.ReadGroup(ctx, parentKeyA, parentKeyB)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s.store, err: err}
+				ret.err = &replGroupStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)

@@ -132,6 +132,7 @@ func main() {
 		RingCachePath:              path.Join(cfg.path, "ring/valuestore.ring"),
 		RingServerGRPCOpts:         []grpc.DialOption{vrOpts},
 		RingClientID:               clientID,
+		PoolSize:                   cfg.poolSize,
 		ConcurrentRequestsPerStore: cfg.concurrentRequestsPerStore,
 	})
 	if verr := vstore.Startup(context.Background()); verr != nil {
@@ -147,6 +148,7 @@ func main() {
 		RingCachePath:              path.Join(cfg.path, "ring/groupstore.ring"),
 		RingServerGRPCOpts:         []grpc.DialOption{grOpts},
 		RingClientID:               clientID,
+		PoolSize:                   cfg.poolSize,
 		ConcurrentRequestsPerStore: cfg.concurrentRequestsPerStore,
 	})
 	if gerr := gstore.Startup(context.Background()); gerr != nil {

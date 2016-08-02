@@ -27,8 +27,10 @@ type ReplValueStoreConfig struct {
 	// cap used. However, that's probably not really necessary and configuring
 	// a set value cap here is probably fine.
 	ValueCap uint32
+	// PoolSize sets how many store connections can be used per store endpoint.
+	PoolSize int
 	// ConcurrentRequestsPerStore defines the concurrent requests per
-	// underlying connected store. Default: 10
+	// underlying connected store. Default: 1000
 	ConcurrentRequestsPerStore int
 	// FailedConnectRetryDelay defines how many seconds must pass before
 	// retrying a failed connection. Default: 15 seconds
@@ -66,8 +68,14 @@ func resolveReplValueStoreConfig(c *ReplValueStoreConfig) *ReplValueStoreConfig 
 	if cfg.ValueCap == 0 {
 		cfg.ValueCap = 0xffffffff
 	}
+	if cfg.PoolSize == 0 {
+		cfg.PoolSize = 10
+	}
+	if cfg.PoolSize < 1 {
+		cfg.PoolSize = 1
+	}
 	if cfg.ConcurrentRequestsPerStore == 0 {
-		cfg.ConcurrentRequestsPerStore = 10
+		cfg.ConcurrentRequestsPerStore = 1000
 	}
 	if cfg.ConcurrentRequestsPerStore < 1 {
 		cfg.ConcurrentRequestsPerStore = 1

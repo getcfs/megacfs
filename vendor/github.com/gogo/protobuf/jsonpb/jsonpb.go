@@ -175,12 +175,14 @@ func (m *Marshaler) marshalObject(out *errWriter, v proto.Message, indent string
 	}
 
 	// Handle proto2 extensions.
-	if ep, ok := v.(extendableProto); ok {
+	if ep, ok := v.(proto.Message); ok {
 		extensions := proto.RegisteredExtensions(v)
-		extensionMap := ep.ExtensionMap()
 		// Sort extensions for stable output.
-		ids := make([]int32, 0, len(extensionMap))
-		for id := range extensionMap {
+		ids := make([]int32, 0, len(extensions))
+		for id, desc := range extensions {
+			if !proto.HasExtension(ep, desc) {
+				continue
+			}
 			ids = append(ids, id)
 		}
 		sort.Sort(int32Slice(ids))
@@ -561,11 +563,23 @@ func (u *Unmarshaler) unmarshalValue(target reflect.Value, inputValue json.RawMe
 
 	// Handle arrays
 	if targetType.Kind() == reflect.Slice {
-		// Special case for encoded bytes. Pre-go1.5 doesn't support unmarshalling
-		// strings into aliased []byte types.
-		// https://github.com/golang/go/commit/4302fd0409da5e4f1d71471a6770dacdc3301197
-		// https://github.com/golang/go/commit/c60707b14d6be26bf4213114d13070bff00d0b0a
 		if targetType.Elem().Kind() == reflect.Uint8 {
+			outRef := reflect.New(targetType)
+			outVal := outRef.Interface()
+			//CustomType with underlying type []byte
+			if _, ok := outVal.(interface {
+				UnmarshalJSON([]byte) error
+			}); ok {
+				if err := json.Unmarshal(inputValue, outVal); err != nil {
+					return err
+				}
+				target.Set(outRef.Elem())
+				return nil
+			}
+			// Special case for encoded bytes. Pre-go1.5 doesn't support unmarshalling
+			// strings into aliased []byte types.
+			// https://github.com/golang/go/commit/4302fd0409da5e4f1d71471a6770dacdc3301197
+			// https://github.com/golang/go/commit/c60707b14d6be26bf4213114d13070bff00d0b0a
 			var out []byte
 			if err := json.Unmarshal(inputValue, &out); err != nil {
 				return err
@@ -660,13 +674,6 @@ func acceptedJSONFieldNames(prop *proto.Properties) fieldNames {
 		opts.camel = prop.JSONName
 	}
 	return opts
-}
-
-// extendableProto is an interface implemented by any protocol buffer that may be extended.
-type extendableProto interface {
-	proto.Message
-	ExtensionRangeArray() []proto.ExtensionRange
-	ExtensionMap() map[int32]proto.Extension
 }
 
 // Writer wrapper inspired by https://blog.golang.org/errors-are-values
