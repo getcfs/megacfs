@@ -195,6 +195,9 @@ func NewClientStream(ctx context.Context, desc *StreamDesc, cc *ClientConn, meth
 				cs.finish(Errorf(s.StatusCode(), "%s", s.StatusDesc()))
 			}
 			cs.closeTransportStream(nil)
+		case <-s.GoAway():
+			cs.finish(errConnDrain)
+			cs.closeTransportStream(errConnDrain)
 		case <-s.Context().Done():
 			err := s.Context().Err()
 			cs.finish(err)
@@ -257,7 +260,17 @@ func (cs *clientStream) SendMsg(m interface{}) (err error) {
 		if err != nil {
 			cs.finish(err)
 		}
-		if err == nil || err == io.EOF {
+		if err == nil {
+			return
+		}
+		if err == io.EOF {
+			// Specialize the process for server streaming. SendMesg is only called
+			// once when creating the stream object. io.EOF needs to be skipped when
+			// the rpc is early finished (before the stream object is created.).
+			// TODO: It is probably better to move this into the generated code.
+			if !cs.desc.ClientStreams && cs.desc.ServerStreams {
+				err = nil
+			}
 			return
 		}
 		if _, ok := err.(transport.ConnectionError); !ok {

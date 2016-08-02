@@ -37,6 +37,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"net"
 	"reflect"
@@ -75,7 +76,7 @@ const (
 	normal hType = iota
 	suspended
 	misbehaved
-	malformedStatus
+	encodingRequiredStatus
 )
 
 func (h *testStreamHandler) handleStream(t *testing.T, s *Stream) {
@@ -128,9 +129,8 @@ func (h *testStreamHandler) handleStreamMisbehave(t *testing.T, s *Stream) {
 	}
 }
 
-func (h *testStreamHandler) handleStreamMalformedStatus(t *testing.T, s *Stream) {
-	// raw newline is not accepted by http2 framer and a http2.StreamError is
-	// generated.
+func (h *testStreamHandler) handleStreamEncodingRequiredStatus(t *testing.T, s *Stream) {
+	// raw newline is not accepted by http2 framer so it must be encoded.
 	h.t.WriteStatus(s, codes.Internal, "\n")
 }
 
@@ -179,9 +179,9 @@ func (s *server) start(t *testing.T, port int, maxStreams uint32, ht hType) {
 			go transport.HandleStreams(func(s *Stream) {
 				go h.handleStreamMisbehave(t, s)
 			})
-		case malformedStatus:
+		case encodingRequiredStatus:
 			go transport.HandleStreams(func(s *Stream) {
-				go h.handleStreamMalformedStatus(t, s)
+				go h.handleStreamEncodingRequiredStatus(t, s)
 			})
 		default:
 			go transport.HandleStreams(func(s *Stream) {
@@ -433,13 +433,20 @@ func TestMaxStreams(t *testing.T) {
 	}
 	done := make(chan struct{})
 	ch := make(chan int)
+	ready := make(chan struct{})
 	go func() {
 		for {
 			select {
 			case <-time.After(5 * time.Millisecond):
-				ch <- 0
+				select {
+				case ch <- 0:
+				case <-ready:
+					return
+				}
 			case <-time.After(5 * time.Second):
 				close(done)
+				return
+			case <-ready:
 				return
 			}
 		}
@@ -467,6 +474,7 @@ func TestMaxStreams(t *testing.T) {
 		}
 		cc.mu.Unlock()
 	}
+	close(ready)
 	// Close the pending stream so that the streams quota becomes available for the next new stream.
 	ct.CloseStream(s, nil)
 	select {
@@ -690,7 +698,8 @@ func TestClientWithMisbehavedServer(t *testing.T) {
 		Host:   "localhost",
 		Method: "foo.MaxFrame",
 	}
-	for i := 0; i < int(initialConnWindowSize/initialWindowSize+10); i++ {
+	// Make the server flood the traffic to violate flow control window size of the connection.
+	for {
 		s, err := ct.NewStream(context.Background(), callHdr)
 		if err != nil {
 			break
@@ -705,8 +714,8 @@ func TestClientWithMisbehavedServer(t *testing.T) {
 	server.stop()
 }
 
-func TestMalformedStatus(t *testing.T) {
-	server, ct := setUp(t, 0, math.MaxUint32, malformedStatus)
+func TestEncodingRequiredStatus(t *testing.T) {
+	server, ct := setUp(t, 0, math.MaxUint32, encodingRequiredStatus)
 	callHdr := &CallHdr{
 		Host:   "localhost",
 		Method: "foo",
@@ -722,10 +731,8 @@ func TestMalformedStatus(t *testing.T) {
 	if err := ct.Write(s, expectedRequest, &opts); err != nil {
 		t.Fatalf("Failed to write the request: %v", err)
 	}
-	p := make([]byte, http2MaxFrameLen)
-	expectedErr := StreamErrorf(codes.Internal, "invalid header field value \"\\n\"")
-	if _, err = s.dec.Read(p); err != expectedErr {
-		t.Fatalf("Read the err %v, want %v", err, expectedErr)
+	if _, err = ioutil.ReadAll(s); err != nil {
+		t.Fatal(err)
 	}
 	ct.Close()
 	server.stop()
@@ -760,5 +767,31 @@ func TestIsReservedHeader(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("isReservedHeader(%q) = %v; want %v", tt.h, got, tt.want)
 		}
+	}
+}
+
+func TestGrpcMessageEncode(t *testing.T) {
+	testGrpcMessageEncode(t, "my favorite character is \u0000", "my favorite character is %00")
+	testGrpcMessageEncode(t, "my favorite character is %", "my favorite character is %25")
+}
+
+func TestGrpcMessageDecode(t *testing.T) {
+	testGrpcMessageDecode(t, "Hello", "Hello")
+	testGrpcMessageDecode(t, "H%61o", "Hao")
+	testGrpcMessageDecode(t, "H%6", "H%6")
+	testGrpcMessageDecode(t, "%G0", "%G0")
+}
+
+func testGrpcMessageEncode(t *testing.T, input string, expected string) {
+	actual := grpcMessageEncode(input)
+	if expected != actual {
+		t.Errorf("Expected %s from grpcMessageEncode, got %s", expected, actual)
+	}
+}
+
+func testGrpcMessageDecode(t *testing.T, input string, expected string) {
+	actual := grpcMessageDecode(input)
+	if expected != actual {
+		t.Errorf("Expected %s from grpcMessageDecode, got %s", expected, actual)
 	}
 }

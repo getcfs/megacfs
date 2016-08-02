@@ -12,6 +12,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
 	"github.com/gholt/ring"
+	"github.com/pandemicsyn/ftls"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 )
@@ -26,6 +27,8 @@ const (
 	DefaultRingDir        = "/etc/syndicate/ring"       //The default directory where to store the rings
 	DefaultCertFile       = "/etc/syndicate/server.crt" //The default SSL Cert
 	DefaultCertKey        = "/etc/syndicate/server.key" //The default SSL Key
+	DefaultCAFile         = "/etc/syndicate/ca.crt"     //The default SSL CA
+	DefaultMutualTLS      = true                        //The default mutual tls auth setting
 )
 
 var (
@@ -51,6 +54,8 @@ type Config struct {
 	RingDir          string
 	CertFile         string
 	KeyFile          string
+	CAFile           string
+	MutualTLS        bool
 	WeightAssignment string
 }
 
@@ -187,7 +192,17 @@ func NewServer(cfg *Config, servicename string, opts ...MockOpt) (*Server, error
 		s.netlimits = append(s.netlimits, n)
 	}
 	s.tierlimits = cfg.TierFilter
-	s.managedNodes = bootstrapManagedNodes(s.r, s.cfg.CmdCtrlPort, s.ctxlog)
+	tlsConf := &ftls.Config{
+		MutualTLS: cfg.MutualTLS,
+		CertFile:  cfg.CertFile,
+		KeyFile:   cfg.KeyFile,
+		CAFile:    cfg.CAFile,
+	}
+	cOpts, err := ftls.NewGRPCClientDialOpt(tlsConf)
+	if err != nil {
+		return s, fmt.Errorf("Err setting up client ssl certs:", err.Error())
+	}
+	s.managedNodes = bootstrapManagedNodes(s.r, s.cfg.CmdCtrlPort, s.ctxlog, cOpts)
 	s.metrics.managedNodes.Set(float64(len(s.managedNodes)))
 	s.changeChan = make(chan *changeMsg, 1)
 	s.subsChangeChan = make(chan *changeMsg, 1)
@@ -260,6 +275,10 @@ func (s *Server) parseConfig() {
 	if s.cfg.KeyFile == "" {
 		s.ctxlog.Debugln("Config didn't specify keyfile, using default:", DefaultCertKey)
 		s.cfg.KeyFile = DefaultCertKey
+	}
+	if s.cfg.CAFile == "" {
+		s.ctxlog.Debugln("Config didn't specify keyfile, using default:", DefaultCAFile)
+		s.cfg.CAFile = DefaultCAFile
 	}
 }
 
