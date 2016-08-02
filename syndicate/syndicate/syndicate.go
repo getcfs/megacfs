@@ -201,7 +201,7 @@ func NewServer(cfg *Config, servicename string, opts ...MockOpt) (*Server, error
 	log.Printf("%+v", cfg)
 	cOpts, err := ftls.NewGRPCClientDialOpt(tlsConf)
 	if err != nil {
-		return s, fmt.Errorf("Err setting up client ssl certs:", err.Error())
+		return s, fmt.Errorf("Err setting up client ssl certs: %s", err.Error())
 	}
 	s.managedNodes = bootstrapManagedNodes(s.r, s.cfg.CmdCtrlPort, s.ctxlog, cOpts)
 	s.metrics.managedNodes.Set(float64(len(s.managedNodes)))
