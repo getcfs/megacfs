@@ -32,7 +32,6 @@ func (s *Server) RingChangeManager() {
 			} else {
 				s.ctxlog.WithFields(log.Fields{"nodeid": k, "updated": updated, "err": err}).Debug("sent node ringupdate")
 			}
-
 		}
 		s.RUnlock()
 	}
