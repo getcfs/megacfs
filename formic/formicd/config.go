@@ -73,8 +73,10 @@ func resolveConfig(c *config) *config {
 			cfg.concurrentRequestsPerStore = val
 		}
 	}
+	cfg.debug = false
 	if env := os.Getenv("FORMICD_DEBUG"); env == "true" {
 		cfg.debug = true
 	}
+
 	return cfg
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -11,24 +10,18 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/grpclog"
 
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort/api"
+	"github.com/uber-go/zap"
+	"github.com/uber-go/zap/zwrap"
 
 	"net"
 
 	"github.com/getcfs/megacfs/syndicate/utils/sysmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-// FatalIf is just a lazy log/panic on error func
-func FatalIf(err error, msg string) {
-	if err != nil {
-		grpclog.Fatalf("%s: %v", msg, err)
-	}
-}
 
 var (
 	printVersionInfo = flag.Bool("version", false, "print version/build info")
@@ -39,18 +32,19 @@ var buildDate string
 var commitVersion string
 var goVersion string
 
-func setupMetrics(listenAddr, enabledCollectors string) {
+func setupMetrics(listenAddr, enabledCollectors string) error {
 	if enabledCollectors == "" {
 		enabledCollectors = sysmetrics.FilterAvailableCollectors(sysmetrics.DefaultCollectors)
 	}
 	collectors, err := sysmetrics.LoadCollectors(enabledCollectors)
 	if err != nil {
-		log.Fatalf("Couldn't load collectors: %s", err)
+		return err
 	}
 	nodeCollector := sysmetrics.New(collectors)
 	prometheus.MustRegister(nodeCollector)
 	http.Handle("/metrics", prometheus.Handler())
 	go http.ListenAndServe(listenAddr, nil)
+	return nil
 }
 
 func main() {
@@ -64,23 +58,26 @@ func main() {
 	}
 
 	cfg := resolveConfig(nil)
-	var logDebug func(formt string, args ...interface{})
+
+	// Setup logging
+	logger := zap.New(zap.NewJSONEncoder())
 	if cfg.debug {
-		logDebug = func(formt string, args ...interface{}) {
-			if formt != "" && formt[len(formt)-1] == '\n' {
-				formt = "DEBUG: " + formt
-			} else {
-				formt = "DEBUG: " + formt + "\n"
-			}
-			fmt.Printf(formt, args...)
-		}
+		fmt.Println("DEBUG!")
+		logger.SetLevel(zap.DebugLevel)
+	} else {
+		logger.SetLevel(zap.InfoLevel)
 	}
 
-	setupMetrics(cfg.metricsAddr, cfg.metricsCollectors)
+	err := setupMetrics(cfg.metricsAddr, cfg.metricsCollectors)
+	if err != nil {
+		logger.Fatal("Couldn't load collectors", zap.Error(err))
+	}
 
 	var opts []grpc.ServerOption
 	creds, err := credentials.NewServerTLSFromFile(path.Join(cfg.path, "server.crt"), path.Join(cfg.path, "server.key"))
-	FatalIf(err, "Couldn't load cert from file")
+	if err != nil {
+		logger.Fatal("Couldn't load cert from file", zap.Error(err))
+	}
 	opts = []grpc.ServerOption{grpc.Creds(creds)}
 	s := grpc.NewServer(opts...)
 
@@ -98,7 +95,7 @@ func main() {
 		CAFile:             path.Join(cfg.path, "ca.pem"),
 	})
 	if err != nil {
-		grpclog.Fatalln("Cannot setup value store tls config for synd client:", err)
+		logger.Fatal("Cannot setup value store tls config for synd client", zap.Error(err))
 	}
 
 	var gcOpts []grpc.DialOption
@@ -115,7 +112,7 @@ func main() {
 		CAFile:             path.Join(cfg.path, "ca.pem"),
 	})
 	if err != nil {
-		grpclog.Fatalln("Cannot setup group store tls config for synd client:", err)
+		logger.Fatal("Cannot setup group store tls config for synd client", zap.Error(err))
 	}
 
 	clientID, _ := os.Hostname()
@@ -123,8 +120,12 @@ func main() {
 		clientID += "/formicd"
 	}
 
+	debugLogger, err := zwrap.Standardize(logger, zap.DebugLevel)
+	if err != nil {
+		logger.Fatal("Cannon setup standard logger", zap.Error(err))
+	}
 	vstore := api.NewReplValueStore(&api.ReplValueStoreConfig{
-		LogDebug:                   logDebug,
+		LogDebug:                   debugLogger.Printf,
 		AddressIndex:               2,
 		StoreFTLSConfig:            vtlsConfig,
 		GRPCOpts:                   vcOpts,
@@ -135,11 +136,11 @@ func main() {
 		ConcurrentRequestsPerStore: cfg.concurrentRequestsPerStore,
 	})
 	if verr := vstore.Startup(context.Background()); verr != nil {
-		grpclog.Fatalln("Cannot start valuestore connector:", verr)
+		logger.Fatal("Cannot start valuestore connector:", zap.Error(err))
 	}
 
 	gstore := api.NewReplGroupStore(&api.ReplGroupStoreConfig{
-		LogDebug:                   logDebug,
+		LogDebug:                   debugLogger.Printf,
 		AddressIndex:               2,
 		StoreFTLSConfig:            gtlsConfig,
 		GRPCOpts:                   gcOpts,
@@ -150,19 +151,21 @@ func main() {
 		ConcurrentRequestsPerStore: cfg.concurrentRequestsPerStore,
 	})
 	if gerr := gstore.Startup(context.Background()); gerr != nil {
-		grpclog.Fatalln("Cannot start groupstore connector:", gerr)
+		logger.Fatal("Cannot start groupstore connector:", zap.Error(err))
 	}
 
 	// starting up formicd
-	comms, err := NewStoreComms(vstore, gstore)
+	comms, err := NewStoreComms(vstore, gstore, logger)
 	if err != nil {
-		grpclog.Fatalln(err)
+		logger.Fatal("Error setting up comms", zap.Error(err))
 	}
-	fs := NewOortFS(comms)
+	fs := NewOortFS(comms, logger)
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.port))
-	FatalIf(err, "Failed to bind formicd to port")
+	if err != nil {
+		logger.Fatal("Failed to bind formicd to port", zap.Error(err))
+	}
 	pb.RegisterFileSystemAPIServer(s, NewFileSystemAPIServer(gstore))
-	pb.RegisterApiServer(s, NewApiServer(fs, cfg.nodeId, comms))
-	grpclog.Printf("Starting up formic and the file system api on %d...\n", cfg.port)
+	pb.RegisterApiServer(s, NewApiServer(fs, cfg.nodeId, comms, logger))
+	logger.Info("Starting formic and the filesystem API", zap.Int("port", cfg.port))
 	s.Serve(l)
 }

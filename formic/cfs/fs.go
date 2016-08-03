@@ -12,10 +12,9 @@ import (
 
 	"golang.org/x/net/context"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
-
 	"github.com/getcfs/fuse"
 	"github.com/getcfs/fuse/fuseutil"
+	pb "github.com/getcfs/megacfs/formic/proto"
 )
 
 const (
