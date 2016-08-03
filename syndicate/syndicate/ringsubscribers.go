@@ -1,7 +1,6 @@
 package syndicate
 
 import (
-	"fmt"
 	"sync"
 
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
@@ -25,17 +24,17 @@ func (s *Server) addRingSubscriber(id string) chan *pb.Ring {
 	return s.ringSubs.subs[id]
 }
 
-func (s *Server) removeRingSubscriber(id string) error {
+func (s *Server) removeRingSubscriber(id string) {
 	s.ringSubs.Lock()
 	defer s.ringSubs.Unlock()
 	c, ok := s.ringSubs.subs[id]
 	if !ok {
-		return fmt.Errorf("subscriber id not present")
+		return
 	}
 	close(c)
 	delete(s.ringSubs.subs, id)
 	s.metrics.subscriberNodes.Dec()
-	return nil
+	return
 }
 
 //ringSubscribersNotify listens for ring changes on s.subsChangeChan,
