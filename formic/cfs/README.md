@@ -1,41 +1,62 @@
-go build . && fusermount -u /tmp/test && ./cfs /tmp/test
+Getting Started Guide
+=====================
 
+Quick Start
+-----------
 
-```
-Getting Started with CFS:
-# install fuse
+1) Install FUSE
+```bash
 apt-get install fuse
-# install cfs
+```
+
+2) Install the CFS Client
+```bash
 wget https://github.com/getcfs/cfs-binary-release/releases/download/<latest release>/cfs
-echo -e '#!/bin/sh\ncfs mount $1 $2 -o $4 > /dev/null &' > mount.cfs
-chmod +x cfs mount.cfs
-mv cfs mount.cfs /sbin/
-# create the filesystem
-cfs -T <token> create -R [iad|aio] -N <fs_name>
-# grant access to the filesystem
-ifconfig
-cfs -T <token> grant -addr <ip> iad://<fs_id>
-# mount the filesystem
-mkdir -p /mnt/<fs_name>
-echo “iad://<fs_id> /mnt/<fs_name> cfs rw 0 0” >> /etc/fstab
-mount /mnt/<fs_name>
-# optional mount methods
-cfs mount iad://<fs_id> /mnt/<fs_name> -o debug
-mount -t cfs iad://<fs_id> /mnt/<fs_name>
-# unmount the filesystem
-umount /mnt/<fs_name>
-fusermount -u /mnt/<fs_name>  # use if umount fails
+chmod +x cfs   # make it executable
+mv cfs /sbin/  # put it on the path
+```
+
+3) Configure the CFS Client
+```bash
+cfs configure  # requires a valid region, username and apikey
+```
+
+4) Create a Filesystem
+```bash
+cfs create myfs  # returns the fsid
+```
+
+5) Grant Access to the Filesystem
+```bash
+ifconfig               # to get the service net ip
+cfs grant <ip> <fsid>  # allows this filesystem to mounted from this ip
+```
+
+6) Mount the Filesystem
+```bash
+mkdir -p /mnt/myfs          # create the mountpoint  
+cfs mount <fsid> /mnt/myfs  # mount the filesystem
+```
 
 
-# list all of your file systems
-cfs -T <token> list -R [iad|aio]
-# show details for a specific file system
-cfs -T <token> show iad://<fs id>
-# grant access to additional ips
-cfs -T <token> grant -addr <ip> iad://<fs id>
-# revoke an ip's access
-cfs -T <token> revoke -addr <ip> iad://<fs id>
 
-# Both DELETE and UPDATE file system operations are not
-#   implemented in at this time
+Mounting via /etc/fstab
+-----------------------
+
+1) Create the helper script for mount
+```bash
+echo -e '#!/bin/sh\ncfs mount -0 $4 $1 $2 > /dev/null &' > mount.cfs
+chmod +x mount.cfs
+mv mount.cfs /sbin/
+```
+
+2) Add the filesystem to /etc/fstab
+```bash
+echo "iad:<fsid> /mnt/myfs cfs rw,allow_other 0 0" >> /etc/fstab
+```
+
+3) Mount and unmount using the mountpoint
+```bash
+mount /mnt/myfs
+umount /mnt/myfs
 ```
