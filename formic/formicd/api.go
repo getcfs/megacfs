@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"sync"
@@ -20,6 +19,7 @@ import (
 	"github.com/gholt/store"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spaolacci/murmur3"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 )
 
@@ -33,17 +33,19 @@ type apiServer struct {
 	updateChan chan *UpdateItem
 	comms      *StoreComms
 	validIPs   map[string]map[string]bool
+	log        zap.Logger
 }
 
-func NewApiServer(fs FileService, nodeId int, comms *StoreComms) *apiServer {
+func NewApiServer(fs FileService, nodeId int, comms *StoreComms, logger zap.Logger) *apiServer {
 	s := new(apiServer)
 	s.fs = fs
 	s.comms = comms
 	s.validIPs = make(map[string]map[string]bool)
-	log.Println("NodeID: ", nodeId)
+	logger.Debug("NodeID", zap.Int("nodeid", nodeId))
 	s.fl = flother.NewFlother(time.Time{}, uint64(nodeId))
 	s.blocksize = int64(1024 * 64) // Default Block Size (64K)
 	s.updateChan = make(chan *UpdateItem, 1000)
+	s.log = logger
 	updates := newUpdatinator(s.updateChan, fs)
 	go updates.run()
 	return s
@@ -108,7 +110,7 @@ func (s *apiServer) validateIP(ctx context.Context) error {
 	}
 	_, err = s.comms.ReadGroupItem(ctx, []byte(fmt.Sprintf("/fs/%s/addr", fsid)), []byte(ip))
 	if store.IsNotFound(err) {
-		log.Println("Invalid IP: ", ip)
+		s.log.Info("Unauthorized IP", zap.String("unauthorized_ip", ip))
 		// No access
 		return ErrUnauthorized
 	}
@@ -208,7 +210,7 @@ func (s *apiServer) Read(ctx context.Context, r *pb.ReadRequest) (*pb.ReadRespon
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("READ: Inode: %d Offset: %d Size: %d", r.Inode, r.Offset, r.Size)
+	s.log.Debug("READ", zap.Uint64("inode", r.Inode), zap.Int64("offset", r.Offset), zap.Int64("size", r.Size))
 	block := uint64(r.Offset / s.blocksize)
 	data := make([]byte, r.Size)
 	firstOffset := int64(0)
@@ -221,7 +223,7 @@ func (s *apiServer) Read(ctx context.Context, r *pb.ReadRequest) (*pb.ReadRespon
 		id := formic.GetID(fsid.Bytes(), r.Inode, block+1) // block 0 is for inode data
 		chunk, err := s.fs.GetChunk(ctx, id)
 		if err != nil {
-			log.Print("Err: Failed to read block: ", err)
+			s.log.Debug("Failed to read block: ", zap.Error(err))
 			// NOTE: This returns basically 0's to the client.for this block in this case
 			//       It is totally valid for a fs to request an invalid block
 			// TODO: Do we need to differentiate between real errors and bad requests?
@@ -259,7 +261,7 @@ func (s *apiServer) Write(ctx context.Context, r *pb.WriteRequest) (*pb.WriteRes
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("WRITE: Inode %d Offset: %d Size: %d", r.Inode, r.Offset, len(r.Payload))
+	s.log.Debug("WRITE", zap.Uint64("inode", r.Inode), zap.Int64("offset", r.Offset), zap.Int("size", len(r.Payload)))
 	block := uint64(r.Offset / s.blocksize)
 	firstOffset := int64(0)
 	if r.Offset%s.blocksize != 0 {
@@ -280,7 +282,7 @@ func (s *apiServer) Write(ctx context.Context, r *pb.WriteRequest) (*pb.WriteRes
 			data, err := s.fs.GetChunk(ctx, id)
 			if firstOffset > 0 && err != nil {
 				// TODO: How do we differentiate a block that hasn't been created yet, and a block that is truely missing?
-				log.Printf("WARN: couldn't get block id %d", id)
+				s.log.Debug("Couldn't read block for write", zap.Base64("block_id", id))
 			} else {
 				if len(data) > len(chunk) {
 					chunk = data
