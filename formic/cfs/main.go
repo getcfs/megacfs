@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/user"
 	"strings"
@@ -86,6 +87,45 @@ var buildDate string
 var commitVersion string
 var goVersion string
 
+type AuthResponse struct {
+	Access struct {
+		Token struct {
+			ID string `json:"id"`
+		} `json:"token"`
+	} `json:"access"`
+}
+
+func auth(username string, apikey string) string {
+	body := fmt.Sprintf(`{"auth":{"RAX-KSKEY:apiKeyCredentials":{"username": "%s","apiKey": "%s"}}}`, username, apikey)
+	rbody := strings.NewReader(body)
+	req, err := http.NewRequest("POST", "https://identity.api.rackspacecloud.com/v2.0/tokens", rbody)
+	if err != nil {
+		fmt.Printf("%v", err)
+		os.Exit(1)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Printf("%v", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		fmt.Println(resp.Status)
+		os.Exit(1)
+	}
+
+	// parse token from response
+	var authResp AuthResponse
+	r, _ := ioutil.ReadAll(resp.Body)
+	json.Unmarshal(r, &authResp)
+	token := authResp.Access.Token.ID
+
+	return token
+}
+
 func main() {
 
 	// try to read config file
@@ -110,9 +150,6 @@ func main() {
 	region, _ := config["region"]
 	username, _ := config["username"]
 	apikey, _ := config["apikey"]
-
-	// get auth token for username and apikey
-	token := apikey // TODO: get token from identity
 
 	flag.Usage = func() {
 		fmt.Println("Usage:")
@@ -200,6 +237,7 @@ func main() {
 		}
 		c := setupWS(addr)
 		ws := pb.NewFileSystemAPIClient(c)
+		token := auth(username, apikey)
 		res, err := ws.ListFS(context.Background(), &pb.ListFSRequest{Token: token})
 		if err != nil {
 			log.Fatalf("Request Error: %v", err)
@@ -241,6 +279,7 @@ func main() {
 		}
 		c := setupWS(addr)
 		ws := pb.NewFileSystemAPIClient(c)
+		token := auth(username, apikey)
 		res, err := ws.ShowFS(context.Background(), &pb.ShowFSRequest{Token: token, FSid: fsid})
 		if err != nil {
 			log.Fatalf("Request Error: %v", err)
@@ -285,6 +324,7 @@ func main() {
 		}
 		c := setupWS(addr)
 		ws := pb.NewFileSystemAPIClient(c)
+		token := auth(username, apikey)
 		res, err := ws.CreateFS(context.Background(), &pb.CreateFSRequest{Token: token, FSName: name})
 		if err != nil {
 			log.Fatalf("Request Error: %v", err)
@@ -318,6 +358,7 @@ func main() {
 		}
 		c := setupWS(addr)
 		ws := pb.NewFileSystemAPIClient(c)
+		token := auth(username, apikey)
 		res, err := ws.DeleteFS(context.Background(), &pb.DeleteFSRequest{Token: token, FSid: fsid})
 		if err != nil {
 			log.Fatalf("Request Error: %v", err)
@@ -352,6 +393,7 @@ func main() {
 		}
 		c := setupWS(addr)
 		ws := pb.NewFileSystemAPIClient(c)
+		token := auth(username, apikey)
 		_, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 		if err != nil {
 			log.Fatalf("Request Error: %v", err)
@@ -385,6 +427,7 @@ func main() {
 		}
 		c := setupWS(addr)
 		ws := pb.NewFileSystemAPIClient(c)
+		token := auth(username, apikey)
 		_, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 		if err != nil {
 			log.Fatalf("Request Error: %v", err)
@@ -524,10 +567,9 @@ func fusermountPath() {
 	// Grab the current path
 	currentPath := os.Getenv("PATH")
 	if len(currentPath) == 0 {
-		// fusermount location for suse
-		os.Setenv("PATH", "/usr/bin")
-		// fusermount location on debian based distros
-		os.Setenv("PATH", "/bin")
+		// fusermount location for suse  /usr/bin
+		// fusermount location on debian based distros /bin
+		os.Setenv("PATH", "/usr/bin:/bin")
 	}
 }
 

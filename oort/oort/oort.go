@@ -129,7 +129,7 @@ func (o *Server) runCmdCtrlLoop() {
 					//since this is our first attempt to bind/serve and we blew up
 					//we're probably missing something import and wont be able to
 					//recover.
-					log.Fatalln("Error on first attempt to launch CmdCtrl Serve")
+					log.Fatalln("Error on first attempt to launch CmdCtrl Serve", err.Error())
 				} else if err != nil && !firstAttempt {
 					log.Println("CmdCtrl Serve encountered error:", err)
 				} else {

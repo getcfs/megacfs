@@ -27,6 +27,7 @@ type ReplValueStore struct {
 	logDebugOn                 bool
 	addressIndex               int
 	valueCap                   int
+	poolSize                   int
 	concurrentRequestsPerStore int
 	failedConnectRetryDelay    int
 	ftlsConfig                 *ftls.Config
@@ -41,12 +42,7 @@ type ReplValueStore struct {
 	ringClientID       string
 
 	storesLock sync.RWMutex
-	stores     map[string]*replValueStoreAndTicketChan
-}
-
-type replValueStoreAndTicketChan struct {
-	store      store.ValueStore
-	ticketChan chan struct{}
+	stores     map[string]store.ValueStore
 }
 
 func NewReplValueStore(c *ReplValueStoreConfig) *ReplValueStore {
@@ -57,11 +53,12 @@ func NewReplValueStore(c *ReplValueStoreConfig) *ReplValueStore {
 		logDebugOn:                 cfg.LogDebug != nil,
 		addressIndex:               cfg.AddressIndex,
 		valueCap:                   int(cfg.ValueCap),
+		poolSize:                   cfg.PoolSize,
 		concurrentRequestsPerStore: cfg.ConcurrentRequestsPerStore,
 		failedConnectRetryDelay:    cfg.FailedConnectRetryDelay,
 		ftlsConfig:                 cfg.StoreFTLSConfig,
 		grpcOpts:                   cfg.GRPCOpts,
-		stores:                     make(map[string]*replValueStoreAndTicketChan),
+		stores:                     make(map[string]store.ValueStore),
 		ringServer:                 cfg.RingServer,
 		ringServerGRPCOpts:         cfg.RingServerGRPCOpts,
 		ringCachePath:              cfg.RingCachePath,
@@ -146,7 +143,7 @@ func (rs *ReplValueStore) SetRing(r ring.Ring) {
 	}
 	rs.storesLock.RUnlock()
 	if len(shutdownAddrs) > 0 {
-		shutdownStores := make([]*replValueStoreAndTicketChan, len(shutdownAddrs))
+		shutdownStores := make([]store.ValueStore, len(shutdownAddrs))
 		rs.storesLock.Lock()
 		for i, a := range shutdownAddrs {
 			shutdownStores[i] = rs.stores[a]
@@ -154,7 +151,7 @@ func (rs *ReplValueStore) SetRing(r ring.Ring) {
 		}
 		rs.storesLock.Unlock()
 		for i, s := range shutdownStores {
-			if err := s.store.Shutdown(context.Background()); err != nil {
+			if err := s.Shutdown(context.Background()); err != nil {
 				rs.logDebug("replValueStore: error during shutdown of store %s: %s", shutdownAddrs[i], err)
 			}
 		}
@@ -162,7 +159,7 @@ func (rs *ReplValueStore) SetRing(r ring.Ring) {
 	rs.ringLock.Unlock()
 }
 
-func (rs *ReplValueStore) storesFor(ctx context.Context, keyA uint64) ([]*replValueStoreAndTicketChan, error) {
+func (rs *ReplValueStore) storesFor(ctx context.Context, keyA uint64) ([]store.ValueStore, error) {
 	r := rs.Ring(ctx)
 	select {
 	case <-ctx.Done():
@@ -177,7 +174,7 @@ func (rs *ReplValueStore) storesFor(ctx context.Context, keyA uint64) ([]*replVa
 	for i, n := range ns {
 		as[i] = n.Address(rs.addressIndex)
 	}
-	ss := make([]*replValueStoreAndTicketChan, len(ns))
+	ss := make([]store.ValueStore, len(ns))
 	var someNil bool
 	rs.storesLock.RLock()
 	for i := len(ss) - 1; i >= 0; i-- {
@@ -204,12 +201,7 @@ func (rs *ReplValueStore) storesFor(ctx context.Context, keyA uint64) ([]*replVa
 			if ss[i] == nil {
 				ss[i] = rs.stores[as[i]]
 				if ss[i] == nil {
-					tc := make(chan struct{}, rs.concurrentRequestsPerStore)
-					for i := cap(tc); i > 0; i-- {
-						tc <- struct{}{}
-					}
-					ss[i] = &replValueStoreAndTicketChan{ticketChan: tc}
-					ss[i].store = NewValueStore(as[i], rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
+					ss[i] = NewPoolValueStore(as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
 					rs.stores[as[i]] = ss[i]
 					select {
 					case <-ctx.Done():
@@ -357,8 +349,8 @@ func (rs *ReplValueStore) Shutdown(ctx context.Context) error {
 		rs.ringServerExitChan = nil
 	}
 	rs.storesLock.Lock()
-	for addr, stc := range rs.stores {
-		if err := stc.store.Shutdown(ctx); err != nil {
+	for addr, s := range rs.stores {
+		if err := s.Shutdown(ctx); err != nil {
 			rs.logDebug("replValueStore: error during shutdown of store %s: %s", addr, err)
 		}
 		delete(rs.stores, addr)
@@ -410,18 +402,12 @@ func (rs *ReplValueStore) Lookup(ctx context.Context, keyA, keyB uint64) (int64,
 		return 0, 0, err
 	}
 	for _, s := range stores {
-		go func(s *replValueStoreAndTicketChan) {
+		go func(s store.ValueStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				ret.timestampMicro, ret.length, err = s.store.Lookup(ctx, keyA, keyB)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
-			}
+			ret.timestampMicro, ret.length, err = s.Lookup(ctx, keyA, keyB)
 			if err != nil {
-				ret.err = &replValueStoreError{store: s.store, err: err}
+				ret.err = &replValueStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -473,18 +459,12 @@ func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, va
 		return 0, nil, err
 	}
 	for _, s := range stores {
-		go func(s *replValueStoreAndTicketChan) {
+		go func(s store.ValueStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				ret.timestampMicro, ret.value, err = s.store.Read(ctx, keyA, keyB, nil)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
-			}
+			ret.timestampMicro, ret.value, err = s.Read(ctx, keyA, keyB, nil)
 			if err != nil {
-				ret.err = &replValueStoreError{store: s.store, err: err}
+				ret.err = &replValueStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -546,21 +526,15 @@ func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, t
 		return 0, err
 	}
 	for _, s := range stores {
-		go func(s *replValueStoreAndTicketChan) {
+		go func(s store.ValueStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				if len(value) == 0 {
-					panic(fmt.Sprintf("REMOVEME inside ReplValueStore asked to Write a zlv"))
-				}
-				ret.oldTimestampMicro, err = s.store.Write(ctx, keyA, keyB, timestampMicro, value)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
+			if len(value) == 0 {
+				panic(fmt.Sprintf("REMOVEME inside ReplValueStore asked to Write a zlv"))
 			}
+			ret.oldTimestampMicro, err = s.Write(ctx, keyA, keyB, timestampMicro, value)
 			if err != nil {
-				ret.err = &replValueStoreError{store: s.store, err: err}
+				ret.err = &replValueStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -598,18 +572,12 @@ func (rs *ReplValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 		return 0, err
 	}
 	for _, s := range stores {
-		go func(s *replValueStoreAndTicketChan) {
+		go func(s store.ValueStore) {
 			ret := &rettype{}
 			var err error
-			select {
-			case <-s.ticketChan:
-				ret.oldTimestampMicro, err = s.store.Delete(ctx, keyA, keyB, timestampMicro)
-				s.ticketChan <- struct{}{}
-			case <-ctx.Done():
-				err = ctx.Err()
-			}
+			ret.oldTimestampMicro, err = s.Delete(ctx, keyA, keyB, timestampMicro)
 			if err != nil {
-				ret.err = &replValueStoreError{store: s.store, err: err}
+				ret.err = &replValueStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)

@@ -1,5 +1,5 @@
 hash: a82c946242a6822df5505634472ff91514e0acfe9a6e3f20a6d0a77cf89b2268
-updated: 2016-08-03T15:43:21.542277506Z
+updated: 2016-08-03T18:06:36.018862958Z
 imports:
 - name: github.com/beevik/ntp
   version: 8ed1e691d326c0ab1169cacbc1e8b5c988089c04
@@ -139,7 +139,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 0c9e689d64f004564b79d9a663634756df322902
 - name: github.com/uber-go/zap
-  version: 3ba9dd017767d4d564409e1ad4f162eec0e2841f
+  version: ab32b4f52f90a15122407ad82e646810ba9ce268
   subpackages:
   - zwrap
 - name: golang.org/x/crypto
@@ -147,7 +147,7 @@ imports:
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net
-  version: e2ba55e4e78399d85f2a0e0b92396b81ed410633
+  version: 57bfaa875b96fb91b4766077f34470528d4b03e9
   subpackages:
   - context
   - http2

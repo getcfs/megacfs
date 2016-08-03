@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/getcfs/megacfs/ftls"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
 	"github.com/gholt/ring"
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,14 +27,16 @@ const (
 	DefaultRingDir        = "/etc/syndicate/ring"       //The default directory where to store the rings
 	DefaultCertFile       = "/etc/syndicate/server.crt" //The default SSL Cert
 	DefaultCertKey        = "/etc/syndicate/server.key" //The default SSL Key
+	DefaultCAFile         = "/etc/syndicate/ca.crt"     //The default SSL CA
+	DefaultMutualTLS      = true                        //The default mutual tls auth setting
 )
 
 var (
 	DefaultNetFilter  = []string{"10.0.0.0/8", "192.168.0.0/16"} //Default the netfilters to private networks
 	DefaultTierFilter = []string{".*"}                           //Default to ...anything
 
-	InvalidTiers = errors.New("Tier0 already present in ring")
-	InvalidAddrs = errors.New("No valid addresses provided")
+	ErrInvalidTiers = errors.New("Tier0 already present in ring")
+	ErrInvalidAddrs = errors.New("No valid addresses provided")
 )
 
 //Config options for syndicate manager
@@ -51,6 +54,8 @@ type Config struct {
 	RingDir          string
 	CertFile         string
 	KeyFile          string
+	CAFile           string
+	MutualTLS        bool
 	WeightAssignment string
 }
 
@@ -187,7 +192,18 @@ func NewServer(cfg *Config, servicename string, opts ...MockOpt) (*Server, error
 		s.netlimits = append(s.netlimits, n)
 	}
 	s.tierlimits = cfg.TierFilter
-	s.managedNodes = bootstrapManagedNodes(s.r, s.cfg.CmdCtrlPort, s.ctxlog)
+	tlsConf := &ftls.Config{
+		MutualTLS: cfg.MutualTLS,
+		CertFile:  cfg.CertFile,
+		KeyFile:   cfg.KeyFile,
+		CAFile:    cfg.CAFile,
+	}
+	log.Printf("%+v", cfg)
+	cOpts, err := ftls.NewGRPCClientDialOpt(tlsConf)
+	if err != nil {
+		return s, fmt.Errorf("Err setting up client ssl certs: %s", err.Error())
+	}
+	s.managedNodes = bootstrapManagedNodes(s.r, s.cfg.CmdCtrlPort, s.ctxlog, cOpts)
 	s.metrics.managedNodes.Set(float64(len(s.managedNodes)))
 	s.changeChan = make(chan *changeMsg, 1)
 	s.subsChangeChan = make(chan *changeMsg, 1)
@@ -260,6 +276,10 @@ func (s *Server) parseConfig() {
 	if s.cfg.KeyFile == "" {
 		s.ctxlog.Debugln("Config didn't specify keyfile, using default:", DefaultCertKey)
 		s.cfg.KeyFile = DefaultCertKey
+	}
+	if s.cfg.CAFile == "" {
+		s.ctxlog.Debugln("Config didn't specify keyfile, using default:", DefaultCAFile)
+		s.cfg.CAFile = DefaultCAFile
 	}
 }
 
@@ -756,7 +776,8 @@ func (s *Server) GetRingStream(req *pb.SubscriberID, stream pb.Syndicate_GetRing
 		s.RUnlock()
 		s.ctxlog.WithField("err", err).Error("Error GetRingStream initial send")
 		streamFinished = true
-		return s.removeRingSubscriber(req.Id)
+		s.removeRingSubscriber(req.Id)
+		return nil
 	}
 	s.RUnlock()
 	for ring := range ringChange {
@@ -769,14 +790,11 @@ func (s *Server) GetRingStream(req *pb.SubscriberID, stream pb.Syndicate_GetRing
 	s.ctxlog.Debug("closing ring sub stream")
 	//our chan got closed before expected
 	if !streamFinished {
-		err := s.removeRingSubscriber(req.Id)
-		if err != nil {
-			s.ctxlog.WithFields(log.Fields{"key": req.Id,
-				"err": err}).Error("ring sub remove failed after chan closed while stream active")
-		}
+		s.removeRingSubscriber(req.Id)
 		return fmt.Errorf("ring change chan closed")
 	}
-	return s.removeRingSubscriber(req.Id)
+	s.removeRingSubscriber(req.Id)
+	return nil
 }
 
 //validNodeIP verifies that the provided ip is not a loopback or multicast address
@@ -879,7 +897,7 @@ func (s *Server) RegisterNode(c context.Context, r *pb.RegisterRequest) (*pb.Nod
 	}
 	switch {
 	case len(addrs) == 0:
-		return &pb.NodeConfig{}, InvalidAddrs
+		return &pb.NodeConfig{}, ErrInvalidAddrs
 	case s.nodeInRing(r.Hostname, addrs):
 		a := strings.Join(addrs, "|")
 		metanodes, _ := s.r.Nodes().Filter([]string{fmt.Sprintf("meta~=%s.*", r.Hostname)})
@@ -927,7 +945,7 @@ func (s *Server) RegisterNode(c context.Context, r *pb.RegisterRequest) (*pb.Nod
 		return &pb.NodeConfig{}, fmt.Errorf("No tier0 provided")
 	case len(r.Tiers) > 0:
 		if !s.validTiers(r.Tiers) {
-			return &pb.NodeConfig{}, InvalidTiers
+			return &pb.NodeConfig{}, ErrInvalidTiers
 		}
 	}
 

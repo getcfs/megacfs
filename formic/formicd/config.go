@@ -17,6 +17,7 @@ type config struct {
 	nodeId                     int
 	metricsAddr                string
 	metricsCollectors          string
+	poolSize                   int
 	concurrentRequestsPerStore int
 	debug                      bool
 }
@@ -67,6 +68,11 @@ func resolveConfig(c *config) *config {
 	}
 	if env := os.Getenv("FORMICD_METRICS_COLLECTORS"); env != "" {
 		cfg.metricsCollectors = env
+	}
+	if env := os.Getenv("FORMICD_POOL_SIZE"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil {
+			cfg.poolSize = val
+		}
 	}
 	if env := os.Getenv("FORMICD_CONCURRENT_REQUESTS_PER_STORE"); env != "" {
 		if val, err := strconv.Atoi(env); err == nil {
