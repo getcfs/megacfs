@@ -1,0 +1,10 @@
+sudo: false
+
+language: go
+go:
+- 1.5
+- tip
+
+script:
+- make
+- ./end-to-end-test.sh
