@@ -14,7 +14,8 @@ import (
 	"github.com/getcfs/megacfs/formic"
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gogo/protobuf/proto"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
+	"github.com/uber-go/zap"
 )
 
 // Minimal FileService for testing
@@ -167,7 +168,9 @@ func TestGetID(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	api := NewApiServer(NewTestFS(), 1, nil)
+	logger := zap.New(zap.NewJSONEncoder())
+	logger.SetLevel(zap.InfoLevel)
+	api := NewApiServer(NewTestFS(), 1, nil, logger)
 	_, err := api.Create(getContext(), &pb.CreateRequest{Parent: 1, Name: "Test", Attr: &pb.Attr{Gid: 1001, Uid: 1001}})
 	if err != nil {
 		t.Error("Create Failed: ", err)
@@ -177,7 +180,9 @@ func TestCreate(t *testing.T) {
 
 func TestWrite_Basic(t *testing.T) {
 	fs := NewTestFS()
-	api := NewApiServer(fs, 1, nil)
+	logger := zap.New(zap.NewJSONEncoder())
+	logger.SetLevel(zap.InfoLevel)
+	api := NewApiServer(fs, 1, nil, logger)
 	api.blocksize = 10
 	chunk := pb.WriteRequest{
 		Inode:   0,
@@ -213,7 +218,9 @@ func TestWrite_Basic(t *testing.T) {
 
 func TestWrite_Chunk(t *testing.T) {
 	fs := NewTestFS()
-	api := NewApiServer(fs, 1, nil)
+	logger := zap.New(zap.NewJSONEncoder())
+	logger.SetLevel(zap.InfoLevel)
+	api := NewApiServer(fs, 1, nil, logger)
 	api.blocksize = 5
 	chunk := pb.WriteRequest{
 		Inode:   0,
@@ -239,7 +246,9 @@ func TestWrite_Chunk(t *testing.T) {
 
 func TestWrite_Offset(t *testing.T) {
 	fs := NewTestFS()
-	api := NewApiServer(fs, 1, nil)
+	logger := zap.New(zap.NewJSONEncoder())
+	logger.SetLevel(zap.InfoLevel)
+	api := NewApiServer(fs, 1, nil, logger)
 	api.blocksize = 10
 	chunk := pb.WriteRequest{
 		Offset:  5,
@@ -279,7 +288,9 @@ func TestWrite_Offset(t *testing.T) {
 
 func TestWrite_MultiOffset(t *testing.T) {
 	fs := NewTestFS()
-	api := NewApiServer(fs, 1, nil)
+	logger := zap.New(zap.NewJSONEncoder())
+	logger.SetLevel(zap.InfoLevel)
+	api := NewApiServer(fs, 1, nil, logger)
 	api.blocksize = 20
 	chunk := pb.WriteRequest{
 		Offset:  5,
@@ -301,7 +312,9 @@ func TestWrite_MultiOffset(t *testing.T) {
 
 func TestRead_Basic(t *testing.T) {
 	fs := NewTestFS()
-	api := NewApiServer(fs, 1, nil)
+	logger := zap.New(zap.NewJSONEncoder())
+	logger.SetLevel(zap.InfoLevel)
+	api := NewApiServer(fs, 1, nil, logger)
 	api.blocksize = 10
 	write := []byte("0123456789")
 	fs.addread(write)
@@ -316,7 +329,9 @@ func TestRead_Basic(t *testing.T) {
 
 func TestRead_Offset(t *testing.T) {
 	fs := NewTestFS()
-	api := NewApiServer(fs, 1, nil)
+	logger := zap.New(zap.NewJSONEncoder())
+	logger.SetLevel(zap.InfoLevel)
+	api := NewApiServer(fs, 1, nil, logger)
 	api.blocksize = 10
 	write := []byte("0123456789")
 	fs.addread(write)
@@ -331,7 +346,9 @@ func TestRead_Offset(t *testing.T) {
 
 func TestRead_Chunk(t *testing.T) {
 	fs := NewTestFS()
-	api := NewApiServer(fs, 1, nil)
+	logger := zap.New(zap.NewJSONEncoder())
+	logger.SetLevel(zap.InfoLevel)
+	api := NewApiServer(fs, 1, nil, logger)
 	api.blocksize = 10
 	write1 := []byte("0123456789")
 	write2 := []byte("9876543210")
