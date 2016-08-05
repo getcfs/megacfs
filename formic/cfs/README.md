@@ -11,7 +11,7 @@ apt-get install fuse
 
 2) Install CFS
 ```bash
-wget https://github.com/getcfs/cfs-binary-release/releases/download/<latest_release>/cfs
+wget https://github.com/getcfs/megacfs/releases/download/<latest_release>/cfs
 echo -e '#!/bin/sh\ncfs mount -o $4 $1 $2 > /dev/null &' > mount.cfs  # create the mount helper script
 chmod +x cfs mount.cfs   # mark them executable
 mv cfs mount.cfs /sbin/  # place them on the path
