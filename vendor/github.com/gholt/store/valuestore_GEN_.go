@@ -17,10 +17,10 @@ import (
 	"time"
 
 	"github.com/gholt/brimio"
-	"github.com/gholt/flog"
 	"github.com/gholt/locmap"
 	"github.com/gholt/ring"
 	"github.com/spaolacci/murmur3"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 )
 
@@ -30,10 +30,7 @@ type defaultValueStore struct {
 	// 0 = not running, 1 = running, 2 = can't run due to previous error
 	running int
 
-	logCritical             func(string, ...interface{})
-	logError                func(string, ...interface{})
-	logDebug                func(string, ...interface{})
-	logDebugOn              bool
+	logger                  zap.Logger
 	randMutex               sync.Mutex
 	rand                    *rand.Rand
 	freeableMemBlockChans   []chan *valueMemBlock
@@ -185,10 +182,7 @@ func NewValueStore(c *ValueStoreConfig) (ValueStore, chan error) {
 	}
 	lcmap.SetInactiveMask(_TSB_INACTIVE)
 	store := &defaultValueStore{
-		logCritical:             cfg.LogCritical,
-		logError:                cfg.LogError,
-		logDebug:                cfg.LogDebug,
-		logDebugOn:              cfg.LogDebug != nil,
+		logger:                  cfg.Logger,
 		rand:                    cfg.Rand,
 		path:                    cfg.Path,
 		pathtoc:                 cfg.PathTOC,
@@ -214,14 +208,8 @@ func NewValueStore(c *ValueStoreConfig) (ValueStore, chan error) {
 		rename:                  cfg.Rename,
 		isNotExist:              cfg.IsNotExist,
 	}
-	if store.logCritical == nil {
-		store.logCritical = flog.Default.CriticalPrintf
-	}
-	if store.logError == nil {
-		store.logError = flog.Default.ErrorPrintf
-	}
-	if store.logDebug == nil {
-		store.logDebug = func(string, ...interface{}) {}
+	if store.logger == nil {
+		store.logger = zap.New(zap.NewJSONEncoder())
 	}
 	store.tombstoneDiscardConfig(cfg)
 	store.compactionConfig(cfg)
@@ -458,8 +446,7 @@ func (store *defaultValueStore) read(keyA uint64, keyB uint64, value []byte) (ui
 
 func (store *defaultValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, timestampmicro int64, value []byte) (int64, error) {
 	if len(value) == 0 {
-		store.logError("REMOVEME was asked to store a zlv %x %x %x", keyA, keyB, timestampmicro)
-		panic("REMOVEME was asked to store a zlv")
+		store.logger.Fatal("REMOVEME was asked to store a zlv", zap.String("section", "Write"), zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampmicro", timestampmicro))
 	}
 	atomic.AddInt32(&store.writes, 1)
 	if timestampmicro < TIMESTAMPMICRO_MIN {
@@ -737,7 +724,7 @@ func (store *defaultValueStore) fileWriter() {
 				if err != nil {
 					// TODO: Trigger an audit based on this file being in an
 					// unknown state.
-					store.logError("fileWriter: error closing %s: %s", fl.fullPath, err)
+					store.logger.Warn("error closing", zap.String("section", "fileWriter"), zap.String("path", fl.fullPath), zap.Error(err))
 				}
 				fl = nil
 			}
@@ -758,7 +745,7 @@ func (store *defaultValueStore) fileWriter() {
 		}
 		if disabledDueToError != nil {
 			if disabledDueToErrorLogTime.Before(time.Now()) {
-				store.logCritical("fileWriter: disabled due to previous critical error: %s", disabledDueToError)
+				store.logger.Warn("disabled due to previous critical error", zap.String("section", "fileWriter"), zap.Error(disabledDueToError))
 				disabledDueToErrorLogTime = time.Now().Add(5 * time.Minute)
 			}
 			store.freeableMemBlockChans[freeableMemBlockChanIndex] <- memBlock
@@ -773,7 +760,7 @@ func (store *defaultValueStore) fileWriter() {
 			if err != nil {
 				// TODO: Trigger an audit based on this file being in an
 				// unknown state.
-				store.logError("fileWriter: error closing %s: %s", fl.fullPath, err)
+				store.logger.Warn("error closing", zap.String("section", "fileWriter"), zap.String("path", fl.fullPath), zap.Error(err))
 			}
 			fl = nil
 		}
@@ -781,7 +768,7 @@ func (store *defaultValueStore) fileWriter() {
 			var err error
 			fl, err = store.createValueReadWriteFile()
 			if err != nil {
-				store.logCritical("fileWriter: must shutdown because no new files can be opened: %s", err)
+				store.logger.Error("must shutdown because no new files can be opened", zap.String("section", "fileWriter"), zap.Error(err))
 				disabledDueToError = err
 				disabledDueToErrorLogTime = time.Now().Add(5 * time.Minute)
 				go func() {
@@ -818,7 +805,7 @@ func (store *defaultValueStore) tocWriter() {
 	copy(term[len(term)-8:], []byte("TERM v0 "))
 	disabled := false
 	fatal := func(point int, err error) {
-		store.logCritical("tocWriter: %d %s", point, err)
+		store.logger.Error("error while writing toc contents", zap.String("section", "tocWriter"), zap.Int("point", point), zap.Error(err))
 		disabled = true
 		go func() {
 			store.Shutdown(context.Background())
@@ -973,11 +960,11 @@ func (store *defaultValueStore) recovery() error {
 					// REMOVEME zlv check and discard, for now
 					if wr.TimestampBits&_TSB_DELETION == 0 && wr.Length == 0 {
 						if atomic.AddInt64(&zeroLengthValues, 1) < 10 {
-							store.logError("REMOVEME encountered zlv %x %x %x", wr.KeyA, wr.KeyB, wr.TimestampBits)
+							store.logger.Warn("REMOVEME encountered zlv", zap.Uint64("keyA", wr.KeyA), zap.Uint64("keyB", wr.KeyB), zap.Uint64("timestampBits", wr.TimestampBits))
 						}
 						continue
 					}
-					if store.logDebugOn {
+					if cm := store.logger.Check(zap.DebugLevel, "debug?"); cm.OK() {
 						if store.locmap.Set(wr.KeyA, wr.KeyB, wr.TimestampBits, wr.BlockID, wr.Offset, wr.Length, true) < wr.TimestampBits {
 							atomic.AddInt64(&causedChangeCount, 1)
 						}
@@ -1011,28 +998,28 @@ func (store *defaultValueStore) recovery() error {
 		}
 		namets := int64(0)
 		if namets, err = strconv.ParseInt(names[i][:len(names[i])-len(".valuetoc")], 10, 64); err != nil {
-			store.logError("recovery: bad timestamp in name: %#v", names[i])
+			store.logger.Warn("bad timestamp in name", zap.String("section", "recovery"), zap.String("filename", names[i]))
 			continue
 		}
 		if namets == 0 {
-			store.logError("recovery: bad timestamp in name: %#v", names[i])
+			store.logger.Warn("bad timestamp in name", zap.String("section", "recovery"), zap.String("filename", names[i]))
 			continue
 		}
 		fpr, err := store.openReadSeeker(path.Join(store.pathtoc, names[i]))
 		if err != nil {
-			store.logError("recovery: error opening %s: %s", names[i], err)
+			store.logger.Warn("error opening", zap.String("section", "recovery"), zap.String("filename", names[i]), zap.Error(err))
 			continue
 		}
 		fl, err := store.newValueReadFile(namets)
 		if err != nil {
-			store.logError("recovery: error opening %s: %s", names[i][:len(names[i])-3], err)
+			store.logger.Warn("error opening", zap.String("section", "recovery"), zap.String("filename", names[i][:len(names[i])-3]), zap.Error(err))
 			closeIfCloser(fpr)
 			continue
 		}
 		fdc, errs := valueReadTOCEntriesBatched(fpr, fl.id, freeBatchChans, pendingBatchChans, make(chan struct{}))
 		fromDiskCount += fdc
 		for _, err := range errs {
-			store.logError("recovery: error with %s: %s", names[i], err)
+			store.logger.Warn("error performing ReadTOCEntriesBatched", zap.String("section", "recovery"), zap.String("filename", names[i]), zap.Error(err))
 			// TODO: The auditor should catch this eventually, but we should be
 			// proactive and notify the auditor of the issue here.
 		}
@@ -1043,23 +1030,23 @@ func (store *defaultValueStore) recovery() error {
 		closeIfCloser(fpr)
 	}
 	spindown()
-	if store.logDebugOn {
+	if cm := store.logger.Check(zap.DebugLevel, "stats"); cm.OK() {
 		dur := time.Now().Sub(start)
 		stringerStats, err := store.Stats(context.Background(), false)
 		if err != nil {
-			store.logDebug("recovery: stats error: %s", err)
+			store.logger.Warn("stats error", zap.String("section", "recovery"), zap.Error(err))
 		} else {
 			stats := stringerStats.(*ValueStoreStats)
-			store.logDebug("recovery: %d key locations loaded in %s, %.0f/s; %d caused change; %d resulting locations referencing %d bytes.", fromDiskCount, dur, float64(fromDiskCount)/(float64(dur)/float64(time.Second)), causedChangeCount, stats.Values, stats.ValueBytes)
+			cm.Write(zap.String("section", "recovery"), zap.Int("keyLocationsLoaded", fromDiskCount), zap.Duration("duration", dur), zap.Float64("perSecond", float64(fromDiskCount)/(float64(dur)/float64(time.Second))), zap.Int64("causedChange", causedChangeCount), zap.Uint64("resultingLocations", stats.Values), zap.Uint64("resultingBytesReferenced", stats.ValueBytes))
 		}
 	}
 	if len(compactNames) > 0 {
-		store.logDebug("recovery: secondary recovery started for %d files.", len(compactNames))
+		store.logger.Debug("secondary recovery started", zap.String("section", "recovery"), zap.Int("fileCount", len(compactNames)))
 		for i, name := range compactNames {
 			store.compactFile(name, compactBlockIDs[i], make(chan struct{}), "recovery")
 		}
-		store.logDebug("recovery: secondary recovery completed.")
+		store.logger.Debug("secondary recovery completed", zap.String("section", "recovery"))
 	}
-	store.logError("REMOVEME encountered %d values, %d were zero-length", encounteredValues, zeroLengthValues)
+	store.logger.Warn("REMOVEME recovery complete", zap.Int64("encounteredValues", encounteredValues), zap.Int64("zeroLengthValues", zeroLengthValues))
 	return nil
 }

@@ -7,6 +7,8 @@ import (
     "sync"
     "sync/atomic"
     "time"
+
+    "github.com/uber-go/zap"
 )
 
 {{if eq .t "value"}}
@@ -116,7 +118,7 @@ func (store *default{{.T}}Store) inBulkSetLauncher(notifyChan chan *bgNotificati
             wg.Wait()
             running = false
         } else {
-            store.logCritical("inBulkSet: invalid action requested: %d", notification.action)
+            store.logger.Warn("invalid action requested", zap.String("section", "inBulkSet"), zap.Int("action", int(notification.action)))
         }
         notification.doneChan <- struct{}{}
     }
@@ -249,12 +251,10 @@ func (store *default{{.T}}Store) inBulkSet(wg *sync.WaitGroup) {
             l := binary.BigEndian.Uint32(body[40:])
             {{end}}
             atomic.AddInt32(&store.inBulkSetWrites, 1)
-            /*
             // REMOVEME logging when we get zero-length values.
             if l == 0 && timestampbits&_TSB_DELETION == 0 {
-                fmt.Printf("REMOVEME inbulkset got a zero-length value, %x %x{{if eq .t "group"}} %x %x{{end}} %x\n", keyA, keyB{{if eq .t "group"}}, childKeyA, childKeyB{{end}}, timestampbits)
+                store.logger.Debug("REMOVEME inBulkSet got a zero-length value", zap.String("section", "inBulkSet"), zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB){{if eq .t "group"}}, zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB){{end}}, zap.Uint64("timestampBits", timestampbits))
             }
-            */
             // Attempt to store everything received...
             // Note that deletions are acted upon as internal requests (work
             // even if writes are disabled due to disk fullness) and new data

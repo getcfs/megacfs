@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gholt/brimtime"
+	"github.com/uber-go/zap"
 )
 
 const _VALUE_PULL_REPLICATION_MSG_TYPE = 0x579c4bd162f045b3
@@ -179,7 +180,7 @@ func (store *defaultValueStore) inPullReplicationLauncher(notifyChan chan *bgNot
 			wg.Wait()
 			running = false
 		} else {
-			store.logCritical("outPullReplication: invalid action requested: %d", notification.action)
+			store.logger.Error("invalid action requested", zap.String("section", "inPullReplication"), zap.Int("action", int(notification.action)))
 		}
 		notification.doneChan <- struct{}{}
 	}
@@ -376,7 +377,7 @@ func (store *defaultValueStore) outPullReplicationLauncher(notifyChan chan *bgNo
 			case _BG_DISABLE:
 				running = false
 			default:
-				store.logCritical("outPullReplication: invalid action requested: %d", notification.action)
+				store.logger.Error("invalid action requested", zap.String("section", "outPullReplication"), zap.Int("action", int(notification.action)))
 			}
 			notification.doneChan <- struct{}{}
 			notification = nextNotification
@@ -397,7 +398,7 @@ func (store *defaultValueStore) outPullReplicationPass(notifyChan chan *bgNotifi
 	begin := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(begin)
-		store.logDebug("outPullReplication: pass took %s", elapsed)
+		store.logger.Debug("pass complete", zap.String("section", "outPullReplication"), zap.Duration("elapsed", elapsed))
 		atomic.StoreInt64(&store.outPullReplicationNanoseconds, elapsed.Nanoseconds())
 	}()
 	rightwardPartitionShift := 64 - ring.PartitionBitCount()

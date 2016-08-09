@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gholt/brimtime"
+	"github.com/uber-go/zap"
 )
 
 type valueTombstoneDiscardState struct {
@@ -90,7 +91,7 @@ func (store *defaultValueStore) tombstoneDiscardLauncher(notifyChan chan *bgNoti
 			case _BG_DISABLE:
 				running = false
 			default:
-				store.logCritical("tombstoneDiscard: invalid action requested: %d", notification.action)
+				store.logger.Error("invalid action requested", zap.String("section", "tombstoneDiscard"), zap.Int("action", int(notification.action)))
 			}
 			notification.doneChan <- struct{}{}
 			notification = nextNotification
@@ -104,7 +105,7 @@ func (store *defaultValueStore) tombstoneDiscardPass(notifyChan chan *bgNotifica
 	begin := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(begin)
-		store.logDebug("tombstoneDiscard: pass took %s", elapsed)
+		store.logger.Debug("pass completed", zap.String("section", "tombstoneDiscard"), zap.Duration("elapsed", elapsed))
 		atomic.StoreInt64(&store.tombstoneDiscardNanoseconds, elapsed.Nanoseconds())
 	}()
 	if n := store.tombstoneDiscardPassLocalRemovals(notifyChan); n != nil {

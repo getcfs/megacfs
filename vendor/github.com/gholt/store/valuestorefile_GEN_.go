@@ -15,6 +15,7 @@ import (
 
 	"github.com/gholt/brimio"
 	"github.com/spaolacci/murmur3"
+	"github.com/uber-go/zap"
 )
 
 //    "VALUESTORETOC v0            ":28, checksumInterval:4
@@ -298,7 +299,7 @@ func (fl *valueStoreFile) writer() {
 			continue
 		}
 		if _, err := fl.writerFP.Write(buf.buf); err != nil {
-			fl.store.logCritical("storeFile: %s %s", fl.fullPath, err)
+			fl.store.logger.Error("write error", zap.String("section", "storeFile"), zap.String("path", fl.fullPath), zap.Error(err))
 			break
 		}
 		if len(buf.memBlocks) > 0 {

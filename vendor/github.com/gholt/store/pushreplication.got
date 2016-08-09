@@ -7,6 +7,7 @@ import (
     "time"
 
     "github.com/gholt/brimtime"
+    "github.com/uber-go/zap"
 )
 
 type {{.t}}PushReplicationState struct {
@@ -86,7 +87,7 @@ func (store *default{{.T}}Store) pushReplicationLauncher(notifyChan chan *bgNoti
             case _BG_DISABLE:
                 running = false
             default:
-                store.logCritical("pushReplication: invalid action requested: %d", notification.action)
+                store.logger.Error("invalid action requested", zap.String("section", "pushReplication"), zap.Int("action", int(notification.action)))
             }
             notification.doneChan <- struct{}{}
             notification = nextNotification
@@ -102,7 +103,7 @@ func (store *default{{.T}}Store) pushReplicationPass(notifyChan chan *bgNotifica
     }
     begin := time.Now()
     defer func() {
-        store.logDebug("pushReplication: pass took %s", time.Now().Sub(begin))
+        store.logger.Debug("pass complete", zap.String("section", "pushReplication"), zap.Duration("elapsed", time.Now().Sub(begin)))
     }()
     ring := store.msgRing.Ring()
     if ring == nil {
