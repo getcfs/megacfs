@@ -9,8 +9,9 @@ import (
     "strconv"
     "time"
 
-    "github.com/gholt/ring"
     "github.com/gholt/locmap"
+    "github.com/gholt/ring"
+    "github.com/uber-go/zap"
 )
 
 // Absolute minimum: timestampnano:8 leader plus at least one TOC entry
@@ -18,25 +19,18 @@ const _{{.TT}}_PAGE_SIZE_MIN = 8+_{{.TT}}_FILE_ENTRY_SIZE
 
 // {{.T}}StoreConfig represents the set of values for configuring a
 // {{.T}}Store. Note that changing the values (shallow changes) in this
-// structure will have no effect on existing {{.T}}Stores; but deep changes
-// (such as reconfiguring an existing Logger) will.
+// structure will have no effect on existing {{.T}}Stores.
 type {{.T}}StoreConfig struct {
     // Scale sets how much to scale the default values by; this can reduce
     // memory usage for systems where the store isn't the only thing running on
     // the hardware. Note that this will *not* scale explictly set values, just
     // the values if they fallback to the defaults.
     Scale float64
-    // LogCritical sets the func to use for critical messages; these are
-    // messages about issues that render the store inoperative. Defaults
-    // logging to os.Stderr.
-    LogCritical func(fmt string, args ...interface{})
-    // LogError sets the func to use for error messages; these are messages
-    // about errors the store cannot correct or workaround on its own. Defaults
-    // logging to os.Stderr.
-    LogError func(fmt string, args ...interface{})
-    // LogDebug sets the func to use for debug messages. Defaults not logging
-    // debug messages.
-    LogDebug func(fmt string, args ...interface{})
+    // Logger defines where log output will go. This library has minimal log
+    // output (most meta data is sent via metrics) but some errors and debug
+    // logging does exist. If not set, the logger will default to
+    // zap.New(zap.NewJSONEncoder()).
+    Logger zap.Logger
     // Rand sets the rand.Rand to use as a random data source. Defaults to a
     // new randomizer based on the current time.
     Rand *rand.Rand
@@ -220,7 +214,7 @@ type {{.T}}StoreConfig struct {
     // automatically disabled.
     // 0 will use the default; a negative value will disable the check.
     // default: 0.94 (94%)
-    DiskUsageDisableThreshold float32
+    DiskUsageDisableThreshold float64
     // DiskUsageReenableThreshold controls when to automatically re-enable
     // writes; the number is a percentage (1 == 100%). If writes are
     // automatically disabled and the percentage used on each of the Path or
@@ -228,7 +222,7 @@ type {{.T}}StoreConfig struct {
     // re-enabled.
     // 0 will use the default; a negative value will disable the check.
     // default: 0.90 (90%)
-    DiskUsageReenableThreshold float32
+    DiskUsageReenableThreshold float64
     // FlusherThreshold sets the number of to-disk modifications controlling
     // the once-a-minute automatic flusher. If there are less than this
     // setting's number of modifications for a minute, the store's Flush method
@@ -266,14 +260,14 @@ type {{.T}}StoreConfig struct {
     // grows above this threshold, writes will be automatically disabled.
     // 0 will use the default; a negative value will disable the check.
     // default: 0.94 (94%)
-    MemUsageDisableThreshold float32
+    MemUsageDisableThreshold float64
     // MemUsageReenableThreshold controls when to automatically re-enable
     // writes; the number is a percentage (1 == 100%). If writes are
     // automatically disabled and the percentage of used memory falls below
     // this threshold, writes will be automatically re-enabled.
     // 0 will use the default; a negative value will disable the check.
     // default: 0.90 (90%)
-    MemUsageReenableThreshold float32
+    MemUsageReenableThreshold float64
 
     OpenReadSeeker func(fullPath string) (io.ReadSeeker, error)
     OpenWriteSeeker func(fullPath string) (io.WriteSeeker, error)
@@ -797,8 +791,8 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         cfg.DiskFreeReenableThreshold = 17179869184
     }
     if env := os.Getenv("{{.TT}}STORE_DISK_USAGE_DISABLE_THRESHOLD"); env != "" {
-        if val, err := strconv.ParseFloat(env, 32); err == nil {
-            cfg.DiskUsageDisableThreshold = float32(val)
+        if val, err := strconv.ParseFloat(env, 64); err == nil {
+            cfg.DiskUsageDisableThreshold = val
         }
     }
     if cfg.DiskUsageDisableThreshold == 0 {
@@ -808,8 +802,8 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         cfg.DiskUsageDisableThreshold = 0
     }
     if env := os.Getenv("{{.TT}}STORE_DISK_USAGE_REENABLE_THRESHOLD"); env != "" {
-        if val, err := strconv.ParseFloat(env, 32); err == nil {
-            cfg.DiskUsageReenableThreshold = float32(val)
+        if val, err := strconv.ParseFloat(env, 64); err == nil {
+            cfg.DiskUsageReenableThreshold = val
         }
     }
     if cfg.DiskUsageReenableThreshold == 0 {
@@ -870,8 +864,8 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         cfg.MemFreeReenableThreshold = 268435456
     }
     if env := os.Getenv("{{.TT}}STORE_MEM_USAGE_DISABLE_THRESHOLD"); env != "" {
-        if val, err := strconv.ParseFloat(env, 32); err == nil {
-            cfg.MemUsageDisableThreshold = float32(val)
+        if val, err := strconv.ParseFloat(env, 64); err == nil {
+            cfg.MemUsageDisableThreshold = val
         }
     }
     if cfg.MemUsageDisableThreshold == 0 {
@@ -881,8 +875,8 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
         cfg.MemUsageDisableThreshold = 0
     }
     if env := os.Getenv("{{.TT}}STORE_MEM_USAGE_REENABLE_THRESHOLD"); env != "" {
-        if val, err := strconv.ParseFloat(env, 32); err == nil {
-            cfg.MemUsageReenableThreshold = float32(val)
+        if val, err := strconv.ParseFloat(env, 64); err == nil {
+            cfg.MemUsageReenableThreshold = val
         }
     }
     if cfg.MemUsageReenableThreshold == 0 {

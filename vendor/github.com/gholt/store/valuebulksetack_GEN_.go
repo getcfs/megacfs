@@ -5,6 +5,8 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+
+	"github.com/uber-go/zap"
 )
 
 // bsam: entries:n
@@ -99,7 +101,7 @@ func (store *defaultValueStore) inBulkSetAckLauncher(notifyChan chan *bgNotifica
 			wg.Wait()
 			running = false
 		} else {
-			store.logCritical("inBulkSetAck: invalid action requested: %d", notification.action)
+			store.logger.Error("invalid action requested", zap.String("section", "inBulkSetAck"), zap.Int("action", int(notification.action)))
 		}
 		notification.doneChan <- struct{}{}
 	}

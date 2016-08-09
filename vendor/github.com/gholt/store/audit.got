@@ -10,6 +10,7 @@ import (
     "sync/atomic"
     "time"
 
+    "github.com/uber-go/zap"
     "golang.org/x/net/context"
 )
 
@@ -100,7 +101,7 @@ func (store *default{{.T}}Store) auditLauncher(notifyChan chan *bgNotification) 
             default:
                 // Critical because there was a coding error that needs to be
                 // fixed by a person.
-                store.logCritical("audit: invalid action requested: %d", notification.action)
+                store.logger.Error("invalid action requested", zap.String("section", "audit"), zap.Int("action", int(notification.action)))
             }
             notification.doneChan <- struct{}{}
             notification = nextNotification
@@ -116,11 +117,11 @@ func (store *default{{.T}}Store) auditLauncher(notifyChan chan *bgNotification) 
 func (store *default{{.T}}Store) auditPass(speed bool, notifyChan chan *bgNotification) *bgNotification {
     begin := time.Now()
     defer func() {
-        store.logDebug("audit: took %s", time.Now().Sub(begin))
+        store.logger.Debug("pass complete", zap.String("section", "audit"), zap.Duration("elapsed", time.Now().Sub(begin)))
     }()
     names, err := store.readdirnames(store.pathtoc)
     if err != nil {
-        store.logError("audit: %s", err)
+        store.logger.Warn("error with readdirnames", zap.String("section", "audit"), zap.String("path", store.pathtoc), zap.Error(err))
         return nil
     }
     shuffledNames := make([]string, len(names))
@@ -141,22 +142,22 @@ func (store *default{{.T}}Store) auditPass(speed bool, notifyChan chan *bgNotifi
         }
         namets := int64(0)
         if namets, err = strconv.ParseInt(names[i][:len(names[i])-len(".{{.t}}toc")], 10, 64); err != nil {
-            store.logError("audit: bad timestamp in name: %#v", names[i])
+            store.logger.Warn("bad timestamp in name", zap.String("section", "audit"), zap.String("name", names[i]))
             continue
         }
         if namets == 0 {
-            store.logError("audit: bad timestamp in name: %#v", names[i])
+            store.logger.Warn("bad timestamp in name", zap.String("section", "audit"), zap.String("name", names[i]))
             continue
         }
         if namets == int64(atomic.LoadUint64(&store.activeTOCA)) || namets == int64(atomic.LoadUint64(&store.activeTOCB)) {
-            store.logDebug("audit: skipping current %s", names[i])
+            store.logger.Debug("skipping current", zap.String("section", "audit"), zap.String("name", names[i]))
             continue
         }
         if namets >= time.Now().UnixNano()-store.auditState.ageThreshold {
-            store.logDebug("audit: skipping young %s", names[i])
+            store.logger.Debug("skipping young", zap.String("section", "audit"), zap.String("name", names[i]))
             continue
         }
-        store.logDebug("audit: checking %s", names[i])
+        store.logger.Debug("checking", zap.String("section", "audit"), zap.String("name", names[i]))
         failedAudit := uint32(0)
         canceledAudit := uint32(0)
         dataName := names[i][:len(names[i])-3]
@@ -164,16 +165,16 @@ func (store *default{{.T}}Store) auditPass(speed bool, notifyChan chan *bgNotifi
         if err != nil {
             atomic.AddUint32(&failedAudit, 1)
             if store.isNotExist(err) {
-                store.logDebug("audit: error opening %s: %s", dataName, err)
+                store.logger.Debug("error opening", zap.String("section", "audit"), zap.String("filename", dataName), zap.Error(err))
             } else {
-                store.logError("audit: error opening %s: %s", dataName, err)
+                store.logger.Warn("error opening", zap.String("section", "audit"), zap.String("filename", dataName), zap.Error(err))
             }
         } else {
             corruptions, errs := {{.t}}ChecksumVerify(fpr)
             closeIfCloser(fpr)
             for _, err := range errs {
                 if err != io.EOF && err != io.ErrUnexpectedEOF {
-                    store.logError("audit: error with %s: %s", dataName, err)
+                    store.logger.Warn("ChecksumVerify error", zap.String("section", "audit"), zap.String("filename", dataName), zap.Error(err))
                 }
             }
             workers := uint64(1)
@@ -231,7 +232,7 @@ func (store *default{{.T}}Store) auditPass(speed bool, notifyChan chan *bgNotifi
             if err != nil {
                 atomic.AddUint32(&failedAudit, 1)
                 if !store.isNotExist(err) {
-                    store.logError("audit: error opening %s: %s", names[i], err)
+                    store.logger.Warn("error opening", zap.String("section", "audit"), zap.String("filename", names[i]), zap.Error(err))
                 }
             } else {
                 // NOTE: The block ID is unimportant in this context, so it's
@@ -241,7 +242,7 @@ func (store *default{{.T}}Store) auditPass(speed bool, notifyChan chan *bgNotifi
                 if len(errs) > 0 {
                     atomic.AddUint32(&failedAudit, 1)
                     for _, err := range errs {
-                        store.logError("audit: error with %s: %s", names[i], err)
+                        store.logger.Warn("ReadTOCEntriesBatched error", zap.String("section", "audit"), zap.String("filename", names[i]), zap.Error(err))
                     }
                 }
             }
@@ -255,11 +256,11 @@ func (store *default{{.T}}Store) auditPass(speed bool, notifyChan chan *bgNotifi
             }
         }
         if atomic.LoadUint32(&canceledAudit) != 0 {
-            store.logDebug("audit: canceled during %s", names[i])
+            store.logger.Debug("canceled during", zap.String("section", "audit"), zap.String("filename", names[i]))
         } else if atomic.LoadUint32(&failedAudit) == 0 {
-            store.logDebug("audit: passed %s", names[i])
+            store.logger.Debug("passed", zap.String("section", "audit"), zap.String("filename", names[i]))
         } else {
-            store.logError("audit: failed %s", names[i])
+            store.logger.Warn("failed", zap.String("section", "audit"), zap.String("filename", names[i]))
             nextNotificationChan := make(chan *bgNotification, 1)
             controlChan := make(chan struct{})
             controlChan2 := make(chan struct{})
@@ -278,7 +279,7 @@ func (store *default{{.T}}Store) auditPass(speed bool, notifyChan chan *bgNotifi
                 return n
             }
             go func() {
-                store.logError("audit: all audit actions require store restarts at this time.")
+                store.logger.Warn("all audit actions require store restarts at this time", zap.String("section", "audit"))
                 store.Shutdown(context.Background())
                 store.restartChan <- errors.New("audit failure occurred requiring a restart")
             }()
