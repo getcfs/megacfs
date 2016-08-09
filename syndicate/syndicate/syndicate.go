@@ -15,6 +15,7 @@ import (
 	"github.com/gholt/ring"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -108,6 +109,7 @@ type Server struct {
 	netlimits      []*net.IPNet
 	tierlimits     []string
 	managedNodes   map[uint64]ManagedNode
+	cOpts          []grpc.DialOption //managed node client dial options
 	changeChan     chan *changeMsg
 	ringSubs       *RingSubscribers
 	subsChangeChan chan *changeMsg
@@ -199,11 +201,13 @@ func NewServer(cfg *Config, servicename string, opts ...MockOpt) (*Server, error
 		CAFile:    cfg.CAFile,
 	}
 	log.Printf("%+v", cfg)
-	cOpts, err := ftls.NewGRPCClientDialOpt(tlsConf)
+	s.cOpts = make([]grpc.DialOption, 0)
+	tlsOpts, err := ftls.NewGRPCClientDialOpt(tlsConf)
 	if err != nil {
 		return s, fmt.Errorf("Err setting up client ssl certs: %s", err.Error())
 	}
-	s.managedNodes = bootstrapManagedNodes(s.r, s.cfg.CmdCtrlPort, s.ctxlog, cOpts)
+	s.cOpts = append(s.cOpts, tlsOpts)
+	s.managedNodes = bootstrapManagedNodes(s.r, s.cfg.CmdCtrlPort, s.ctxlog, s.cOpts)
 	s.metrics.managedNodes.Set(float64(len(s.managedNodes)))
 	s.changeChan = make(chan *changeMsg, 1)
 	s.subsChangeChan = make(chan *changeMsg, 1)
@@ -1014,7 +1018,7 @@ func (s *Server) RegisterNode(c context.Context, r *pb.RegisterRequest) (*pb.Nod
 		return &pb.NodeConfig{}, fmt.Errorf("Unable to apply ring change during registration")
 	}
 	s.ctxlog.WithField("ringver", s.r.Version()).Info("updated ring")
-	s.managedNodes[n.ID()], err = NewManagedNode(&ManagedNodeOpts{Address: n.Address(s.cfg.CmdCtrlIndex)})
+	s.managedNodes[n.ID()], err = NewManagedNode(&ManagedNodeOpts{Address: n.Address(s.cfg.CmdCtrlIndex), GrpcOpts: s.cOpts})
 	if err != nil {
 		s.ctxlog.WithFields(log.Fields{
 			"id":      n.ID(),
