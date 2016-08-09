@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hash"
 	"hash/crc32"
-	"log"
 	"os"
 	"sort"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
 	"github.com/spaolacci/murmur3"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 )
 
@@ -57,12 +57,14 @@ var ErrNotFound = errors.New("Not found")
 type StoreComms struct {
 	vstore store.ValueStore
 	gstore store.GroupStore
+	log    zap.Logger
 }
 
-func NewStoreComms(vstore store.ValueStore, gstore store.GroupStore) (*StoreComms, error) {
+func NewStoreComms(vstore store.ValueStore, gstore store.GroupStore, logger zap.Logger) (*StoreComms, error) {
 	return &StoreComms{
 		vstore: vstore,
 		gstore: gstore,
+		log:    logger,
 	}, nil
 }
 
@@ -177,12 +179,14 @@ type OortFS struct {
 	hasher     func() hash.Hash32
 	comms      *StoreComms
 	deleteChan chan *DeleteItem
+	log        zap.Logger
 }
 
-func NewOortFS(comms *StoreComms) *OortFS {
+func NewOortFS(comms *StoreComms, logger zap.Logger) *OortFS {
 	o := &OortFS{
 		hasher: crc32.NewIEEE,
 		comms:  comms,
+		log:    logger,
 	}
 	// TODO: How big should the chan be, or should we have another in memory queue that feeds the chan?
 	o.deleteChan = make(chan *DeleteItem, 1000)
@@ -195,7 +199,7 @@ func (o *OortFS) InitFs(ctx context.Context, fsid []byte) error {
 	id := formic.GetID(fsid, 1, 0)
 	n, _ := o.GetChunk(ctx, id)
 	if len(n) == 0 {
-		log.Println("Creating new root at ", id)
+		o.log.Debug("Creating new root", zap.Base64("root", id))
 		// Need to create the root node
 		r := &pb.InodeEntry{
 			Version: InodeEntryVersion,
@@ -383,7 +387,7 @@ func (o *OortFS) ReadDirAll(ctx context.Context, id []byte) (*pb.ReadDirAllRespo
 	items, err := o.comms.ReadGroup(ctx, id)
 	if err != nil {
 		// TODO: Needs beter error handling
-		log.Println("Error looking up group: ", err)
+		o.log.Error("Error looking up group: ", zap.Error(err))
 		return &pb.ReadDirAllResponse{}, err
 	}
 	// Iterate over each item, getting the ID then the Inode Entry

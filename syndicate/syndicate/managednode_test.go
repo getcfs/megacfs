@@ -3,6 +3,8 @@ package syndicate
 import (
 	"testing"
 
+	"google.golang.org/grpc"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/gholt/ring"
 )
@@ -43,14 +45,14 @@ func TestBootstrapManagedNodes(t *testing.T) {
 	b, ring := getTestRing()
 	port := 3333
 	ctxlog := logrus.WithField("service", "testservice")
-	n := bootstrapManagedNodes(ring, port, ctxlog)
+	n := bootstrapManagedNodes(ring, port, ctxlog, []grpc.DialOption{})
 	if len(n) != 3 {
 		t.Errorf("Should have had 3 bootstrapped nodes but got: %d", len(n))
 	}
 
 	b.AddNode(true, 0, []string{"server4"}, []string{"1.1.1.1"}, "", []byte("conf"))
 
-	n = bootstrapManagedNodes(b.Ring(), port, ctxlog)
+	n = bootstrapManagedNodes(b.Ring(), port, ctxlog, []grpc.DialOption{})
 	if len(n) == 4 {
 		t.Errorf("Should only have had 3 node but had 4. The 4th node should have been skipped")
 	}

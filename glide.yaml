@@ -47,3 +47,4 @@ import:
   - metadata
   - peer
 - package: gopkg.in/urfave/cli.v2
+- package: github.com/uber-go/zap

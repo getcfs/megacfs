@@ -1,41 +1,41 @@
-go build . && fusermount -u /tmp/test && ./cfs /tmp/test
+Getting Started Guide
+=====================
 
+Quick Start
+-----------
 
-```
-Getting Started with CFS:
-# install fuse
+1) Install FUSE
+```bash
 apt-get install fuse
-# install cfs
-wget https://github.com/getcfs/cfs-binary-release/releases/download/<latest release>/cfs
-echo -e '#!/bin/sh\ncfs mount $1 $2 -o $4 > /dev/null &' > mount.cfs
-chmod +x cfs mount.cfs
-mv cfs mount.cfs /sbin/
-# create the filesystem
-cfs -T <token> create -R [iad|aio] -N <fs_name>
-# grant access to the filesystem
-ifconfig
-cfs -T <token> grant -addr <ip> iad://<fs_id>
-# mount the filesystem
-mkdir -p /mnt/<fs_name>
-echo “iad://<fs_id> /mnt/<fs_name> cfs rw 0 0” >> /etc/fstab
-mount /mnt/<fs_name>
-# optional mount methods
-cfs mount iad://<fs_id> /mnt/<fs_name> -o debug
-mount -t cfs iad://<fs_id> /mnt/<fs_name>
-# unmount the filesystem
-umount /mnt/<fs_name>
-fusermount -u /mnt/<fs_name>  # use if umount fails
+```
 
+2) Install CFS
+```bash
+wget https://github.com/getcfs/megacfs/releases/download/<latest_release>/cfs
+echo -e '#!/bin/sh\ncfs mount -o $4 $1 $2 > /dev/null &' > mount.cfs  # create the mount helper script
+chmod +x cfs mount.cfs   # mark them executable
+mv cfs mount.cfs /sbin/  # place them on the path
+```
 
-# list all of your file systems
-cfs -T <token> list -R [iad|aio]
-# show details for a specific file system
-cfs -T <token> show iad://<fs id>
-# grant access to additional ips
-cfs -T <token> grant -addr <ip> iad://<fs id>
-# revoke an ip's access
-cfs -T <token> revoke -addr <ip> iad://<fs id>
+3) Configure the CFS Client
+```bash
+cfs configure  # requires a valid Rackspace Cloud region, username and apikey
+```
 
-# Both DELETE and UPDATE file system operations are not
-#   implemented in at this time
+4) Create a Filesystem
+```bash
+cfs create myfs  # returns the fsid
+```
+
+5) Grant Access to the Filesystem
+```bash
+ifconfig               # to get the service net ip
+cfs grant <ip> <fsid>  # allows the filesystem to mounted from this ip
+```
+
+6) Mount the Filesystem
+```bash
+mkdir -p /mnt/myfs                                                # create the mountpoint
+echo "iad:<fsid> /mnt/myfs cfs rw,allow_other 0 0" >> /etc/fstab  # add filesystem to /etc/fstab
+mount /mnt/myfs                                                   # mount the filesystem
 ```
