@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -66,8 +65,9 @@ func NewValueStore(oort *oort.Server) (*OortValueStore, error) {
 		for k, _ := range ring.Nodes() {
 			log.Println(ring.Nodes()[k].ID(), ring.Nodes()[k].Addresses())
 		}
-		l := log.New(os.Stdout, "DebugStore ", log.LstdFlags)
-		s.ValueStoreConfig.LogDebug = l.Printf
+		// TODO: Need to changeover to zap logging.
+		// l := log.New(os.Stdout, "DebugStore ", log.LstdFlags)
+		// s.ValueStoreConfig.LogDebug = l.Printf
 	}
 	if s.TCPMsgRingConfig.UseTLS {
 		log.Println("TCPMsgRing using TLS")
