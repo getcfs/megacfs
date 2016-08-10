@@ -101,7 +101,7 @@ func (store *defaultValueStore) auditLauncher(notifyChan chan *bgNotification) {
 			default:
 				// Critical because there was a coding error that needs to be
 				// fixed by a person.
-				store.logger.Error("invalid action requested", zap.String("section", "audit"), zap.Int("action", int(notification.action)))
+				store.logger.Error("invalid action requested", zap.String("name", store.loggerPrefix+"audit"), zap.Int("action", int(notification.action)))
 			}
 			notification.doneChan <- struct{}{}
 			notification = nextNotification
@@ -117,11 +117,11 @@ func (store *defaultValueStore) auditLauncher(notifyChan chan *bgNotification) {
 func (store *defaultValueStore) auditPass(speed bool, notifyChan chan *bgNotification) *bgNotification {
 	begin := time.Now()
 	defer func() {
-		store.logger.Debug("pass complete", zap.String("section", "audit"), zap.Duration("elapsed", time.Now().Sub(begin)))
+		store.logger.Debug("pass complete", zap.String("name", store.loggerPrefix+"audit"), zap.Duration("elapsed", time.Now().Sub(begin)))
 	}()
 	names, err := store.readdirnames(store.pathtoc)
 	if err != nil {
-		store.logger.Warn("error with readdirnames", zap.String("section", "audit"), zap.String("path", store.pathtoc), zap.Error(err))
+		store.logger.Warn("error with readdirnames", zap.String("name", store.loggerPrefix+"audit"), zap.String("path", store.pathtoc), zap.Error(err))
 		return nil
 	}
 	shuffledNames := make([]string, len(names))
@@ -142,22 +142,22 @@ func (store *defaultValueStore) auditPass(speed bool, notifyChan chan *bgNotific
 		}
 		namets := int64(0)
 		if namets, err = strconv.ParseInt(names[i][:len(names[i])-len(".valuetoc")], 10, 64); err != nil {
-			store.logger.Warn("bad timestamp in name", zap.String("section", "audit"), zap.String("name", names[i]))
+			store.logger.Warn("bad timestamp in name", zap.String("name", store.loggerPrefix+"audit"), zap.String("name", names[i]))
 			continue
 		}
 		if namets == 0 {
-			store.logger.Warn("bad timestamp in name", zap.String("section", "audit"), zap.String("name", names[i]))
+			store.logger.Warn("bad timestamp in name", zap.String("name", store.loggerPrefix+"audit"), zap.String("name", names[i]))
 			continue
 		}
 		if namets == int64(atomic.LoadUint64(&store.activeTOCA)) || namets == int64(atomic.LoadUint64(&store.activeTOCB)) {
-			store.logger.Debug("skipping current", zap.String("section", "audit"), zap.String("name", names[i]))
+			store.logger.Debug("skipping current", zap.String("name", store.loggerPrefix+"audit"), zap.String("name", names[i]))
 			continue
 		}
 		if namets >= time.Now().UnixNano()-store.auditState.ageThreshold {
-			store.logger.Debug("skipping young", zap.String("section", "audit"), zap.String("name", names[i]))
+			store.logger.Debug("skipping young", zap.String("name", store.loggerPrefix+"audit"), zap.String("name", names[i]))
 			continue
 		}
-		store.logger.Debug("checking", zap.String("section", "audit"), zap.String("name", names[i]))
+		store.logger.Debug("checking", zap.String("name", store.loggerPrefix+"audit"), zap.String("name", names[i]))
 		failedAudit := uint32(0)
 		canceledAudit := uint32(0)
 		dataName := names[i][:len(names[i])-3]
@@ -165,16 +165,16 @@ func (store *defaultValueStore) auditPass(speed bool, notifyChan chan *bgNotific
 		if err != nil {
 			atomic.AddUint32(&failedAudit, 1)
 			if store.isNotExist(err) {
-				store.logger.Debug("error opening", zap.String("section", "audit"), zap.String("filename", dataName), zap.Error(err))
+				store.logger.Debug("error opening", zap.String("name", store.loggerPrefix+"audit"), zap.String("filename", dataName), zap.Error(err))
 			} else {
-				store.logger.Warn("error opening", zap.String("section", "audit"), zap.String("filename", dataName), zap.Error(err))
+				store.logger.Warn("error opening", zap.String("name", store.loggerPrefix+"audit"), zap.String("filename", dataName), zap.Error(err))
 			}
 		} else {
 			corruptions, errs := valueChecksumVerify(fpr)
 			closeIfCloser(fpr)
 			for _, err := range errs {
 				if err != io.EOF && err != io.ErrUnexpectedEOF {
-					store.logger.Warn("ChecksumVerify error", zap.String("section", "audit"), zap.String("filename", dataName), zap.Error(err))
+					store.logger.Warn("ChecksumVerify error", zap.String("name", store.loggerPrefix+"audit"), zap.String("filename", dataName), zap.Error(err))
 				}
 			}
 			workers := uint64(1)
@@ -232,7 +232,7 @@ func (store *defaultValueStore) auditPass(speed bool, notifyChan chan *bgNotific
 			if err != nil {
 				atomic.AddUint32(&failedAudit, 1)
 				if !store.isNotExist(err) {
-					store.logger.Warn("error opening", zap.String("section", "audit"), zap.String("filename", names[i]), zap.Error(err))
+					store.logger.Warn("error opening", zap.String("name", store.loggerPrefix+"audit"), zap.String("filename", names[i]), zap.Error(err))
 				}
 			} else {
 				// NOTE: The block ID is unimportant in this context, so it's
@@ -242,7 +242,7 @@ func (store *defaultValueStore) auditPass(speed bool, notifyChan chan *bgNotific
 				if len(errs) > 0 {
 					atomic.AddUint32(&failedAudit, 1)
 					for _, err := range errs {
-						store.logger.Warn("ReadTOCEntriesBatched error", zap.String("section", "audit"), zap.String("filename", names[i]), zap.Error(err))
+						store.logger.Warn("ReadTOCEntriesBatched error", zap.String("name", store.loggerPrefix+"audit"), zap.String("filename", names[i]), zap.Error(err))
 					}
 				}
 			}
@@ -256,11 +256,11 @@ func (store *defaultValueStore) auditPass(speed bool, notifyChan chan *bgNotific
 			}
 		}
 		if atomic.LoadUint32(&canceledAudit) != 0 {
-			store.logger.Debug("canceled during", zap.String("section", "audit"), zap.String("filename", names[i]))
+			store.logger.Debug("canceled during", zap.String("name", store.loggerPrefix+"audit"), zap.String("filename", names[i]))
 		} else if atomic.LoadUint32(&failedAudit) == 0 {
-			store.logger.Debug("passed", zap.String("section", "audit"), zap.String("filename", names[i]))
+			store.logger.Debug("passed", zap.String("name", store.loggerPrefix+"audit"), zap.String("filename", names[i]))
 		} else {
-			store.logger.Warn("failed", zap.String("section", "audit"), zap.String("filename", names[i]))
+			store.logger.Warn("failed", zap.String("name", store.loggerPrefix+"audit"), zap.String("filename", names[i]))
 			nextNotificationChan := make(chan *bgNotification, 1)
 			controlChan := make(chan struct{})
 			controlChan2 := make(chan struct{})
@@ -279,7 +279,7 @@ func (store *defaultValueStore) auditPass(speed bool, notifyChan chan *bgNotific
 				return n
 			}
 			go func() {
-				store.logger.Warn("all audit actions require store restarts at this time", zap.String("section", "audit"))
+				store.logger.Warn("all audit actions require store restarts at this time", zap.String("name", store.loggerPrefix+"audit"))
 				store.Shutdown(context.Background())
 				store.restartChan <- errors.New("audit failure occurred requiring a restart")
 			}()

@@ -299,7 +299,7 @@ func (fl *valueStoreFile) writer() {
 			continue
 		}
 		if _, err := fl.writerFP.Write(buf.buf); err != nil {
-			fl.store.logger.Error("write error", zap.String("section", "storeFile"), zap.String("path", fl.fullPath), zap.Error(err))
+			fl.store.logger.Error("write error", zap.String("name", fl.store.loggerPrefix+"storeFile"), zap.String("path", fl.fullPath), zap.Error(err))
 			break
 		}
 		if len(buf.memBlocks) > 0 {

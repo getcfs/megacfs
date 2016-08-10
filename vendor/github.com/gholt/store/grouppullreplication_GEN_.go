@@ -180,7 +180,7 @@ func (store *defaultGroupStore) inPullReplicationLauncher(notifyChan chan *bgNot
 			wg.Wait()
 			running = false
 		} else {
-			store.logger.Error("invalid action requested", zap.String("section", "inPullReplication"), zap.Int("action", int(notification.action)))
+			store.logger.Error("invalid action requested", zap.String("name", store.loggerPrefix+"inPullReplication"), zap.Int("action", int(notification.action)))
 		}
 		notification.doneChan <- struct{}{}
 	}
@@ -377,7 +377,7 @@ func (store *defaultGroupStore) outPullReplicationLauncher(notifyChan chan *bgNo
 			case _BG_DISABLE:
 				running = false
 			default:
-				store.logger.Error("invalid action requested", zap.String("section", "outPullReplication"), zap.Int("action", int(notification.action)))
+				store.logger.Error("invalid action requested", zap.String("name", store.loggerPrefix+"outPullReplication"), zap.Int("action", int(notification.action)))
 			}
 			notification.doneChan <- struct{}{}
 			notification = nextNotification
@@ -398,7 +398,7 @@ func (store *defaultGroupStore) outPullReplicationPass(notifyChan chan *bgNotifi
 	begin := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(begin)
-		store.logger.Debug("pass complete", zap.String("section", "outPullReplication"), zap.Duration("elapsed", elapsed))
+		store.logger.Debug("pass complete", zap.String("name", store.loggerPrefix+"outPullReplication"), zap.Duration("elapsed", elapsed))
 		atomic.StoreInt64(&store.outPullReplicationNanoseconds, elapsed.Nanoseconds())
 	}()
 	rightwardPartitionShift := 64 - ring.PartitionBitCount()

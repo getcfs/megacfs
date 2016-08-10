@@ -105,11 +105,11 @@ type valueCompactionJob struct {
 func (store *defaultValueStore) compactionPass(notifyChan chan *bgNotification) *bgNotification {
 	begin := time.Now()
 	defer func() {
-		store.logger.Debug("pass complete", zap.String("section", "compaction"), zap.Duration("elapsed", time.Now().Sub(begin)))
+		store.logger.Debug("pass complete", zap.String("name", store.loggerPrefix+"compaction"), zap.Duration("elapsed", time.Now().Sub(begin)))
 	}()
 	names, err := store.readdirnames(store.pathtoc)
 	if err != nil {
-		store.logger.Error("error from readdirnames", zap.String("section", "compaction"), zap.Error(err))
+		store.logger.Error("error from readdirnames", zap.String("name", store.loggerPrefix+"compaction"), zap.Error(err))
 		return nil
 	}
 	sort.Strings(names)
@@ -159,11 +159,11 @@ func (store *defaultValueStore) compactionCandidate(name string) (int64, bool) {
 	var namets int64
 	namets, err := strconv.ParseInt(name[:len(name)-len(".valuetoc")], 10, 64)
 	if err != nil {
-		store.logger.Warn("bad timestamp in name", zap.String("section", "compaction"), zap.String("filename", name))
+		store.logger.Warn("bad timestamp in name", zap.String("name", store.loggerPrefix+"compaction"), zap.String("filename", name))
 		return 0, false
 	}
 	if namets == 0 {
-		store.logger.Warn("bad timestamp in name", zap.String("section", "compaction"), zap.String("filename", name))
+		store.logger.Warn("bad timestamp in name", zap.String("name", store.loggerPrefix+"compaction"), zap.String("filename", name))
 		return namets, false
 	}
 	if namets == int64(atomic.LoadUint64(&store.activeTOCA)) || namets == int64(atomic.LoadUint64(&store.activeTOCB)) {
@@ -184,7 +184,7 @@ func (store *defaultValueStore) compactionWorker(jobChan chan *valueCompactionJo
 		}
 		total, err := valueTOCStat(path.Join(store.pathtoc, c.nametoc), store.stat, store.openReadSeeker)
 		if err != nil {
-			store.logger.Warn("unable to stat", zap.String("section", "compaction"), zap.String("path", path.Join(store.pathtoc, c.nametoc)), zap.Error(err))
+			store.logger.Warn("unable to stat", zap.String("name", store.loggerPrefix+"compaction"), zap.String("path", path.Join(store.pathtoc, c.nametoc)), zap.Error(err))
 			continue
 		}
 		// TODO: This 1000 should be in the Config.
@@ -262,12 +262,12 @@ func (store *defaultValueStore) needsCompaction(nametoc string, candidateBlockID
 		// Critical level since future recoveries, compactions, and audits will
 		// keep hitting this file until a person corrects the file system
 		// issue.
-		store.logger.Error("cannot open", zap.String("section", "compaction"), zap.String("filename", nametoc), zap.Error(err))
+		store.logger.Error("cannot open", zap.String("name", store.loggerPrefix+"compaction"), zap.String("filename", nametoc), zap.Error(err))
 		return false
 	}
 	_, errs := valueReadTOCEntriesBatched(fpr, candidateBlockID, freeBatchChans, pendingBatchChans, controlChan)
 	for _, err := range errs {
-		store.logger.Warn("error from ReadTOCEntriesBatched", zap.String("section", "compaction"), zap.String("filename", nametoc), zap.Error(err))
+		store.logger.Warn("error from ReadTOCEntriesBatched", zap.String("name", store.loggerPrefix+"compaction"), zap.String("filename", nametoc), zap.Error(err))
 	}
 	closeIfCloser(fpr)
 	for i := 0; i < len(pendingBatchChans); i++ {
@@ -275,10 +275,10 @@ func (store *defaultValueStore) needsCompaction(nametoc string, candidateBlockID
 	}
 	wg.Wait()
 	if len(errs) > 0 {
-		store.logger.Warn("since there were errors while reading, compaction is needed", zap.String("section", "compaction"), zap.String("filename", nametoc))
+		store.logger.Warn("since there were errors while reading, compaction is needed", zap.String("name", store.loggerPrefix+"compaction"), zap.String("filename", nametoc))
 		return true
 	}
-	store.logger.Debug("sample result", zap.String("section", "compaction"), zap.String("filename", nametoc), zap.Int("total", total), zap.Uint64("checked", uint64(checked)), zap.Uint64("stale", uint64(stale)))
+	store.logger.Debug("sample result", zap.String("name", store.loggerPrefix+"compaction"), zap.String("filename", nametoc), zap.Int("total", total), zap.Uint64("checked", uint64(checked)), zap.Uint64("stale", uint64(stale)))
 	return stale > uint32(float64(checked)*store.compactionState.threshold)
 }
 
@@ -337,7 +337,7 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 						continue
 					}
 					if err != nil {
-						store.logger.Warn("error reading while compacting", zap.String("section", "compactFile"), zap.String("filename", nametoc), zap.Error(err))
+						store.logger.Warn("error reading while compacting", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc), zap.Error(err))
 						atomic.AddUint32(&readErrorCount, 1)
 						// Keeps going, but the readErrorCount will let it know
 						// to *not* remove the original file. This is "for
@@ -357,7 +357,7 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 					}
 					_, err = store.write(wr.KeyA, wr.KeyB, wr.TimestampBits|_TSB_COMPACTION_REWRITE, value, true)
 					if err != nil {
-						store.logger.Error("error writing while compacting", zap.String("section", "compactFile"), zap.String("filename", nametoc), zap.Error(err))
+						store.logger.Error("error writing while compacting", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc), zap.Error(err))
 						atomic.AddUint32(&writeErrorCount, 1)
 						// TODO: Write errors are pretty bad and we should quit
 						// writing new data if we get a write error. For now,
@@ -378,42 +378,42 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 	spindown := func(remove bool) {
 		if remove {
 			if err := store.remove(fullpathtoc); err != nil {
-				store.logger.Warn("unable to remove", zap.String("section", "compactFile"), zap.String("path", fullpathtoc), zap.Error(err))
+				store.logger.Warn("unable to remove", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("path", fullpathtoc), zap.Error(err))
 				if err = store.rename(fullpathtoc, fullpathtoc+".renamed"); err != nil {
 					// Critical level since future recoveries, compactions, and
 					// audits will keep hitting this file until a person
 					// corrects the file system issue.
-					store.logger.Error("also could not rename", zap.String("section", "compactFile"), zap.String("path", fullpathtoc), zap.Error(err))
+					store.logger.Error("also could not rename", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("path", fullpathtoc), zap.Error(err))
 				}
 			}
 			if err := store.remove(fullpath); err != nil {
-				store.logger.Warn("unable to remove", zap.String("section", "compactFile"), zap.String("path", fullpath), zap.Error(err))
+				store.logger.Warn("unable to remove", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("path", fullpath), zap.Error(err))
 				if err = store.rename(fullpath, fullpath+".renamed"); err != nil {
-					store.logger.Warn("also could not rename", zap.String("section", "compactFile"), zap.String("path", fullpath), zap.Error(err))
+					store.logger.Warn("also could not rename", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("path", fullpath), zap.Error(err))
 				}
 			}
 			if blockID != 0 {
 				if err := store.closeLocBlock(blockID); err != nil {
-					store.logger.Warn("error closing in-memory block", zap.String("section", "compactFile"), zap.String("filename", nametoc), zap.Error(err))
+					store.logger.Warn("error closing in-memory block", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc), zap.Error(err))
 				}
 			}
 		}
-		store.logger.Debug("stats", zap.String("section", "compactFile"), zap.String("filename", nametoc), zap.Uint64("count", uint64(atomic.LoadUint32(&count))), zap.Uint64("rewrote", uint64(atomic.LoadUint32(&rewrote))), zap.Uint64("stale", uint64(atomic.LoadUint32(&stale))))
+		store.logger.Debug("stats", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc), zap.Uint64("count", uint64(atomic.LoadUint32(&count))), zap.Uint64("rewrote", uint64(atomic.LoadUint32(&rewrote))), zap.Uint64("stale", uint64(atomic.LoadUint32(&stale))))
 	}
 	fpr, err := store.openReadSeeker(fullpathtoc)
 	if err != nil {
-		store.logger.Warn("error opening", zap.String("section", "compactFile"), zap.String("path", fullpathtoc), zap.Error(err))
+		store.logger.Warn("error opening", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("path", fullpathtoc), zap.Error(err))
 		spindown(false)
 		return
 	}
 	fdc, errs := valueReadTOCEntriesBatched(fpr, blockID, freeBatchChans, pendingBatchChans, controlChan)
 	closeIfCloser(fpr)
 	for _, err := range errs {
-		store.logger.Warn("error from ReadTOCEntriesBatched", zap.String("section", "compactFile"), zap.String("filename", nametoc), zap.Error(err))
+		store.logger.Warn("error from ReadTOCEntriesBatched", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc), zap.Error(err))
 	}
 	select {
 	case <-controlChan:
-		store.logger.Debug("canceled compaction", zap.String("section", "compactFile"), zap.String("filename", nametoc))
+		store.logger.Debug("canceled compaction", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc))
 		spindown(false)
 		return
 	default:
@@ -426,7 +426,7 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 		// TODO: Eventually, as per the note above, this should remove the
 		// unable-to-be-read entries from the locmap so replication can repair
 		// them, and then remove the original bad file.
-		store.logger.Error("data read errors; file will be retried later", zap.String("section", "compactFile"), zap.Uint64("errorCount", uint64(rec)), zap.String("filename", nametoc))
+		store.logger.Error("data read errors; file will be retried later", zap.String("name", store.loggerPrefix+"compactFile"), zap.Uint64("errorCount", uint64(rec)), zap.String("filename", nametoc))
 		spindown(false)
 		return
 	}
@@ -434,17 +434,17 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 		// TODO: Eventually, as per the note above, this should disable writes
 		// until a person can look at the problem and bring the service back
 		// online.
-		store.logger.Error("data write errors; will retry later", zap.String("section", "compactFile"), zap.Uint64("errorCount", uint64(wec)), zap.String("filename", nametoc))
+		store.logger.Error("data write errors; will retry later", zap.String("name", store.loggerPrefix+"compactFile"), zap.Uint64("errorCount", uint64(wec)), zap.String("filename", nametoc))
 		spindown(false)
 		return
 	}
 	if len(errs) > 0 {
 		if fdc == 0 {
-			store.logger.Warn("errors and no entries were read; file will be retried later", zap.String("section", "compactFile"), zap.String("filename", nametoc))
+			store.logger.Warn("errors and no entries were read; file will be retried later", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc))
 			spindown(false)
 			return
 		} else {
-			store.logger.Warn("errors but some entries were read; assuming the recovery was as good as it could get and removing file", zap.String("section", "compactFile"), zap.String("filename", nametoc))
+			store.logger.Warn("errors but some entries were read; assuming the recovery was as good as it could get and removing file", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc))
 		}
 	}
 	spindown(true)

@@ -73,7 +73,7 @@ func (store *defaultGroupStore) flusherLauncher(notifyChan chan *bgNotification)
 			if notification.action == _BG_DISABLE {
 				running = false
 			} else {
-				store.logger.Error("invalid action requested", zap.String("section", "flusher"), zap.Int("action", int(notification.action)))
+				store.logger.Error("invalid action requested", zap.String("name", store.loggerPrefix+"flusher"), zap.Int("action", int(notification.action)))
 			}
 			notification.doneChan <- struct{}{}
 			continue
@@ -81,7 +81,7 @@ func (store *defaultGroupStore) flusherLauncher(notifyChan chan *bgNotification)
 		m := atomic.LoadInt32(&store.modifications)
 		atomic.AddInt32(&store.modifications, -m)
 		if (m == 0 && !justFlushed) || (m > 0 && m < store.flusherState.flusherThreshold) {
-			store.logger.Debug("flushing", zap.String("section", "flusher"), zap.Uint64("modifications", uint64(m)), zap.Int64("flusherThreshold", int64(store.flusherState.flusherThreshold)))
+			store.logger.Debug("flushing", zap.String("name", store.loggerPrefix+"flusher"), zap.Uint64("modifications", uint64(m)), zap.Int64("flusherThreshold", int64(store.flusherState.flusherThreshold)))
 			store.Flush(context.Background())
 			justFlushed = true
 		} else {

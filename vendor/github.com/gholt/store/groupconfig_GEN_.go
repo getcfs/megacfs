@@ -31,6 +31,11 @@ type GroupStoreConfig struct {
 	// logging does exist. If not set, the logger will default to
 	// zap.New(zap.NewJSONEncoder()).
 	Logger zap.Logger
+	// LoggerName is used as a prefix when setting the "name" field with log
+	// messages. For example, given a LoggerName of "mystoreapp", this library
+	// would log under names such as "mystoreapp.compaction" and
+	// "mystoreapp.recovery".
+	LoggerName string
 	// Rand sets the rand.Rand to use as a random data source. Defaults to a
 	// new randomizer based on the current time.
 	Rand *rand.Rand
