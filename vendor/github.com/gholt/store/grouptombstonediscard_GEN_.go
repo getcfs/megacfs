@@ -94,7 +94,7 @@ func (store *defaultGroupStore) tombstoneDiscardLauncher(notifyChan chan *bgNoti
 			case _BG_DISABLE:
 				running = false
 			default:
-				store.logger.Error("invalid action requested", zap.String("section", "tombstoneDiscard"), zap.Int("action", int(notification.action)))
+				store.logger.Error("invalid action requested", zap.String("name", store.loggerPrefix+"tombstoneDiscard"), zap.Int("action", int(notification.action)))
 			}
 			notification.doneChan <- struct{}{}
 			notification = nextNotification
@@ -108,7 +108,7 @@ func (store *defaultGroupStore) tombstoneDiscardPass(notifyChan chan *bgNotifica
 	begin := time.Now()
 	defer func() {
 		elapsed := time.Now().Sub(begin)
-		store.logger.Debug("pass completed", zap.String("section", "tombstoneDiscard"), zap.Duration("elapsed", elapsed))
+		store.logger.Debug("pass completed", zap.String("name", store.loggerPrefix+"tombstoneDiscard"), zap.Duration("elapsed", elapsed))
 		atomic.StoreInt64(&store.tombstoneDiscardNanoseconds, elapsed.Nanoseconds())
 	}()
 	if n := store.tombstoneDiscardPassLocalRemovals(notifyChan); n != nil {

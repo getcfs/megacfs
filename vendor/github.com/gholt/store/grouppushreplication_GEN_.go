@@ -87,7 +87,7 @@ func (store *defaultGroupStore) pushReplicationLauncher(notifyChan chan *bgNotif
 			case _BG_DISABLE:
 				running = false
 			default:
-				store.logger.Error("invalid action requested", zap.String("section", "pushReplication"), zap.Int("action", int(notification.action)))
+				store.logger.Error("invalid action requested", zap.String("name", store.loggerPrefix+"pushReplication"), zap.Int("action", int(notification.action)))
 			}
 			notification.doneChan <- struct{}{}
 			notification = nextNotification
@@ -103,7 +103,7 @@ func (store *defaultGroupStore) pushReplicationPass(notifyChan chan *bgNotificat
 	}
 	begin := time.Now()
 	defer func() {
-		store.logger.Debug("pass complete", zap.String("section", "pushReplication"), zap.Duration("elapsed", time.Now().Sub(begin)))
+		store.logger.Debug("pass complete", zap.String("name", store.loggerPrefix+"pushReplication"), zap.Duration("elapsed", time.Now().Sub(begin)))
 	}()
 	ring := store.msgRing.Ring()
 	if ring == nil {

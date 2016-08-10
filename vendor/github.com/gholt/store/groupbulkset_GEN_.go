@@ -109,7 +109,7 @@ func (store *defaultGroupStore) inBulkSetLauncher(notifyChan chan *bgNotificatio
 			wg.Wait()
 			running = false
 		} else {
-			store.logger.Warn("invalid action requested", zap.String("section", "inBulkSet"), zap.Int("action", int(notification.action)))
+			store.logger.Warn("invalid action requested", zap.String("name", store.loggerPrefix+"inBulkSet"), zap.Int("action", int(notification.action)))
 		}
 		notification.doneChan <- struct{}{}
 	}
@@ -239,7 +239,7 @@ func (store *defaultGroupStore) inBulkSet(wg *sync.WaitGroup) {
 			atomic.AddInt32(&store.inBulkSetWrites, 1)
 			// REMOVEME logging when we get zero-length values.
 			if l == 0 && timestampbits&_TSB_DELETION == 0 {
-				store.logger.Debug("REMOVEME inBulkSet got a zero-length value", zap.String("section", "inBulkSet"), zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Uint64("timestampBits", timestampbits))
+				store.logger.Debug("REMOVEME inBulkSet got a zero-length value", zap.String("name", store.loggerPrefix+"inBulkSet"), zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Uint64("timestampBits", timestampbits))
 			}
 			// Attempt to store everything received...
 			// Note that deletions are acted upon as internal requests (work

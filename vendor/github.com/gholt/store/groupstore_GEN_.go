@@ -31,6 +31,7 @@ type defaultGroupStore struct {
 	running int
 
 	logger                  zap.Logger
+	loggerPrefix            string
 	randMutex               sync.Mutex
 	rand                    *rand.Rand
 	freeableMemBlockChans   []chan *groupMemBlock
@@ -194,6 +195,7 @@ func NewGroupStore(c *GroupStoreConfig) (GroupStore, chan error) {
 	lcmap.SetInactiveMask(_TSB_INACTIVE)
 	store := &defaultGroupStore{
 		logger:                  cfg.Logger,
+		loggerPrefix:            cfg.LoggerName, // may add "." below
 		rand:                    cfg.Rand,
 		path:                    cfg.Path,
 		pathtoc:                 cfg.PathTOC,
@@ -221,6 +223,9 @@ func NewGroupStore(c *GroupStoreConfig) (GroupStore, chan error) {
 	}
 	if store.logger == nil {
 		store.logger = zap.New(zap.NewJSONEncoder())
+	}
+	if store.loggerPrefix != "" {
+		store.loggerPrefix += "."
 	}
 	store.tombstoneDiscardConfig(cfg)
 	store.compactionConfig(cfg)
@@ -507,7 +512,7 @@ func (store *defaultGroupStore) read(keyA uint64, keyB uint64, childKeyA uint64,
 
 func (store *defaultGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, timestampmicro int64, value []byte) (int64, error) {
 	if len(value) == 0 {
-		store.logger.Fatal("REMOVEME was asked to store a zlv", zap.String("section", "Write"), zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampmicro", timestampmicro))
+		store.logger.Fatal("REMOVEME was asked to store a zlv", zap.String("name", store.loggerPrefix+"Write"), zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampmicro", timestampmicro))
 	}
 	atomic.AddInt32(&store.writes, 1)
 	if timestampmicro < TIMESTAMPMICRO_MIN {
@@ -794,7 +799,7 @@ func (store *defaultGroupStore) fileWriter() {
 				if err != nil {
 					// TODO: Trigger an audit based on this file being in an
 					// unknown state.
-					store.logger.Warn("error closing", zap.String("section", "fileWriter"), zap.String("path", fl.fullPath), zap.Error(err))
+					store.logger.Warn("error closing", zap.String("name", store.loggerPrefix+"fileWriter"), zap.String("path", fl.fullPath), zap.Error(err))
 				}
 				fl = nil
 			}
@@ -815,7 +820,7 @@ func (store *defaultGroupStore) fileWriter() {
 		}
 		if disabledDueToError != nil {
 			if disabledDueToErrorLogTime.Before(time.Now()) {
-				store.logger.Warn("disabled due to previous critical error", zap.String("section", "fileWriter"), zap.Error(disabledDueToError))
+				store.logger.Warn("disabled due to previous critical error", zap.String("name", store.loggerPrefix+"fileWriter"), zap.Error(disabledDueToError))
 				disabledDueToErrorLogTime = time.Now().Add(5 * time.Minute)
 			}
 			store.freeableMemBlockChans[freeableMemBlockChanIndex] <- memBlock
@@ -830,7 +835,7 @@ func (store *defaultGroupStore) fileWriter() {
 			if err != nil {
 				// TODO: Trigger an audit based on this file being in an
 				// unknown state.
-				store.logger.Warn("error closing", zap.String("section", "fileWriter"), zap.String("path", fl.fullPath), zap.Error(err))
+				store.logger.Warn("error closing", zap.String("name", store.loggerPrefix+"fileWriter"), zap.String("path", fl.fullPath), zap.Error(err))
 			}
 			fl = nil
 		}
@@ -838,7 +843,7 @@ func (store *defaultGroupStore) fileWriter() {
 			var err error
 			fl, err = store.createGroupReadWriteFile()
 			if err != nil {
-				store.logger.Error("must shutdown because no new files can be opened", zap.String("section", "fileWriter"), zap.Error(err))
+				store.logger.Error("must shutdown because no new files can be opened", zap.String("name", store.loggerPrefix+"fileWriter"), zap.Error(err))
 				disabledDueToError = err
 				disabledDueToErrorLogTime = time.Now().Add(5 * time.Minute)
 				go func() {
@@ -875,7 +880,7 @@ func (store *defaultGroupStore) tocWriter() {
 	copy(term[len(term)-8:], []byte("TERM v0 "))
 	disabled := false
 	fatal := func(point int, err error) {
-		store.logger.Error("error while writing toc contents", zap.String("section", "tocWriter"), zap.Int("point", point), zap.Error(err))
+		store.logger.Error("error while writing toc contents", zap.String("name", store.loggerPrefix+"tocWriter"), zap.Int("point", point), zap.Error(err))
 		disabled = true
 		go func() {
 			store.Shutdown(context.Background())
@@ -1068,28 +1073,28 @@ func (store *defaultGroupStore) recovery() error {
 		}
 		namets := int64(0)
 		if namets, err = strconv.ParseInt(names[i][:len(names[i])-len(".grouptoc")], 10, 64); err != nil {
-			store.logger.Warn("bad timestamp in name", zap.String("section", "recovery"), zap.String("filename", names[i]))
+			store.logger.Warn("bad timestamp in name", zap.String("name", store.loggerPrefix+"recovery"), zap.String("filename", names[i]))
 			continue
 		}
 		if namets == 0 {
-			store.logger.Warn("bad timestamp in name", zap.String("section", "recovery"), zap.String("filename", names[i]))
+			store.logger.Warn("bad timestamp in name", zap.String("name", store.loggerPrefix+"recovery"), zap.String("filename", names[i]))
 			continue
 		}
 		fpr, err := store.openReadSeeker(path.Join(store.pathtoc, names[i]))
 		if err != nil {
-			store.logger.Warn("error opening", zap.String("section", "recovery"), zap.String("filename", names[i]), zap.Error(err))
+			store.logger.Warn("error opening", zap.String("name", store.loggerPrefix+"recovery"), zap.String("filename", names[i]), zap.Error(err))
 			continue
 		}
 		fl, err := store.newGroupReadFile(namets)
 		if err != nil {
-			store.logger.Warn("error opening", zap.String("section", "recovery"), zap.String("filename", names[i][:len(names[i])-3]), zap.Error(err))
+			store.logger.Warn("error opening", zap.String("name", store.loggerPrefix+"recovery"), zap.String("filename", names[i][:len(names[i])-3]), zap.Error(err))
 			closeIfCloser(fpr)
 			continue
 		}
 		fdc, errs := groupReadTOCEntriesBatched(fpr, fl.id, freeBatchChans, pendingBatchChans, make(chan struct{}))
 		fromDiskCount += fdc
 		for _, err := range errs {
-			store.logger.Warn("error performing ReadTOCEntriesBatched", zap.String("section", "recovery"), zap.String("filename", names[i]), zap.Error(err))
+			store.logger.Warn("error performing ReadTOCEntriesBatched", zap.String("name", store.loggerPrefix+"recovery"), zap.String("filename", names[i]), zap.Error(err))
 			// TODO: The auditor should catch this eventually, but we should be
 			// proactive and notify the auditor of the issue here.
 		}
@@ -1104,18 +1109,18 @@ func (store *defaultGroupStore) recovery() error {
 		dur := time.Now().Sub(start)
 		stringerStats, err := store.Stats(context.Background(), false)
 		if err != nil {
-			store.logger.Warn("stats error", zap.String("section", "recovery"), zap.Error(err))
+			store.logger.Warn("stats error", zap.String("name", store.loggerPrefix+"recovery"), zap.Error(err))
 		} else {
 			stats := stringerStats.(*GroupStoreStats)
-			cm.Write(zap.String("section", "recovery"), zap.Int("keyLocationsLoaded", fromDiskCount), zap.Duration("duration", dur), zap.Float64("perSecond", float64(fromDiskCount)/(float64(dur)/float64(time.Second))), zap.Int64("causedChange", causedChangeCount), zap.Uint64("resultingLocations", stats.Values), zap.Uint64("resultingBytesReferenced", stats.ValueBytes))
+			cm.Write(zap.String("name", store.loggerPrefix+"recovery"), zap.Int("keyLocationsLoaded", fromDiskCount), zap.Duration("duration", dur), zap.Float64("perSecond", float64(fromDiskCount)/(float64(dur)/float64(time.Second))), zap.Int64("causedChange", causedChangeCount), zap.Uint64("resultingLocations", stats.Values), zap.Uint64("resultingBytesReferenced", stats.ValueBytes))
 		}
 	}
 	if len(compactNames) > 0 {
-		store.logger.Debug("secondary recovery started", zap.String("section", "recovery"), zap.Int("fileCount", len(compactNames)))
+		store.logger.Debug("secondary recovery started", zap.String("name", store.loggerPrefix+"recovery"), zap.Int("fileCount", len(compactNames)))
 		for i, name := range compactNames {
 			store.compactFile(name, compactBlockIDs[i], make(chan struct{}), "recovery")
 		}
-		store.logger.Debug("secondary recovery completed", zap.String("section", "recovery"))
+		store.logger.Debug("secondary recovery completed", zap.String("name", store.loggerPrefix+"recovery"))
 	}
 	store.logger.Warn("REMOVEME recovery complete", zap.Int64("encounteredValues", encounteredValues), zap.Int64("zeroLengthValues", zeroLengthValues))
 	return nil

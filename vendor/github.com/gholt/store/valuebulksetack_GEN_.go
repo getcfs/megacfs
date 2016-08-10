@@ -101,7 +101,7 @@ func (store *defaultValueStore) inBulkSetAckLauncher(notifyChan chan *bgNotifica
 			wg.Wait()
 			running = false
 		} else {
-			store.logger.Error("invalid action requested", zap.String("section", "inBulkSetAck"), zap.Int("action", int(notification.action)))
+			store.logger.Error("invalid action requested", zap.String("name", store.loggerPrefix+"inBulkSetAck"), zap.Int("action", int(notification.action)))
 		}
 		notification.doneChan <- struct{}{}
 	}

@@ -97,7 +97,7 @@ func (store *default{{.T}}Store) watcherLauncher(notifyChan chan *bgNotification
             if notification.action == _BG_DISABLE {
                 running = false
             } else {
-                store.logger.Error("invalid action requested", zap.String("section", "watcher"), zap.Int("action", int(notification.action)))
+                store.logger.Error("invalid action requested", zap.String("name", store.loggerPrefix + "watcher"), zap.Int("action", int(notification.action)))
             }
             notification.doneChan <- struct{}{}
             continue
@@ -121,18 +121,18 @@ func (store *default{{.T}}Store) watcherLauncher(notifyChan chan *bgNotification
 		atomic.StoreUint64(&store.watcherState.diskFreeTOC, diskFreeTOC)
 		atomic.StoreUint64(&store.watcherState.diskUsedTOC, diskUsedTOC)
 		atomic.StoreUint64(&store.watcherState.diskSizeTOC, diskSizeTOC)
-        store.logger.Debug("diskStat", zap.String("section", "watcher"), zap.Uint64("diskFree", diskFree), zap.Uint64("diskUsed", diskUsed), zap.Uint64("diskSize", diskSize), zap.Float64("diskUsage", float64(diskUsage)*100), zap.Uint64("diskFreeTOC", diskFreeTOC), zap.Uint64("diskUsedTOC", diskUsedTOC), zap.Uint64("diskSizeTOC", diskSizeTOC), zap.Float64("diskUsageTOC", float64(diskUsageTOC)*100))
+        store.logger.Debug("diskStat", zap.String("name", store.loggerPrefix + "watcher"), zap.Uint64("diskFree", diskFree), zap.Uint64("diskUsed", diskUsed), zap.Uint64("diskSize", diskSize), zap.Float64("diskUsage", float64(diskUsage)*100), zap.Uint64("diskFreeTOC", diskFreeTOC), zap.Uint64("diskUsedTOC", diskUsedTOC), zap.Uint64("diskSizeTOC", diskSizeTOC), zap.Float64("diskUsageTOC", float64(diskUsageTOC)*100))
         m := &sigar.Mem{}
         var memUsage float64
         if err := m.Get(); err != nil {
             m = nil
-            store.logger.Debug("could not stat memory", zap.String("section", "watcher"), zap.Error(err))
+            store.logger.Debug("could not stat memory", zap.String("name", store.loggerPrefix + "watcher"), zap.Error(err))
         } else {
             memUsage = float64(m.ActualUsed) / float64(m.Total)
             atomic.StoreUint64(&store.watcherState.memFree, m.ActualFree)
             atomic.StoreUint64(&store.watcherState.memUsed, m.ActualUsed)
             atomic.StoreUint64(&store.watcherState.memSize, m.Total)
-            store.logger.Debug("memStat", zap.String("section", "watcher"), zap.Uint64("actualFree", m.ActualFree), zap.Uint64("actualUsed", m.ActualUsed), zap.Uint64("total", m.Total), zap.Float64("usage", memUsage*100))
+            store.logger.Debug("memStat", zap.String("name", store.loggerPrefix + "watcher"), zap.Uint64("actualFree", m.ActualFree), zap.Uint64("actualUsed", m.ActualUsed), zap.Uint64("total", m.Total), zap.Float64("usage", memUsage*100))
         }
         var wantToDisable string
         var wantToReenable string
@@ -162,13 +162,13 @@ func (store *default{{.T}}Store) watcherLauncher(notifyChan chan *bgNotification
         }
         if wantToDisable != "" {
             if !disabled {
-                store.logger.Error(wantToDisable, zap.String("section", "watcher"))
+                store.logger.Error(wantToDisable, zap.String("name", store.loggerPrefix + "watcher"))
                 store.disableWrites(false) // false indicates non-user call
                 disabled = true
             }
         } else if wantToReenable != "" {
             if disabled {
-                store.logger.Error(wantToReenable, zap.String("section", "watcher"))
+                store.logger.Error(wantToReenable, zap.String("name", store.loggerPrefix + "watcher"))
                 store.enableWrites(false)
                 disabled = false
             }
