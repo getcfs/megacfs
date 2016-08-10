@@ -102,18 +102,3 @@ NODEID=`syndicate-client -addr 127.0.0.1:8444 search | awk '/ID/{print $2}' | ta
 syndicate-client -addr 127.0.0.1:8444 capacity $NODEID 1000
 syndicate-client -addr 127.0.0.1:8444 active $NODEID true
 syndicate-client -addr 127.0.0.1:8444 rm $DUMMY_NODEID
-
-echo "adding test account and test token"
-echo 'write /token test {"token":"test","acctid":"test"}' | oort-cli -mutualtls -g -ca /etc/syndicate/ca.pem -cert /etc/syndicate/client.crt -key /etc/syndicate/client.key
-echo 'write /acct test {"id":"test","name":"test","token":"test"}' | oort-cli -mutualtls -g -ca /etc/syndicate/ca.pem -cert /etc/syndicate/client.crt -key /etc/syndicate/client.key
-
-echo "creating and mounting a test file system"
-FSID=`cfs -T test create -R aio -N test 2>&1 | awk '{print $5}'`
-cfs -T test grant -addr 127.0.0.1 aio://$FSID
-mkdir -p /mnt/test
-echo "aio://$FSID /mnt/test cfs rw 0 0" >> /etc/fstab
-mount /mnt/test
-
-echo
-echo "you should have a cfs file system mounted at /mnt/test"
-echo

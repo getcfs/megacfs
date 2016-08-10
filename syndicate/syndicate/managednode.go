@@ -35,7 +35,7 @@ func ParseManagedNodeAddress(addr string, port int) (string, error) {
 	return fmt.Sprintf("%s:%d", host, port), nil
 }
 
-func bootstrapManagedNodes(ring ring.Ring, ccport int, ctxlog *log.Entry, gopts ...grpc.DialOption) map[uint64]ManagedNode {
+func bootstrapManagedNodes(ring ring.Ring, ccport int, ctxlog *log.Entry, gopts []grpc.DialOption) map[uint64]ManagedNode {
 	nodes := ring.Nodes()
 	m := make(map[uint64]ManagedNode, len(nodes))
 	for _, node := range nodes {

@@ -560,22 +560,22 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 }
 
 type ValidateResponse struct {
-        Access struct {
-                Token struct {
+	Access struct {
+		Token struct {
 			Tenant struct {
-                        	ID string `json:"id"`
+				ID string `json:"id"`
 			} `json:"tenant"`
-                } `json:"token"`
-        } `json:"access"`
+		} `json:"token"`
+	} `json:"access"`
 }
 
 // validateToken ...
 func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
 	url := "https://identity.api.rackspacecloud.com/v2.0/tokens/" + token
-        req, err := http.NewRequest("GET", url, nil)
-        if err != nil {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
 		return "", err
-        }
+	}
 	req.Header.Set("X-Auth-Token", token)
 
 	resp, err := http.DefaultClient.Do(req) // TODO: Is this safe for formic?
@@ -584,15 +584,15 @@ func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-        if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 {
 		return "", errors.New("Invalid Token")
-        }
+	}
 
-        // parse tenant from response
-        var validateResp ValidateResponse
-        r, _ := ioutil.ReadAll(resp.Body)
-        json.Unmarshal(r, &validateResp)
-        tenant := validateResp.Access.Token.Tenant.ID
+	// parse tenant from response
+	var validateResp ValidateResponse
+	r, _ := ioutil.ReadAll(resp.Body)
+	json.Unmarshal(r, &validateResp)
+	tenant := validateResp.Access.Token.Tenant.ID
 
-        return tenant, nil
+	return tenant, nil
 }
