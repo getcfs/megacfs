@@ -60,13 +60,14 @@ func main() {
 	cfg := resolveConfig(nil)
 
 	// Setup logging
-	logger := zap.New(zap.NewJSONEncoder())
+	baseLogger := zap.New(zap.NewJSONEncoder())
 	if cfg.debug {
 		fmt.Println("DEBUG!")
-		logger.SetLevel(zap.DebugLevel)
+		baseLogger.SetLevel(zap.DebugLevel)
 	} else {
-		logger.SetLevel(zap.InfoLevel)
+		baseLogger.SetLevel(zap.InfoLevel)
 	}
+	logger := baseLogger.With(zap.String("name", "formicd"))
 
 	err := setupMetrics(cfg.metricsAddr, cfg.metricsCollectors)
 	if err != nil {
@@ -120,12 +121,12 @@ func main() {
 		clientID += "/formicd"
 	}
 
-	debugLogger, err := zwrap.Standardize(logger, zap.DebugLevel)
+	oortLogger, err := zwrap.Standardize(baseLogger.With(zap.String("name", "formicd.oort")), logger.Level())
 	if err != nil {
 		logger.Fatal("Cannon setup standard logger", zap.Error(err))
 	}
 	vstore := api.NewReplValueStore(&api.ReplValueStoreConfig{
-		LogDebug:                   debugLogger.Printf,
+		LogDebug:                   oortLogger.Printf,
 		AddressIndex:               2,
 		StoreFTLSConfig:            vtlsConfig,
 		GRPCOpts:                   vcOpts,
@@ -141,7 +142,7 @@ func main() {
 	}
 
 	gstore := api.NewReplGroupStore(&api.ReplGroupStoreConfig{
-		LogDebug:                   debugLogger.Printf,
+		LogDebug:                   oortLogger.Printf,
 		AddressIndex:               2,
 		StoreFTLSConfig:            gtlsConfig,
 		GRPCOpts:                   gcOpts,
@@ -161,7 +162,11 @@ func main() {
 	if err != nil {
 		logger.Fatal("Error setting up comms", zap.Error(err))
 	}
-	fs := NewOortFS(comms, logger)
+	// TODO: How big should the chan be, or should we have another in memory queue that feeds the chan?
+	deleteChan := make(chan *DeleteItem, 1000)
+	fs := NewOortFS(comms, logger, deleteChan)
+	deletes := newDeletinator(deleteChan, fs, comms, baseLogger.With(zap.String("name", "formicd.deletinator")))
+	go deletes.run()
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.port))
 	if err != nil {
 		logger.Fatal("Failed to bind formicd to port", zap.Error(err))

@@ -182,16 +182,13 @@ type OortFS struct {
 	log        zap.Logger
 }
 
-func NewOortFS(comms *StoreComms, logger zap.Logger) *OortFS {
+func NewOortFS(comms *StoreComms, logger zap.Logger, deleteChan chan *DeleteItem) *OortFS {
 	o := &OortFS{
-		hasher: crc32.NewIEEE,
-		comms:  comms,
-		log:    logger,
+		hasher:     crc32.NewIEEE,
+		comms:      comms,
+		log:        logger,
+		deleteChan: deleteChan,
 	}
-	// TODO: How big should the chan be, or should we have another in memory queue that feeds the chan?
-	o.deleteChan = make(chan *DeleteItem, 1000)
-	deletes := newDeletinator(o.deleteChan, o, comms)
-	go deletes.run()
 	return o
 }
 
