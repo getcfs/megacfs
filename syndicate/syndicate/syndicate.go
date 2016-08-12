@@ -14,6 +14,7 @@ import (
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
 	"github.com/gholt/ring"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -58,6 +59,12 @@ type Config struct {
 	CAFile           string
 	MutualTLS        bool
 	WeightAssignment string
+	logger           zap.Logger
+}
+
+//Logger returns the zap.Logger instance
+func (c *Config) Logger() zap.Logger {
+	return c.logger
 }
 
 func parseSlaveAddrs(slaveAddrs []string) []*RingSlave {
@@ -144,11 +151,17 @@ func WithGetBuilderFn(l func(path string) (*ring.Builder, error)) MockOpt {
 }
 
 //NewServer returns a new instance of an up and running syndicate mangement node
-func NewServer(cfg *Config, servicename string, opts ...MockOpt) (*Server, error) {
+func NewServer(cfg *Config, servicename string, logger zap.Logger, opts ...MockOpt) (*Server, error) {
 	var err error
 	s := new(Server)
 	s.cfg = cfg
 	s.servicename = servicename
+
+	if s.cfg.Debug {
+		logger.SetLevel(zap.DebugLevel)
+	} else {
+		logger.SetLevel(zap.InfoLevel)
+	}
 	log.SetFormatter(&log.TextFormatter{})
 	if s.cfg.Debug {
 		log.SetLevel(log.DebugLevel)

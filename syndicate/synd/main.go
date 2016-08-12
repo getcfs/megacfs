@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,11 +16,11 @@ import (
 	"net"
 
 	"github.com/BurntSushi/toml"
-	log "github.com/Sirupsen/logrus"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
 	"github.com/getcfs/megacfs/syndicate/syndicate"
 	"github.com/getcfs/megacfs/syndicate/utils/sysmetrics"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/uber-go/zap"
 )
 
 var (
@@ -103,6 +104,7 @@ func (rs *RingSyndicates) launchSyndicates(k int) {
 }
 
 func main() {
+
 	var err error
 	configFile := "/etc/syndicate/syndicate.toml"
 	if os.Getenv("SYNDICATE_CONFIG") != "" {
@@ -123,34 +125,39 @@ func main() {
 		stopped:          false,
 	}
 
+	baseLogger := zap.New(zap.NewJSONEncoder())
+	baseLogger.SetLevel(zap.InfoLevel)
+	logger := baseLogger.With(zap.String("name", "synd"))
+
 	var tc map[string]syndicate.Config
 	if _, err := toml.DecodeFile(configFile, &tc); err != nil {
-		log.Fatalln(err)
+		logger.Fatal("Couldn't load config", zap.Error(err))
 	}
 	for k, v := range tc {
-		log.Println("Found config for", k)
-		log.Println("Config:", v)
+		logger.Info("Found config", zap.String("section", k), zap.Object("contents", v))
 		syndic := &RingSyndicate{
 			active: false,
 			name:   k,
 			config: v,
 		}
+		
 		syndic.server, err = syndicate.NewServer(&syndic.config, k)
 		if err != nil {
-			log.Fatalln(err)
+			logger.Fatal("Error setting up syndic", zap.String("service", syndic.name), zap.Error(err))
 		}
 		rs.Syndics = append(rs.Syndics, syndic)
 	}
+
 	rs.Lock()
 	defer rs.Unlock()
-	for k, _ := range rs.Syndics {
+	for k := range rs.Syndics {
 		go rs.launchSyndicates(k)
 	}
 	//now that syndics are up and running launch global metrics endpoint
 	//setup node_collector for system level metrics first
 	collectors, err := sysmetrics.LoadCollectors(*enabledCollectors)
 	if err != nil {
-		log.Fatalf("Couldn't load collectors: %s", err)
+		logger.Fatal("Couldn't load collects", zap.Error(err))
 	}
 	nodeCollector := sysmetrics.New(collectors)
 	prometheus.MustRegister(nodeCollector)
