@@ -752,23 +752,23 @@ func TestServer_RegisterNode(t *testing.T) {
 		Cpus:     0,
 		Memfree:  1000,
 		Memtotal: 1000,
-		Disks:    []*pb.Disk{&pb.Disk{Path: "/data", Size_: 10000000000}},
+		Disks:    []*pb.Disk{{Path: "/data", Size_: 10000000000}},
 	}
 
 	badRequests := map[string]*pb.RegisterRequest{
-		"Bad Network Interface": &pb.RegisterRequest{
+		"Bad Network Interface": {
 			Hostname: "badnetiface.test.com",
 			Addrs:    []string{"127.0.0.1/32", "192.168.2.2/32"},
 			Tiers:    []string{"badnetiface.test.com", "zone1"},
 			Hardware: okHwProfile,
 		},
-		"Duplicate server name and addr": &pb.RegisterRequest{
+		"Duplicate server name and addr": {
 			Hostname: "server1",
 			Addrs:    []string{"1.2.3.4/32", "127.0.0.1/32", "192.168.2.2/32"},
 			Tiers:    []string{"server1", "zone1"},
 			Hardware: okHwProfile,
 		},
-		"Bad tier": &pb.RegisterRequest{
+		"Bad tier": {
 			Hostname: "server42",
 			Addrs:    []string{"10.0.0.42/32", "127.0.0.1/32", "192.168.2.2/32"},
 			Tiers:    []string{""},
@@ -776,7 +776,7 @@ func TestServer_RegisterNode(t *testing.T) {
 		},
 	}
 
-	for k, _ := range badRequests {
+	for k := range badRequests {
 		r, err := s.RegisterNode(ctx, badRequests[k])
 		if err == nil {
 			t.Errorf("RegisterNode(ctx, %#v) (%#v, %s) should have returned error because %s", badRequests[k], r, err.Error(), k)

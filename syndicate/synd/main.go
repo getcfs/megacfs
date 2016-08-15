@@ -65,7 +65,7 @@ type ClusterConfigs struct {
 
 func (rs *RingSyndicates) Stop() {
 	close(rs.ch)
-	for i, _ := range rs.Syndics {
+	for i := range rs.Syndics {
 		rs.Syndics[i].gs.Stop()
 	}
 	rs.waitGroup.Wait()
