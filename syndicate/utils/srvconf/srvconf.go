@@ -90,7 +90,7 @@ func (s *SRVLoader) getConfig() (*pb.NodeConfig, error) {
 	rr := &pb.RegisterRequest{}
 	rr.Hostname, _ = os.Hostname()
 	addrs, _ := net.InterfaceAddrs()
-	for k, _ := range addrs {
+	for k := range addrs {
 		rr.Addrs = append(rr.Addrs, addrs[k].String())
 	}
 	rr.Hardware, err = GetHardwareProfile()

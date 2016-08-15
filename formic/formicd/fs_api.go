@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"reflect"
 	"time"
@@ -24,8 +23,9 @@ import (
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"github.com/spaolacci/murmur3"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -86,15 +86,19 @@ func clear(v interface{}) {
 // FileSystemAPIServer is used to implement oohhc
 type FileSystemAPIServer struct {
 	gstore store.GroupStore
+	log    zap.Logger
 }
 
 // FSAttrList ...
 var FSAttrList = []string{"name"}
 
 // NewFileSystemAPIServer ...
-func NewFileSystemAPIServer(store store.GroupStore) *FileSystemAPIServer {
-	s := new(FileSystemAPIServer)
-	s.gstore = store
+func NewFileSystemAPIServer(store store.GroupStore, logger zap.Logger) *FileSystemAPIServer {
+	s := &FileSystemAPIServer{
+		gstore: store,
+		log:    logger,
+	}
+
 	return s
 }
 
@@ -117,9 +121,10 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 	// Validate Token
 	acctID, err = s.validateToken(r.Token)
 	if err != nil {
-		log.Printf("%s CREATE FAILED %s\n", srcAddr, "PermissionDenied")
+		s.log.Info("CREATE FAILED", zap.String("src", srcAddr), zap.String("error", "PermissionDenied"))
 		return nil, errf(codes.PermissionDenied, "%v", "Invalid Token")
 	}
+	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID))
 
 	fsID := uuid.NewV4().String()
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
@@ -132,12 +137,12 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 	fsRef.FSID = fsID
 	fsRefByte, err = json.Marshal(fsRef)
 	if err != nil {
-		log.Printf("%s  CREATE FAILED %v\n", srcAddr, err)
+		log.Error("CREATE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsRefByte)
 	if err != nil {
-		log.Printf("%s CREATE FAILED %v\n", srcAddr, err)
+		log.Error("CREATE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	// write /acct/acctID				FSID						FileSysRef
@@ -145,7 +150,7 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
 	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsRefByte)
 	if err != nil {
-		log.Printf("%s CREATE FAILED %v\n", srcAddr, err)
+		log.Error("CREATE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	// Write file system attributes
@@ -158,18 +163,18 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 	fsSysAttr.FSID = fsID
 	fsSysAttrByte, err = json.Marshal(fsSysAttr)
 	if err != nil {
-		log.Printf("%s  CREATE FAILED %v\n", srcAddr, err)
+		log.Error("CREATE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
 	if err != nil {
-		log.Printf("%s CREATE FAILED %v\n", srcAddr, err)
+		log.Error("CREATE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 
 	// Return File System UUID
 	// Log Operation
-	log.Printf("%s CREATE SUCCESS %s\n", srcAddr, fsID)
+	log.Info("CREATE", zap.String("fsid", fsID))
 	return &pb.CreateFSResponse{Data: fsID}, nil
 }
 
@@ -188,9 +193,10 @@ func (s *FileSystemAPIServer) ShowFS(ctx context.Context, r *pb.ShowFSRequest) (
 	// Validate Token
 	acctID, err = s.validateToken(r.Token)
 	if err != nil {
-		log.Printf("%s SHOW FAILED %s\n", srcAddr, "PermissionDenied")
+		s.log.Info("SHOW FAILED", zap.String("src", srcAddr), zap.String("error", "PermissionDenied"))
 		return nil, errf(codes.PermissionDenied, "%v", "Invalid Token")
 	}
+	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID), zap.String("fsid", r.FSid))
 
 	var fs FileSysMeta
 	var value []byte
@@ -206,22 +212,22 @@ func (s *FileSystemAPIServer) ShowFS(ctx context.Context, r *pb.ShowFSRequest) (
 	cKeyA, cKeyB := murmur3.Sum128([]byte(fs.ID))
 	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if store.IsNotFound(err) {
-		log.Printf("%s SHOW FAILED %s NOTFOUND", srcAddr, r.FSid)
+		log.Info("SHOW FAILED", zap.String("error", "NotFound"))
 		return nil, errf(codes.NotFound, "%v", "Not Found")
 	}
 	if err != nil {
-		log.Printf("%s SHOW FAILED %v\n", srcAddr, err)
+		log.Error("SHOW FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	err = json.Unmarshal(value, &fsRef)
 	if err != nil {
-		log.Printf("%s SHOW FAILED %v\n", srcAddr, err)
+		log.Error("SHOW FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 
 	// Validate Token/Account own the file system
 	if fsRef.AcctID != acctID {
-		log.Printf("$s SHOW FAILED %v ACCOUNT MISMATCH", fs.ID)
+		log.Info("SHOW FAILED", zap.String("error", "AccountMismatch"), zap.String("acct2", fsRef.AcctID))
 		return nil, errf(codes.FailedPrecondition, "%v", "Account Mismatch")
 	}
 	fs.AcctID = fsRef.AcctID
@@ -234,16 +240,16 @@ func (s *FileSystemAPIServer) ShowFS(ctx context.Context, r *pb.ShowFSRequest) (
 	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
 	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if store.IsNotFound(err) {
-		log.Printf("%s SHOW FAILED %s NAMENOTFOUND", srcAddr, r.FSid)
+		log.Info("SHOW FAILED", zap.String("error", "NameNotFound"))
 		return nil, errf(codes.NotFound, "%v", "File System Name Not Found")
 	}
 	if err != nil {
-		log.Printf("%s SHOW FAILED %v\n", srcAddr, err)
+		log.Error("SHOW FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	err = json.Unmarshal(value, &fsAttrData)
 	if err != nil {
-		log.Printf("%s SHOW FAILED %v\n", srcAddr, err)
+		log.Error("SHOW FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	fs.Name = fsAttrData.Value
@@ -259,14 +265,14 @@ func (s *FileSystemAPIServer) ShowFS(ctx context.Context, r *pb.ShowFSRequest) (
 		for k, v := range items {
 			err = json.Unmarshal(v.Value, &addrData)
 			if err != nil {
-				log.Printf("%s LIST FAILED %v\n", srcAddr, err)
+				log.Error("SHOW FAILED", zap.Error(err))
 				return nil, errf(codes.Internal, "%v", err)
 			}
 			aList[k] = addrData.Addr
 		}
 	}
 	if err != nil {
-		log.Printf("%s SHOW FAILED %v\n", srcAddr, err)
+		log.Error("SHOW FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	fs.Addr = aList
@@ -277,7 +283,7 @@ func (s *FileSystemAPIServer) ShowFS(ctx context.Context, r *pb.ShowFSRequest) (
 		return nil, errf(codes.Internal, "%s", jerr)
 	}
 	// Log Operation
-	log.Printf("%s SHOW SUCCESS %s\n", srcAddr, r.FSid)
+	log.Info("SHOW")
 	return &pb.ShowFSResponse{Data: string(fsJSON)}, nil
 }
 
@@ -292,9 +298,10 @@ func (s *FileSystemAPIServer) ListFS(ctx context.Context, r *pb.ListFSRequest) (
 	// Validate Token
 	acctID, err := s.validateToken(r.Token)
 	if err != nil {
-		log.Printf("%s LIST FAILED %s\n", srcAddr, "PermissionDenied")
+		s.log.Info("LIST FAILED", zap.String("src", srcAddr), zap.String("error", "PermissionDenied"))
 		return nil, errf(codes.PermissionDenied, "%v", "Invalid Token")
 	}
+	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID))
 
 	var value []byte
 	var fsRef FileSysRef
@@ -307,7 +314,7 @@ func (s *FileSystemAPIServer) ListFS(ctx context.Context, r *pb.ListFSRequest) (
 	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
 	list, err := s.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
 	if err != nil {
-		log.Printf("%s LIST FAILED %v\n", srcAddr, err)
+		log.Error("LIST FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	fsList := make([]FileSysMeta, len(list))
@@ -318,7 +325,7 @@ func (s *FileSystemAPIServer) ListFS(ctx context.Context, r *pb.ListFSRequest) (
 		clear(&aList)
 		err = json.Unmarshal(v.Value, &fsRef)
 		if err != nil {
-			log.Printf("%s LIST FAILED %v\n", srcAddr, err)
+			log.Error("LIST FAILED", zap.Error(err))
 			return nil, errf(codes.Internal, "%v", err)
 		}
 		fsList[k].AcctID = acctID
@@ -330,16 +337,16 @@ func (s *FileSystemAPIServer) ListFS(ctx context.Context, r *pb.ListFSRequest) (
 		cKeyA, cKeyB := murmur3.Sum128([]byte("name"))
 		_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 		if store.IsNotFound(err) {
-			log.Printf("%s LIST FAILED %s NAMENOTFOUND", srcAddr, fsList[k].ID)
+			log.Info("LIST FAILED", zap.String("error", "NameNotFound"), zap.String("name", fsList[k].ID))
 			return nil, errf(codes.NotFound, "%v", "File System Name Not Found")
 		}
 		if err != nil {
-			log.Printf("%s LIST FAILED %v\n", srcAddr, err)
+			log.Error("LIST FAILED", zap.Error(err))
 			return nil, errf(codes.Internal, "%v", err)
 		}
 		err = json.Unmarshal(value, &fsAttrData)
 		if err != nil {
-			log.Printf("%s LIST FAILED %v\n", srcAddr, err)
+			log.Error("LIST FAILED", zap.Error(err))
 			return nil, errf(codes.Internal, "%v", err)
 		}
 		fsList[k].Name = fsAttrData.Value
@@ -354,14 +361,14 @@ func (s *FileSystemAPIServer) ListFS(ctx context.Context, r *pb.ListFSRequest) (
 			for sk, sv := range items {
 				err = json.Unmarshal(sv.Value, &addrData)
 				if err != nil {
-					log.Printf("%s LIST FAILED %v\n", srcAddr, err)
+					log.Error("LIST FAILED", zap.Error(err))
 					return nil, errf(codes.Internal, "%v", err)
 				}
 				aList[sk] = addrData.Addr
 			}
 		}
 		if err != nil {
-			log.Printf("%s LIST FAILED %v\n", srcAddr, err)
+			log.Error("LIST FAILED", zap.Error(err))
 			return nil, errf(codes.Internal, "%v", err)
 		}
 		fsList[k].Addr = aList
@@ -373,7 +380,7 @@ func (s *FileSystemAPIServer) ListFS(ctx context.Context, r *pb.ListFSRequest) (
 		return nil, errf(codes.Internal, "%s", jerr)
 	}
 	// Log Operation
-	log.Printf("%s LIST SUCCESS %s\n", srcAddr, acctID)
+	log.Info("LIST")
 	return &pb.ListFSResponse{Data: string(fsListJSON)}, nil
 }
 
@@ -388,17 +395,18 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	}
 
 	// validate Token
-	_, err = s.validateToken(r.Token)
+	acctID, err := s.validateToken(r.Token)
 	if err != nil {
-		log.Printf("%s DELETE FAILED %s\n", srcAddr, "PermissionDenied")
+		s.log.Info("DELETE FAILED", zap.String("src", srcAddr), zap.String("error", "PermissionDenied"))
 		return nil, errf(codes.PermissionDenied, "%v", "Invalid Token")
 	}
+	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID), zap.String("fsid", r.FSid))
 
 	// Validate Token/Account own this file system
 
 	// Prep things to return
 	// Log Operation
-	log.Printf("%s DELETE NOTIMPLEMENTED %s\n", srcAddr, r.FSid)
+	log.Info("DELETE NOTIMPLEMENTED")
 	return &pb.DeleteFSResponse{Data: "Delete Operation not supported at this time"}, nil
 }
 
@@ -413,17 +421,18 @@ func (s *FileSystemAPIServer) UpdateFS(ctx context.Context, r *pb.UpdateFSReques
 	}
 
 	// validate Token
-	_, err = s.validateToken(r.Token)
+	acctID, err := s.validateToken(r.Token)
 	if err != nil {
-		log.Printf("%s UPDATE FAILED %s\n", srcAddr, "PermissionDenied")
+		s.log.Info("UPDATE FAILED", zap.String("src", srcAddr), zap.String("error", "PermissionDenied"))
 		return nil, errf(codes.PermissionDenied, "%v", "Invalid Token")
 	}
+	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID), zap.String("fsid", r.FSid))
 
 	// validate that Token/Account own this file system
 
 	// return message
 	// Log Operation
-	log.Printf("%s UPDATE NOTIMPLEMENTED %s\n", srcAddr, r.FSid)
+	log.Info("UPDATE NOTIMPLEMENTED")
 	return &pb.UpdateFSResponse{Data: "UPDATE operation is not supported in EA"}, nil
 }
 
@@ -445,9 +454,10 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 	// validate token
 	acctID, err = s.validateToken(r.Token)
 	if err != nil {
-		log.Printf("%s GRANT FAILED %s\n", srcAddr, "PermissionDenied")
+		s.log.Info("GRANT FAILED", zap.String("src", srcAddr), zap.String("error", "PermissionDenied"))
 		return nil, errf(codes.PermissionDenied, "%v", "Invalid Token")
 	}
+	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID), zap.String("fsid", r.FSid))
 
 	// Validate Token/Account own the file system
 	// Read FileSysRef entry to determine if it exists
@@ -456,20 +466,20 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 	cKeyA, cKeyB := murmur3.Sum128([]byte(r.FSid))
 	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if store.IsNotFound(err) {
-		log.Printf("%s GRANT FAILED %s NOTFOUND", srcAddr, r.FSid)
+		log.Info("GRANT FAILED", zap.String("error", "NotFound"))
 		return nil, errf(codes.NotFound, "%v", "Not Found")
 	}
 	if err != nil {
-		log.Printf("%s GRANT FAILED %v\n", srcAddr, err)
+		log.Error("GRANT FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	err = json.Unmarshal(value, &fsRef)
 	if err != nil {
-		log.Printf("%s GRANT FAILED %v\n", srcAddr, err)
+		log.Error("GRANT FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	if fsRef.AcctID != acctID {
-		log.Printf("$s GRANT FAILED %v ACCOUNT MISMATCH", r.FSid)
+		log.Info("GRANT FAILED", zap.String("error", "AccountMismatch"), zap.String("acc2", fsRef.AcctID))
 		return nil, errf(codes.FailedPrecondition, "%v", "Account Mismatch")
 	}
 
@@ -483,18 +493,18 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 	addrData.FSID = r.FSid
 	addrByte, err = json.Marshal(addrData)
 	if err != nil {
-		log.Printf("%s GRANT FAILED %v\n", srcAddr, err)
+		log.Error("GRANT FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, addrByte)
 	if err != nil {
-		log.Printf("%s GRANT FAILED %v\n", srcAddr, err)
+		log.Error("GRANT FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 
 	// return Addr was Granted
 	// Log Operation
-	log.Printf("%s GRANT SUCCESS %s %s\n", srcAddr, r.FSid, r.Addr)
+	log.Info("GRANT", zap.String("addr", r.Addr))
 	return &pb.GrantAddrFSResponse{Data: r.FSid}, nil
 }
 
@@ -514,9 +524,10 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	// Validate Token
 	acctID, err = s.validateToken(r.Token)
 	if err != nil {
-		log.Printf("%s REVOKE FAILED %s\n", srcAddr, "PermissionDenied")
+		s.log.Info("REVOKE FAILED", zap.String("src", srcAddr), zap.String("error", "PermissionDenied"))
 		return nil, errf(codes.PermissionDenied, "%v", "Invalid Token")
 	}
+	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID), zap.String("fsid", r.FSid))
 	// Validate Token/Account owns this file system
 	// Read FileSysRef entry to determine if it exists
 	pKey := fmt.Sprintf("/fs")
@@ -524,20 +535,20 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	cKeyA, cKeyB := murmur3.Sum128([]byte(r.FSid))
 	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if store.IsNotFound(err) {
-		log.Printf("%s REVOKE FAILED %s NOTFOUND", srcAddr, r.FSid)
+		log.Info("REVOKE FAILED", zap.String("error", "NotFound"))
 		return nil, errf(codes.NotFound, "%v", "Not Found")
 	}
 	if err != nil {
-		log.Printf("%s REVOKE FAILED %v\n", srcAddr, err)
+		log.Error("REVOKE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	err = json.Unmarshal(value, &fsRef)
 	if err != nil {
-		log.Printf("%s REVOKE FAILED %v\n", srcAddr, err)
+		log.Error("REVOKE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	if fsRef.AcctID != acctID {
-		log.Printf("$s REVOKE FAILED %v ACCOUNT MISMATCH", r.FSid)
+		log.Info("REVOKE FAILED", zap.String("error", "AccountMismatch"), zap.String("acct2", fsRef.AcctID))
 		return nil, errf(codes.FailedPrecondition, "%v", "Account Mismatch")
 	}
 
@@ -549,33 +560,33 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	_, err = s.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
 	if store.IsNotFound(err) {
-		log.Printf("%s REVOKE FAILED %s %s\n", srcAddr, r.FSid, r.Addr)
+		log.Info("REVOKE FAILED", zap.String("error", "NotFound"))
 		return nil, errf(codes.NotFound, "%v", "Not Found")
 	}
 
 	// return Addr was revoked
 	// Log Operation
-	log.Printf("%s REVOKE SUCCESS %s %s\n", srcAddr, r.FSid, r.Addr)
+	log.Info("REVOKE", zap.String("addr", r.Addr))
 	return &pb.RevokeAddrFSResponse{Data: r.FSid}, nil
 }
 
 type ValidateResponse struct {
-        Access struct {
-                Token struct {
+	Access struct {
+		Token struct {
 			Tenant struct {
-                        	ID string `json:"id"`
+				ID string `json:"id"`
 			} `json:"tenant"`
-                } `json:"token"`
-        } `json:"access"`
+		} `json:"token"`
+	} `json:"access"`
 }
 
 // validateToken ...
 func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
 	url := "https://identity.api.rackspacecloud.com/v2.0/tokens/" + token
-        req, err := http.NewRequest("GET", url, nil)
-        if err != nil {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
 		return "", err
-        }
+	}
 	req.Header.Set("X-Auth-Token", token)
 
 	resp, err := http.DefaultClient.Do(req) // TODO: Is this safe for formic?
@@ -584,15 +595,15 @@ func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-        if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 {
 		return "", errors.New("Invalid Token")
-        }
+	}
 
-        // parse tenant from response
-        var validateResp ValidateResponse
-        r, _ := ioutil.ReadAll(resp.Body)
-        json.Unmarshal(r, &validateResp)
-        tenant := validateResp.Access.Token.Tenant.ID
+	// parse tenant from response
+	var validateResp ValidateResponse
+	r, _ := ioutil.ReadAll(resp.Body)
+	json.Unmarshal(r, &validateResp)
+	tenant := validateResp.Access.Token.Tenant.ID
 
-        return tenant, nil
+	return tenant, nil
 }

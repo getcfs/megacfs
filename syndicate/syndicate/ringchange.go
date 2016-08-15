@@ -1,6 +1,6 @@
 package syndicate
 
-import log "github.com/Sirupsen/logrus"
+import "github.com/uber-go/zap"
 
 type changeMsg struct {
 	rb *[]byte
@@ -28,9 +28,17 @@ func (s *Server) RingChangeManager() {
 		for k := range s.managedNodes {
 			updated, err := s.managedNodes[k].RingUpdate(msg.rb, msg.v)
 			if !updated || err != nil {
-				s.ctxlog.WithFields(log.Fields{"nodeid": k, "updated": updated, "err": err}).Warning("sent node ringupdate")
+				s.logger.Warn("sent node ringupdate",
+					zap.Uint64("nodeid", k),
+					zap.Bool("updated", updated),
+					zap.Error(err),
+				)
 			} else {
-				s.ctxlog.WithFields(log.Fields{"nodeid": k, "updated": updated, "err": err}).Debug("sent node ringupdate")
+				s.logger.Debug("sent node ringupdate",
+					zap.Uint64("nodeid", k),
+					zap.Bool("updated", updated),
+					zap.Error(err),
+				)
 			}
 		}
 		s.RUnlock()

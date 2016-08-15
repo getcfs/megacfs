@@ -7,6 +7,7 @@ import (
 
 	"github.com/getcfs/megacfs/formic"
 	"github.com/gholt/store"
+	"github.com/uber-go/zap"
 
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"golang.org/x/net/context"
@@ -58,13 +59,15 @@ type Deletinator struct {
 	in    chan *DeleteItem
 	fs    FileService
 	comms *StoreComms
+	log   zap.Logger
 }
 
-func newDeletinator(in chan *DeleteItem, fs FileService, comms *StoreComms) *Deletinator {
+func newDeletinator(in chan *DeleteItem, fs FileService, comms *StoreComms, logger zap.Logger) *Deletinator {
 	return &Deletinator{
 		in:    in,
 		fs:    fs,
 		comms: comms,
+		log:   logger,
 	}
 }
 
@@ -73,7 +76,7 @@ func (d *Deletinator) run() {
 	for {
 		todelete := <-d.in
 		ts := todelete.ts
-		log.Println("Deleting: ", ts)
+		d.log.Debug("Deleting", zap.Object("tombstone", ts))
 		deleted := uint64(0)
 		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		for b := uint64(0); b < ts.Blocks; b++ {
@@ -98,7 +101,7 @@ func (d *Deletinator) run() {
 			d.in <- todelete
 		}
 		// All artifacts are deleted so remove the delete tombstone
-		log.Println("Done Deleting: ", ts)
+		d.log.Debug("Done Deleting", zap.Object("tombstone", ts))
 		err := d.comms.DeleteGroupItem(ctx, formic.GetDeletedID(ts.FsId), []byte(fmt.Sprintf("%d", ts.Inode)))
 		if err != nil && !store.IsNotFound(err) {
 			// Failed to remove so queue again to retry later

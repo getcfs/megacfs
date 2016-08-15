@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
 	"github.com/gholt/ring"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 )
 
@@ -77,7 +77,10 @@ func newTestServerWithDefaults() (*Server, *MockRingBuilderThings) {
 		slaves:       make([]*RingSlave, 0),
 		changeChan:   make(chan *changeMsg, 1),
 	}
-	s := newTestServer(&Config{}, "test", mock)
+	baseLogger := zap.New(zap.NewJSONEncoder())
+	baseLogger.SetLevel(zap.InfoLevel)
+	ctxlog := baseLogger.With(zap.String("service", "test"))
+	s := newTestServer(&Config{}, "test", ctxlog, mock)
 	_, netblock, _ := net.ParseCIDR("10.0.0.0/24")
 	s.netlimits = append(s.netlimits, netblock)
 	_, netblock, _ = net.ParseCIDR("1.2.3.0/24")
@@ -85,12 +88,11 @@ func newTestServerWithDefaults() (*Server, *MockRingBuilderThings) {
 	return s, mock
 }
 
-func newTestServer(cfg *Config, servicename string, mockinfo *MockRingBuilderThings) *Server {
+func newTestServer(cfg *Config, servicename string, logger zap.Logger, mockinfo *MockRingBuilderThings) *Server {
 	s := &Server{}
 	s.cfg = cfg
 	s.servicename = servicename
-	logrus.SetLevel(logrus.WarnLevel)
-	s.ctxlog = logrus.WithField("service", s.servicename)
+	s.logger = logger
 	s.rbPersistFn = mockinfo.Persist
 	s.rbLoaderFn = mockinfo.BytesLoader
 	s.getBuilderFn = mockinfo.GetBuilder
@@ -750,23 +752,23 @@ func TestServer_RegisterNode(t *testing.T) {
 		Cpus:     0,
 		Memfree:  1000,
 		Memtotal: 1000,
-		Disks:    []*pb.Disk{&pb.Disk{Path: "/data", Size_: 10000000000}},
+		Disks:    []*pb.Disk{{Path: "/data", Size_: 10000000000}},
 	}
 
 	badRequests := map[string]*pb.RegisterRequest{
-		"Bad Network Interface": &pb.RegisterRequest{
+		"Bad Network Interface": {
 			Hostname: "badnetiface.test.com",
 			Addrs:    []string{"127.0.0.1/32", "192.168.2.2/32"},
 			Tiers:    []string{"badnetiface.test.com", "zone1"},
 			Hardware: okHwProfile,
 		},
-		"Duplicate server name and addr": &pb.RegisterRequest{
+		"Duplicate server name and addr": {
 			Hostname: "server1",
 			Addrs:    []string{"1.2.3.4/32", "127.0.0.1/32", "192.168.2.2/32"},
 			Tiers:    []string{"server1", "zone1"},
 			Hardware: okHwProfile,
 		},
-		"Bad tier": &pb.RegisterRequest{
+		"Bad tier": {
 			Hostname: "server42",
 			Addrs:    []string{"10.0.0.42/32", "127.0.0.1/32", "192.168.2.2/32"},
 			Tiers:    []string{""},
@@ -774,7 +776,7 @@ func TestServer_RegisterNode(t *testing.T) {
 		},
 	}
 
-	for k, _ := range badRequests {
+	for k := range badRequests {
 		r, err := s.RegisterNode(ctx, badRequests[k])
 		if err == nil {
 			t.Errorf("RegisterNode(ctx, %#v) (%#v, %s) should have returned error because %s", badRequests[k], r, err.Error(), k)
@@ -991,7 +993,10 @@ func TestServer_ParseConfig(t *testing.T) {
 		slaves:       make([]*RingSlave, 0),
 		changeChan:   make(chan *changeMsg, 1),
 	}
-	s := newTestServer(&Config{}, "test", mock)
+	baseLogger := zap.New(zap.NewJSONEncoder())
+	baseLogger.SetLevel(zap.InfoLevel)
+	ctxlog := baseLogger.With(zap.String("service", "test"))
+	s := newTestServer(&Config{}, "test", ctxlog, mock)
 	s.parseConfig()
 
 	if s.cfg.NetFilter == nil {

@@ -15,11 +15,11 @@ import (
 	"net"
 
 	"github.com/BurntSushi/toml"
-	log "github.com/Sirupsen/logrus"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
 	"github.com/getcfs/megacfs/syndicate/syndicate"
 	"github.com/getcfs/megacfs/syndicate/utils/sysmetrics"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/uber-go/zap"
 )
 
 var (
@@ -55,6 +55,7 @@ type RingSyndicates struct {
 	ShutdownComplete chan bool
 	waitGroup        *sync.WaitGroup
 	stopped          bool
+	logger           zap.Logger
 }
 
 type ClusterConfigs struct {
@@ -63,9 +64,8 @@ type ClusterConfigs struct {
 }
 
 func (rs *RingSyndicates) Stop() {
-	log.Println("Exiting...")
 	close(rs.ch)
-	for i, _ := range rs.Syndics {
+	for i := range rs.Syndics {
 		rs.Syndics[i].gs.Stop()
 	}
 	rs.waitGroup.Wait()
@@ -78,26 +78,26 @@ func (rs *RingSyndicates) launchSyndicates(k int) {
 	rs.waitGroup.Add(1)
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", rs.Syndics[k].config.Port))
 	if err != nil {
-		log.Fatalln(err)
+		rs.logger.Fatal("error listening", zap.Error(err))
 		return
 	}
 	var opts []grpc.ServerOption
 	creds, err := credentials.NewServerTLSFromFile(rs.Syndics[k].config.CertFile, rs.Syndics[k].config.KeyFile)
 	if err != nil {
-		log.Fatalln("Error load cert or key:", err)
+		rs.logger.Fatal("error loading cert or key:", zap.Error(err))
 	}
 	opts = []grpc.ServerOption{grpc.Creds(creds)}
 	rs.Syndics[k].gs = grpc.NewServer(opts...)
 
 	if rs.Syndics[k].config.Master {
 		pb.RegisterSyndicateServer(rs.Syndics[k].gs, rs.Syndics[k].server)
-		log.Println("Master starting up on", rs.Syndics[k].config.Port)
+		rs.logger.Info(fmt.Sprintf("Master starting up on %d", rs.Syndics[k].config.Port))
 		rs.Syndics[k].gs.Serve(l)
 	} else {
 		//pb.RegisterRingDistServer(s, newRingDistServer())
 		//log.Printf("Starting ring slave up on %d...\n", cfg.Port)
 		//s.Serve(l)
-		log.Fatalln("Syndicate slaves not implemented yet")
+		rs.logger.Fatal("Syndicate slaves not implemented yet")
 	}
 	rs.Syndics[k].Unlock()
 }
@@ -123,34 +123,40 @@ func main() {
 		stopped:          false,
 	}
 
+	baseLogger := zap.New(zap.NewJSONEncoder())
+	baseLogger.SetLevel(zap.InfoLevel)
+	logger := baseLogger.With(zap.String("name", "synd"))
+	rs.logger = logger
+
 	var tc map[string]syndicate.Config
 	if _, err := toml.DecodeFile(configFile, &tc); err != nil {
-		log.Fatalln(err)
+		logger.Fatal("Couldn't load config", zap.Error(err))
 	}
 	for k, v := range tc {
-		log.Println("Found config for", k)
-		log.Println("Config:", v)
+		logger.Info("Found config", zap.String("section", k), zap.Object("contents", v))
 		syndic := &RingSyndicate{
 			active: false,
 			name:   k,
 			config: v,
 		}
-		syndic.server, err = syndicate.NewServer(&syndic.config, k)
+
+		syndic.server, err = syndicate.NewServer(&syndic.config, k, logger)
 		if err != nil {
-			log.Fatalln(err)
+			logger.Fatal("Error setting up syndic", zap.String("service", syndic.name), zap.Error(err))
 		}
 		rs.Syndics = append(rs.Syndics, syndic)
 	}
+
 	rs.Lock()
 	defer rs.Unlock()
-	for k, _ := range rs.Syndics {
+	for k := range rs.Syndics {
 		go rs.launchSyndicates(k)
 	}
 	//now that syndics are up and running launch global metrics endpoint
 	//setup node_collector for system level metrics first
 	collectors, err := sysmetrics.LoadCollectors(*enabledCollectors)
 	if err != nil {
-		log.Fatalf("Couldn't load collectors: %s", err)
+		logger.Fatal("Couldn't load collects", zap.Error(err))
 	}
 	nodeCollector := sysmetrics.New(collectors)
 	prometheus.MustRegister(nodeCollector)

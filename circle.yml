@@ -37,7 +37,7 @@ deployment:
   master:
     branch: master
     commands:
-        - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && utils/ghr -t $GITHUB_TOKEN -u getcfs --replace --prerelease pre-`cat VERSION` $BUILDPATH
+        - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && utils/ghr -t $GITHUB_TOKEN -u getcfs --replace --prerelease pre-`cat VERSION` $BUILDPATH && http $THEHOOK_DEV_HOST key=$THEHOOK_KEY version=pre-`cat VERSION`
   production:
     branch: prod
     commands:

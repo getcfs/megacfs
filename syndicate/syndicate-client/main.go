@@ -28,13 +28,13 @@ var goVersion string
 
 func printNode(n *pb.Node) {
 	report := [][]string{
-		[]string{"ID:", fmt.Sprintf("%d", n.Id)},
-		[]string{"Active:", fmt.Sprintf("%v", n.Active)},
-		[]string{"Capacity:", fmt.Sprintf("%d", n.Capacity)},
-		[]string{"Tiers:", strings.Join(n.Tiers, "\n")},
-		[]string{"Addresses:", strings.Join(n.Addresses, "\n")},
-		[]string{"Meta:", n.Meta},
-		[]string{"Conf:", string(n.Conf)},
+		{"ID:", fmt.Sprintf("%d", n.Id)},
+		{"Active:", fmt.Sprintf("%v", n.Active)},
+		{"Capacity:", fmt.Sprintf("%d", n.Capacity)},
+		{"Tiers:", strings.Join(n.Tiers, "\n")},
+		{"Addresses:", strings.Join(n.Addresses, "\n")},
+		{"Meta:", n.Meta},
+		{"Conf:", string(n.Conf)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 }

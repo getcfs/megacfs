@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
+	"github.com/uber-go/zap"
 )
 
 type RingSubscribers struct {
@@ -17,7 +18,7 @@ func (s *Server) addRingSubscriber(id string) chan *pb.Ring {
 	c, exists := s.ringSubs.subs[id]
 	if exists {
 		close(c)
-		s.ctxlog.WithField("id", id).Debug("ring subscriber entry already existed, closed origin chan")
+		s.logger.Debug("ring subscriber entry already existed, closed origin chan", zap.String("id", id))
 	}
 	s.ringSubs.subs[id] = make(chan *pb.Ring, 1)
 	s.metrics.subscriberNodes.Inc()
