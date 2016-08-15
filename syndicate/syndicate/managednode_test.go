@@ -5,8 +5,8 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gholt/ring"
+	"github.com/uber-go/zap"
 )
 
 func TestParseManagedNodeAddress(t *testing.T) {
@@ -44,7 +44,9 @@ func getTestRing() (*ring.Builder, ring.Ring) {
 func TestBootstrapManagedNodes(t *testing.T) {
 	b, ring := getTestRing()
 	port := 3333
-	ctxlog := logrus.WithField("service", "testservice")
+	baseLogger := zap.New(zap.NewJSONEncoder())
+	baseLogger.SetLevel(zap.InfoLevel)
+	ctxlog := baseLogger.With(zap.String("service", "testservice"))
 	n := bootstrapManagedNodes(ring, port, ctxlog, []grpc.DialOption{})
 	if len(n) != 3 {
 		t.Errorf("Should have had 3 bootstrapped nodes but got: %d", len(n))

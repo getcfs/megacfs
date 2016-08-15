@@ -66,8 +66,8 @@ func (s *SyndClient) rmNodeCmd(id uint64) error {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", c.Status)},
-		[]string{"Version:", fmt.Sprintf("%v", c.Version)},
+		{"Status:", fmt.Sprintf("%v", c.Status)},
+		{"Version:", fmt.Sprintf("%v", c.Version)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
@@ -80,8 +80,8 @@ func (s *SyndClient) setReplicasCmd(count int) error {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", c.Status)},
-		[]string{"Version:", fmt.Sprintf("%v", c.Version)},
+		{"Status:", fmt.Sprintf("%v", c.Status)},
+		{"Version:", fmt.Sprintf("%v", c.Version)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
@@ -94,8 +94,8 @@ func (s *SyndClient) setActiveCmd(id uint64, active bool) error {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", c.Status)},
-		[]string{"Version:", fmt.Sprintf("%v", c.Version)},
+		{"Status:", fmt.Sprintf("%v", c.Status)},
+		{"Version:", fmt.Sprintf("%v", c.Version)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
@@ -108,8 +108,8 @@ func (s *SyndClient) setCapacityCmd(id uint64, capacity uint32) error {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", c.Status)},
-		[]string{"Version:", fmt.Sprintf("%v", c.Version)},
+		{"Status:", fmt.Sprintf("%v", c.Status)},
+		{"Version:", fmt.Sprintf("%v", c.Version)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
@@ -122,8 +122,8 @@ func (s *SyndClient) setAddressCmd(id uint64, addrs []string) error {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", c.Status)},
-		[]string{"Version:", fmt.Sprintf("%v", c.Version)},
+		{"Status:", fmt.Sprintf("%v", c.Status)},
+		{"Version:", fmt.Sprintf("%v", c.Version)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
@@ -136,8 +136,8 @@ func (s *SyndClient) setTierCmd(id uint64, tiers []string) error {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", c.Status)},
-		[]string{"Version:", fmt.Sprintf("%v", c.Version)},
+		{"Status:", fmt.Sprintf("%v", c.Status)},
+		{"Version:", fmt.Sprintf("%v", c.Version)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
@@ -150,8 +150,8 @@ func (s *SyndClient) restartNodeCmd(id uint64) error {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", c.Status)},
-		[]string{"Msg:", fmt.Sprintf("%v", c.Msg)},
+		{"Status:", fmt.Sprintf("%v", c.Status)},
+		{"Msg:", fmt.Sprintf("%v", c.Msg)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
@@ -164,9 +164,9 @@ func (s *SyndClient) printNodeConfigCmd(id uint64) error {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", c.Status.Status)},
-		[]string{"Version:", fmt.Sprintf("%v", c.Status.Version)},
-		[]string{"Conf:", string(c.Conf.Conf)},
+		{"Status:", fmt.Sprintf("%v", c.Status.Status)},
+		{"Version:", fmt.Sprintf("%v", c.Status.Version)},
+		{"Conf:", string(c.Conf.Conf)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
@@ -179,9 +179,9 @@ func (s *SyndClient) printConfigCmd() error {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", c.Status.Status)},
-		[]string{"Version:", fmt.Sprintf("%v", c.Status.Version)},
-		[]string{"Conf:", string(c.Conf.Conf)},
+		{"Status:", fmt.Sprintf("%v", c.Status.Status)},
+		{"Version:", fmt.Sprintf("%v", c.Status.Version)},
+		{"Conf:", string(c.Conf.Conf)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
@@ -200,8 +200,8 @@ func (s *SyndClient) SetConfig(config []byte, restart bool) (err error) {
 		return err
 	}
 	report := [][]string{
-		[]string{"Status:", fmt.Sprintf("%v", status.Status)},
-		[]string{"Version:", fmt.Sprintf("%v", status.Version)},
+		{"Status:", fmt.Sprintf("%v", status.Status)},
+		{"Version:", fmt.Sprintf("%v", status.Version)},
 	}
 	fmt.Print(brimtext.Align(report, nil))
 	return nil
