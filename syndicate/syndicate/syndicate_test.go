@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	pb "github.com/getcfs/megacfs/syndicate/api/proto"
 	"github.com/gholt/ring"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 )
 
@@ -77,7 +77,10 @@ func newTestServerWithDefaults() (*Server, *MockRingBuilderThings) {
 		slaves:       make([]*RingSlave, 0),
 		changeChan:   make(chan *changeMsg, 1),
 	}
-	s := newTestServer(&Config{}, "test", mock)
+	baseLogger := zap.New(zap.NewJSONEncoder())
+	baseLogger.SetLevel(zap.InfoLevel)
+	ctxlog := baseLogger.With(zap.String("service", "test"))
+	s := newTestServer(&Config{}, "test", ctxlog, mock)
 	_, netblock, _ := net.ParseCIDR("10.0.0.0/24")
 	s.netlimits = append(s.netlimits, netblock)
 	_, netblock, _ = net.ParseCIDR("1.2.3.0/24")
@@ -85,12 +88,11 @@ func newTestServerWithDefaults() (*Server, *MockRingBuilderThings) {
 	return s, mock
 }
 
-func newTestServer(cfg *Config, servicename string, mockinfo *MockRingBuilderThings) *Server {
+func newTestServer(cfg *Config, servicename string, logger zap.Logger, mockinfo *MockRingBuilderThings) *Server {
 	s := &Server{}
 	s.cfg = cfg
 	s.servicename = servicename
-	logrus.SetLevel(logrus.WarnLevel)
-	s.ctxlog = logrus.WithField("service", s.servicename)
+	s.logger = logger
 	s.rbPersistFn = mockinfo.Persist
 	s.rbLoaderFn = mockinfo.BytesLoader
 	s.getBuilderFn = mockinfo.GetBuilder
@@ -991,7 +993,10 @@ func TestServer_ParseConfig(t *testing.T) {
 		slaves:       make([]*RingSlave, 0),
 		changeChan:   make(chan *changeMsg, 1),
 	}
-	s := newTestServer(&Config{}, "test", mock)
+	baseLogger := zap.New(zap.NewJSONEncoder())
+	baseLogger.SetLevel(zap.InfoLevel)
+	ctxlog := baseLogger.With(zap.String("service", "test"))
+	s := newTestServer(&Config{}, "test", ctxlog, mock)
 	s.parseConfig()
 
 	if s.cfg.NetFilter == nil {

@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -56,6 +55,7 @@ type RingSyndicates struct {
 	ShutdownComplete chan bool
 	waitGroup        *sync.WaitGroup
 	stopped          bool
+	logger           zap.Logger
 }
 
 type ClusterConfigs struct {
@@ -64,7 +64,6 @@ type ClusterConfigs struct {
 }
 
 func (rs *RingSyndicates) Stop() {
-	log.Println("Exiting...")
 	close(rs.ch)
 	for i, _ := range rs.Syndics {
 		rs.Syndics[i].gs.Stop()
@@ -79,32 +78,31 @@ func (rs *RingSyndicates) launchSyndicates(k int) {
 	rs.waitGroup.Add(1)
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", rs.Syndics[k].config.Port))
 	if err != nil {
-		log.Fatalln(err)
+		rs.logger.Fatal("error listening", zap.Error(err))
 		return
 	}
 	var opts []grpc.ServerOption
 	creds, err := credentials.NewServerTLSFromFile(rs.Syndics[k].config.CertFile, rs.Syndics[k].config.KeyFile)
 	if err != nil {
-		log.Fatalln("Error load cert or key:", err)
+		rs.logger.Fatal("error loading cert or key:", zap.Error(err))
 	}
 	opts = []grpc.ServerOption{grpc.Creds(creds)}
 	rs.Syndics[k].gs = grpc.NewServer(opts...)
 
 	if rs.Syndics[k].config.Master {
 		pb.RegisterSyndicateServer(rs.Syndics[k].gs, rs.Syndics[k].server)
-		log.Println("Master starting up on", rs.Syndics[k].config.Port)
+		rs.logger.Info(fmt.Sprintf("Master starting up on %d", rs.Syndics[k].config.Port))
 		rs.Syndics[k].gs.Serve(l)
 	} else {
 		//pb.RegisterRingDistServer(s, newRingDistServer())
 		//log.Printf("Starting ring slave up on %d...\n", cfg.Port)
 		//s.Serve(l)
-		log.Fatalln("Syndicate slaves not implemented yet")
+		rs.logger.Fatal("Syndicate slaves not implemented yet")
 	}
 	rs.Syndics[k].Unlock()
 }
 
 func main() {
-
 	var err error
 	configFile := "/etc/syndicate/syndicate.toml"
 	if os.Getenv("SYNDICATE_CONFIG") != "" {
@@ -128,6 +126,7 @@ func main() {
 	baseLogger := zap.New(zap.NewJSONEncoder())
 	baseLogger.SetLevel(zap.InfoLevel)
 	logger := baseLogger.With(zap.String("name", "synd"))
+	rs.logger = logger
 
 	var tc map[string]syndicate.Config
 	if _, err := toml.DecodeFile(configFile, &tc); err != nil {
@@ -140,8 +139,8 @@ func main() {
 			name:   k,
 			config: v,
 		}
-		
-		syndic.server, err = syndicate.NewServer(&syndic.config, k)
+
+		syndic.server, err = syndicate.NewServer(&syndic.config, k, logger)
 		if err != nil {
 			logger.Fatal("Error setting up syndic", zap.String("service", syndic.name), zap.Error(err))
 		}

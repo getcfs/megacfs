@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/gholt/ring"
 	cc "github.com/pandemicsyn/cmdctrl/api"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -35,30 +35,31 @@ func ParseManagedNodeAddress(addr string, port int) (string, error) {
 	return fmt.Sprintf("%s:%d", host, port), nil
 }
 
-func bootstrapManagedNodes(ring ring.Ring, ccport int, ctxlog *log.Entry, gopts []grpc.DialOption) map[uint64]ManagedNode {
+func bootstrapManagedNodes(ring ring.Ring, ccport int, logger zap.Logger, gopts []grpc.DialOption) map[uint64]ManagedNode {
 	nodes := ring.Nodes()
 	m := make(map[uint64]ManagedNode, len(nodes))
 	for _, node := range nodes {
 		addr, err := ParseManagedNodeAddress(node.Address(0), ccport)
 		if err != nil {
-			ctxlog.WithFields(log.Fields{
-				"node":    node.ID(),
-				"address": node.Address(0),
-			}).Info("Can't split address in node (skipped node)")
+			//usually only happens on initial ring creation's dummy node
+			logger.Info("can't split addres in node (skipped node)",
+				zap.Uint64("node", node.ID()),
+				zap.String("address", node.Address(0)),
+			)
 			continue
 		}
 		m[node.ID()], err = NewManagedNode(&ManagedNodeOpts{Address: addr, GrpcOpts: gopts})
 		if err != nil {
-			ctxlog.WithFields(log.Fields{
-				"node":    node.ID(),
-				"address": node.Address(0),
-				"err":     err,
-			}).Warning("Unable to bootstrap node")
+			logger.Info("unable to bootstrap node",
+				zap.Uint64("node", node.ID()),
+				zap.String("address", node.Address(0)),
+				zap.Error(err),
+			)
 		} else {
-			ctxlog.WithFields(log.Fields{
-				"node":    node.ID(),
-				"address": node.Address(0),
-			}).Debug("Added node")
+			logger.Debug("added node",
+				zap.Uint64("node", node.ID()),
+				zap.String("address", node.Address(0)),
+			)
 		}
 	}
 	return m
@@ -240,7 +241,7 @@ func (s *Server) removeManagedNodes(nodes []uint64) {
 		if node, ok := s.managedNodes[nodeid]; ok {
 			err := node.Disconnect()
 			if err != nil {
-				s.ctxlog.WithFields(log.Fields{"nodeid": nodeid, "err": err}).Warning("error disconnecting node")
+				s.logger.Warn("error disconnecting node", zap.Uint64("nodeid", nodeid), zap.Error(err))
 			}
 			delete(s.managedNodes, nodeid)
 			s.metrics.managedNodes.Dec()
