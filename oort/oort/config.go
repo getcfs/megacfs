@@ -3,7 +3,6 @@ package oort
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"github.com/getcfs/megacfs/syndicate/utils/srvconf"
 	"github.com/gholt/ring"
 	"github.com/pandemicsyn/cmdctrl"
+	"github.com/uber-go/zap"
 )
 
 // FExists true if a file or dir exists
@@ -45,7 +45,6 @@ func (o *Server) LoadRingConfig(config interface{}) (err error) {
 			return err
 		}
 	}
-	log.Println("Using ring version:", o.ring.Version())
 	b := bytes.NewReader(o.ring.Config())
 	if b.Len() > 0 {
 		_, err = toml.DecodeReader(b, config)
@@ -65,8 +64,6 @@ func (o *Server) LoadRingConfig(config interface{}) (err error) {
 			return err
 		}
 	}
-	log.Printf("Local Node config is: \n%s", o.ring.LocalNode().Config())
-	log.Printf("Ring config is: \n%s", o.ring.Config())
 	return nil
 }
 
@@ -94,13 +91,13 @@ func (o *Server) ObtainConfig() (err error) {
 		s.Record, err = GenServiceID(o.serviceName, "syndicate", "tcp")
 		if err != nil {
 			if e.Get("SYNDICATE_OVERRIDE") == "" {
-				log.Println(err)
+				o.logger.Error("GenServiceID error", zap.Error(err))
 			} else {
-				log.Fatalln("No SYNDICATE_OVERRIDE provided and", err)
+				o.logger.Fatal("No SYNDICATE_OVERRIDE provided and", zap.Error(err))
 			}
 		}
 		if e.Get("SYNDICATE_OVERRIDE") != "" {
-			log.Println("Over wrote syndicate url with url from env!", e.Get("SYNDICATE_OVERRIDE"))
+			o.logger.Warn("Over wrote syndicate url with url from env!", zap.String("SYNDICATE_OVERRIDE", e.Get("SYNDICATE_OVERRIDE")))
 		}
 		nc, err := s.Load()
 		if err != nil {
@@ -123,7 +120,7 @@ func (o *Server) ObtainConfig() (err error) {
 		}
 	} else {
 		// if you skip the srv load you have to provide all of the info in env vars!
-		log.Println("Skipped SRV Config attempting to load from env")
+		o.logger.Warn("Skipped SRV Config attempting to load from env")
 		s, err := strconv.ParseUint(e.Get("LOCALID"), 10, 64)
 		if err != nil {
 			return fmt.Errorf("Unable to load env specified local id")

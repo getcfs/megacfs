@@ -2,11 +2,11 @@ package oort
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/gholt/ring"
 	"github.com/pandemicsyn/cmdctrl"
+	"github.com/uber-go/zap"
 )
 
 type OortService interface {
@@ -48,14 +48,20 @@ type Server struct {
 	cmdCtrlLoopActive bool
 	stopped           bool
 	binaryUpgrade     *cmdctrl.GithubUpdater
+	logger            zap.Logger
 }
 
 // New returns a instance of oort.Server for a given serviceName, workingDir, and buildVersion.
 // if workingDir is empty the default dir of "/var/lib/<servicename>" is used.
 // if buildVersion is empty the default version of "DEV" will be passed on to the self-upgrade service.
-func New(serviceName, workingDir string, binaryUpdater *cmdctrl.GithubUpdater) (*Server, error) {
+func New(serviceName, workingDir string, binaryUpdater *cmdctrl.GithubUpdater, logger zap.Logger, loggerName string) (*Server, error) {
 	if workingDir == "" {
 		workingDir = fmt.Sprintf("%s/%s", DefaultBaseDir, serviceName)
+	}
+	if loggerName == "" {
+		loggerName = "oort"
+	} else {
+		loggerName += ".oort"
 	}
 	o := &Server{
 		serviceName:      serviceName,
@@ -64,6 +70,7 @@ func New(serviceName, workingDir string, binaryUpdater *cmdctrl.GithubUpdater) (
 		ShutdownComplete: make(chan bool),
 		waitGroup:        &sync.WaitGroup{},
 		stopped:          false,
+		logger:           logger.With(zap.String("name", loggerName)),
 	}
 	err := o.ObtainConfig()
 	if err != nil {
@@ -86,7 +93,7 @@ func (o *Server) SetRing(r ring.Ring, ringFile string) {
 	o.ringFile = ringFile
 	o.ring.SetLocalNode(o.localID)
 	o.backend.UpdateRing(o.ring)
-	log.Println("Ring version is now:", o.ring.Version())
+	o.logger.Info("ring loaded", zap.Int64("ringVersion", o.ring.Version()))
 	o.Unlock()
 }
 
@@ -129,11 +136,11 @@ func (o *Server) runCmdCtrlLoop() {
 					//since this is our first attempt to bind/serve and we blew up
 					//we're probably missing something import and wont be able to
 					//recover.
-					log.Fatalln("Error on first attempt to launch CmdCtrl Serve", err.Error())
+					o.logger.Fatal("Error on first attempt to launch CmdCtrl Serve", zap.Error(err))
 				} else if err != nil && !firstAttempt {
-					log.Println("CmdCtrl Serve encountered error:", err)
+					o.logger.Error("CmdCtrl Serve encountered error", zap.Error(err))
 				} else {
-					log.Println("CmdCtrl Serve exited without error, quiting")
+					o.logger.Info("CmdCtrl Serve exited without error, quitting")
 					break
 				}
 				firstAttempt = false
@@ -149,7 +156,7 @@ func (o *Server) Serve() {
 		o.CmdCtrlConfig.ListenAddress = o.ring.Node(o.localID).Address(0)
 		o.runCmdCtrlLoop()
 	} else {
-		log.Println("Command and Control functionality disabled via config")
+		o.logger.Warn("Command and Control functionality disabled via config")
 	}
 	go o.backend.ListenAndServe()
 }

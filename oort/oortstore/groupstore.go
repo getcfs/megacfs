@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"runtime"
 	"sync"
@@ -17,6 +16,7 @@ import (
 	"github.com/gholt/ring"
 	"github.com/gholt/store"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -35,6 +35,12 @@ type OortGroupStore struct {
 	GroupStoreConfig store.GroupStoreConfig
 	TCPMsgRingConfig ring.TCPMsgRingConfig
 	serverTLSConfig  *tls.Config
+	// Original logger given to NewValueStore
+	logger zap.Logger
+	// Value of "name" field used by this struct and things it creates
+	loggerName string
+	// Logger instance used directly by this struct; has "name" set already
+	localLogger zap.Logger
 }
 
 type OortGroupConfig struct {
@@ -50,31 +56,29 @@ type OortGroupConfig struct {
 	MetricsCollectors  string
 }
 
-func NewGroupStore(oort *oort.Server) (*OortGroupStore, error) {
+func NewGroupStore(oort *oort.Server, logger zap.Logger, loggerName string) (*OortGroupStore, error) {
 	s := &OortGroupStore{}
 	s.Config = &OortGroupConfig{}
 	s.waitGroup = &sync.WaitGroup{}
 	s.oort = oort
+	s.logger = logger
+	s.loggerName = loggerName
+	if s.loggerName == "" {
+		s.loggerName = "groupstore"
+	} else {
+		s.loggerName += ".groupstore"
+	}
+	s.localLogger = s.logger.With(zap.String("name", s.loggerName))
 	err := s.oort.LoadRingConfig(s)
 	if err != nil {
 		return s, err
 	}
 	if s.Config.Debug {
-		log.Println("Ring entries:")
-		ring := s.oort.Ring()
-		for k, _ := range ring.Nodes() {
-			log.Println(ring.Nodes()[k].ID(), ring.Nodes()[k].Addresses())
-		}
-		// TODO: Need to changeover to zap logging.
-		// l := log.New(os.Stdout, "DebugStore ", log.LstdFlags)
-		// s.GroupStoreConfig.LogDebug = l.Printf
-	}
-	if s.TCPMsgRingConfig.UseTLS {
-		log.Println("TCPMsgRing using TLS")
+		// Sets for localLogger too
+		s.logger.SetLevel(zap.DebugLevel)
 	}
 	if s.TCPMsgRingConfig.AddressIndex == 0 {
 		s.TCPMsgRingConfig.AddressIndex = 1
-		log.Println("TCPMsgRing using address index 1")
 	}
 	if s.Config.MutualTLS && s.Config.InsecureSkipVerify {
 		return s, fmt.Errorf("Option MutualTLS=true, and InsecureSkipVerify=true conflict")
@@ -97,7 +101,6 @@ func NewGroupStore(oort *oort.Server) (*OortGroupStore, error) {
 func (s *OortGroupStore) start() {
 	s.gs = nil
 	runtime.GC()
-	log.Println("LocalID appears to be:", s.oort.GetLocalID())
 	var err error
 	s.msgRing, err = ring.NewTCPMsgRing(&s.TCPMsgRingConfig)
 	if err != nil {
@@ -105,6 +108,8 @@ func (s *OortGroupStore) start() {
 	}
 	s.GroupStoreConfig.MsgRing = s.msgRing
 	s.msgRing.SetRing(s.oort.Ring())
+	s.GroupStoreConfig.Logger = s.logger
+	s.GroupStoreConfig.LoggerName = s.loggerName
 	var restartChan chan error
 	s.gs, restartChan = store.NewGroupStore(&s.GroupStoreConfig)
 	// TODO: I'm guessing we'll want to do something more graceful here; but
@@ -120,7 +125,6 @@ func (s *OortGroupStore) start() {
 	}
 	go func(t *ring.TCPMsgRing) {
 		t.Listen()
-		log.Println("TCPMsgRing Listen() returned, shutdown?")
 	}(s.msgRing)
 	go func(t *ring.TCPMsgRing) {
 		mRingChanges := prometheus.NewCounter(prometheus.CounterOpts{
@@ -540,58 +544,58 @@ func (s *OortGroupStore) start() {
 			mMsgWriteErrors.Add(float64(tcpMsgRingStats.MsgWriteErrors))
 			stats, err := s.gs.Stats(context.Background(), false)
 			if err != nil {
-				log.Printf("stats error: %s\n", err)
-			} else if s, ok := stats.(*store.GroupStoreStats); ok {
-				mValues.Set(float64(s.Values))
-				mValueBytes.Set(float64(s.ValueBytes))
-				mLookups.Add(float64(s.Lookups))
-				mLookupErrors.Add(float64(s.LookupErrors))
-				mLookupGroups.Add(float64(s.LookupGroups))
-				mLookupGroupItems.Add(float64(s.LookupGroupItems))
-				mLookupGroupErrors.Add(float64(s.LookupGroupErrors))
-				mReads.Add(float64(s.Reads))
-				mReadErrors.Add(float64(s.ReadErrors))
-				mReadGroups.Add(float64(s.ReadGroups))
-				mReadGroupItems.Add(float64(s.ReadGroupItems))
-				mReadGroupErrors.Add(float64(s.ReadGroupErrors))
-				mWrites.Add(float64(s.Writes))
-				mWriteErrors.Add(float64(s.WriteErrors))
-				mWritesOverridden.Add(float64(s.WritesOverridden))
-				mDeletes.Add(float64(s.Deletes))
-				mDeleteErrors.Add(float64(s.DeleteErrors))
-				mDeletesOverridden.Add(float64(s.DeletesOverridden))
-				mOutBulkSets.Add(float64(s.OutBulkSets))
-				mOutBulkSetValues.Add(float64(s.OutBulkSetValues))
-				mOutBulkSetPushes.Add(float64(s.OutBulkSetPushes))
-				mOutBulkSetPushValues.Add(float64(s.OutBulkSetPushValues))
-				mInBulkSets.Add(float64(s.InBulkSets))
-				mInBulkSetDrops.Add(float64(s.InBulkSetDrops))
-				mInBulkSetInvalids.Add(float64(s.InBulkSetInvalids))
-				mInBulkSetWrites.Add(float64(s.InBulkSetWrites))
-				mInBulkSetWriteErrors.Add(float64(s.InBulkSetWriteErrors))
-				mInBulkSetWritesOverridden.Add(float64(s.InBulkSetWritesOverridden))
-				mOutBulkSetAcks.Add(float64(s.OutBulkSetAcks))
-				mInBulkSetAcks.Add(float64(s.InBulkSetAcks))
-				mInBulkSetAckDrops.Add(float64(s.InBulkSetAckDrops))
-				mInBulkSetAckInvalids.Add(float64(s.InBulkSetAckInvalids))
-				mInBulkSetAckWrites.Add(float64(s.InBulkSetAckWrites))
-				mInBulkSetAckWriteErrors.Add(float64(s.InBulkSetAckWriteErrors))
-				mInBulkSetAckWritesOverridden.Add(float64(s.InBulkSetAckWritesOverridden))
-				mOutPullReplications.Add(float64(s.OutPullReplications))
-				mOutPullReplicationSeconds.Set(float64(s.OutPullReplicationNanoseconds) / 1000000000)
-				mInPullReplications.Add(float64(s.InPullReplications))
-				mInPullReplicationDrops.Add(float64(s.InPullReplicationDrops))
-				mInPullReplicationInvalids.Add(float64(s.InPullReplicationInvalids))
-				mExpiredDeletions.Add(float64(s.ExpiredDeletions))
-				mCompactions.Add(float64(s.Compactions))
-				mSmallFileCompactions.Add(float64(s.SmallFileCompactions))
-				if s.ReadOnly {
+				s.localLogger.Error("stats error", zap.Error(err))
+			} else if gstats, ok := stats.(*store.GroupStoreStats); ok {
+				mValues.Set(float64(gstats.Values))
+				mValueBytes.Set(float64(gstats.ValueBytes))
+				mLookups.Add(float64(gstats.Lookups))
+				mLookupErrors.Add(float64(gstats.LookupErrors))
+				mLookupGroups.Add(float64(gstats.LookupGroups))
+				mLookupGroupItems.Add(float64(gstats.LookupGroupItems))
+				mLookupGroupErrors.Add(float64(gstats.LookupGroupErrors))
+				mReads.Add(float64(gstats.Reads))
+				mReadErrors.Add(float64(gstats.ReadErrors))
+				mReadGroups.Add(float64(gstats.ReadGroups))
+				mReadGroupItems.Add(float64(gstats.ReadGroupItems))
+				mReadGroupErrors.Add(float64(gstats.ReadGroupErrors))
+				mWrites.Add(float64(gstats.Writes))
+				mWriteErrors.Add(float64(gstats.WriteErrors))
+				mWritesOverridden.Add(float64(gstats.WritesOverridden))
+				mDeletes.Add(float64(gstats.Deletes))
+				mDeleteErrors.Add(float64(gstats.DeleteErrors))
+				mDeletesOverridden.Add(float64(gstats.DeletesOverridden))
+				mOutBulkSets.Add(float64(gstats.OutBulkSets))
+				mOutBulkSetValues.Add(float64(gstats.OutBulkSetValues))
+				mOutBulkSetPushes.Add(float64(gstats.OutBulkSetPushes))
+				mOutBulkSetPushValues.Add(float64(gstats.OutBulkSetPushValues))
+				mInBulkSets.Add(float64(gstats.InBulkSets))
+				mInBulkSetDrops.Add(float64(gstats.InBulkSetDrops))
+				mInBulkSetInvalids.Add(float64(gstats.InBulkSetInvalids))
+				mInBulkSetWrites.Add(float64(gstats.InBulkSetWrites))
+				mInBulkSetWriteErrors.Add(float64(gstats.InBulkSetWriteErrors))
+				mInBulkSetWritesOverridden.Add(float64(gstats.InBulkSetWritesOverridden))
+				mOutBulkSetAcks.Add(float64(gstats.OutBulkSetAcks))
+				mInBulkSetAcks.Add(float64(gstats.InBulkSetAcks))
+				mInBulkSetAckDrops.Add(float64(gstats.InBulkSetAckDrops))
+				mInBulkSetAckInvalids.Add(float64(gstats.InBulkSetAckInvalids))
+				mInBulkSetAckWrites.Add(float64(gstats.InBulkSetAckWrites))
+				mInBulkSetAckWriteErrors.Add(float64(gstats.InBulkSetAckWriteErrors))
+				mInBulkSetAckWritesOverridden.Add(float64(gstats.InBulkSetAckWritesOverridden))
+				mOutPullReplications.Add(float64(gstats.OutPullReplications))
+				mOutPullReplicationSeconds.Set(float64(gstats.OutPullReplicationNanoseconds) / 1000000000)
+				mInPullReplications.Add(float64(gstats.InPullReplications))
+				mInPullReplicationDrops.Add(float64(gstats.InPullReplicationDrops))
+				mInPullReplicationInvalids.Add(float64(gstats.InPullReplicationInvalids))
+				mExpiredDeletions.Add(float64(gstats.ExpiredDeletions))
+				mCompactions.Add(float64(gstats.Compactions))
+				mSmallFileCompactions.Add(float64(gstats.SmallFileCompactions))
+				if gstats.ReadOnly {
 					mReadOnly.Set(1)
 				} else {
 					mReadOnly.Set(0)
 				}
 			} else {
-				log.Printf("%s\n", stats)
+				s.localLogger.Error("unknown stats type", zap.Stringer("stats", stats))
 			}
 		}
 		prometheus.Unregister(mRingChanges)
@@ -666,7 +670,6 @@ func (s *OortGroupStore) UpdateRing(ring ring.Ring) {
 	s.Lock()
 	s.msgRing.SetRing(ring)
 	s.Unlock()
-	log.Println("Oortstore updated tcp msg ring.")
 }
 
 func (s *OortGroupStore) Write(ctx context.Context, req *groupproto.WriteRequest) (*groupproto.WriteResponse, error) {
@@ -917,8 +920,6 @@ func (s *OortGroupStore) Start() {
 	s.start()
 	s.stopped = false
 	s.Unlock()
-	log.Println(s.gs.Stats(context.Background(), true))
-	log.Println("GroupStore start complete")
 }
 
 func (s *OortGroupStore) Stop() {
@@ -931,8 +932,6 @@ func (s *OortGroupStore) Stop() {
 	s.msgRing.Shutdown()
 	s.stopped = true
 	s.Unlock()
-	log.Println(s.gs.Stats(context.Background(), true))
-	log.Println("GroupStore stop complete")
 }
 
 func (s *OortGroupStore) Stats() []byte {
@@ -950,13 +949,12 @@ func (s *OortGroupStore) ListenAndServe() {
 			var err error
 			listenAddr := s.oort.GetListenAddr()
 			if listenAddr == "" {
-				log.Fatalln("No listen address specified in ring at address2")
+				s.localLogger.Fatal("No listen address specified in ring at address2")
 			}
 			l, err := net.Listen("tcp", listenAddr)
 			if err != nil {
-				log.Fatalln("Unable to bind to address:", err)
+				s.localLogger.Fatal("Unable to bind to address:", zap.Error(err))
 			}
-			log.Println("GroupStore bound to:", listenAddr)
 			var opts []grpc.ServerOption
 			creds := credentials.NewTLS(s.serverTLSConfig)
 			opts = []grpc.ServerOption{grpc.Creds(creds)}
@@ -964,13 +962,12 @@ func (s *OortGroupStore) ListenAndServe() {
 			groupproto.RegisterGroupStoreServer(s.grpc, s)
 			err = s.grpc.Serve(l)
 			if err != nil && !s.grpcStopping {
-				log.Println("GroupStore Serve encountered error:", err, "will attempt to restart")
+				s.localLogger.Error("GroupStore Serve encountered error will attempt to restart", zap.Error(err))
 			} else if err != nil && s.grpcStopping {
-				log.Println("GroupStore got error but halt is in progress:", err)
+				s.localLogger.Warn("GroupStore got error but halt is in progress", zap.Error(err))
 				l.Close()
 				break
 			} else {
-				log.Println("GroupStore Serve exited without error, quiting")
 				l.Close()
 				break
 			}
@@ -979,7 +976,6 @@ func (s *OortGroupStore) ListenAndServe() {
 }
 
 func (s *OortGroupStore) StopListenAndServe() {
-	log.Println("GroupStore shutting down grpc")
 	s.grpcStopping = true
 	s.grpc.Stop()
 }

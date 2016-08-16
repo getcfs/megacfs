@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"time"
 
 	"github.com/gholt/ring"
+	"github.com/uber-go/zap"
 )
 
 func writeBytes(filename string, b *[]byte) error {
@@ -41,14 +41,13 @@ func writeBytes(filename string, b *[]byte) error {
 func (o *Server) RingUpdate(newversion int64, ringBytes []byte) int64 {
 	o.cmdCtrlLock.Lock()
 	defer o.cmdCtrlLock.Unlock()
-	log.Println("Got ring update notification. Trying to update to version:", newversion)
 	newring, err := ring.LoadRing(bytes.NewReader(ringBytes))
 	if err != nil {
-		log.Println("Error loading ring during update:", err)
+		o.logger.Error("Error loading ring during update", zap.Error(err))
 		return o.Ring().Version()
 	}
 	if newring.Version() != newversion {
-		log.Println("Provided ring version != version in ring")
+		o.logger.Error("Provided ring version != version in ring", zap.Int64("version provided", newversion), zap.Int64("version in ring", newring.Version()))
 		return o.Ring().Version()
 	}
 	fname := fmt.Sprintf("%s/ring/%d-%s.ring", o.cwd, newring.Version(), o.serviceName)
