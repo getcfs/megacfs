@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"runtime"
 	"sync"
@@ -17,6 +16,7 @@ import (
 	"github.com/gholt/ring"
 	"github.com/gholt/store"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -35,6 +35,12 @@ type OortValueStore struct {
 	ValueStoreConfig store.ValueStoreConfig
 	TCPMsgRingConfig ring.TCPMsgRingConfig
 	serverTLSConfig  *tls.Config
+	// Original logger given to NewValueStore
+	logger zap.Logger
+	// Value of "name" field used by this struct and things it creates
+	loggerName string
+	// Logger instance used directly by this struct; has "name" set already
+	localLogger zap.Logger
 }
 
 type OortValueConfig struct {
@@ -50,31 +56,29 @@ type OortValueConfig struct {
 	MetricsCollectors  string
 }
 
-func NewValueStore(oort *oort.Server) (*OortValueStore, error) {
+func NewValueStore(oort *oort.Server, logger zap.Logger, loggerName string) (*OortValueStore, error) {
 	s := &OortValueStore{}
 	s.Config = &OortValueConfig{}
 	s.waitGroup = &sync.WaitGroup{}
 	s.oort = oort
+	s.logger = logger
+	s.loggerName = loggerName
+	if s.loggerName == "" {
+		s.loggerName = "valuestore"
+	} else {
+		s.loggerName += ".valuestore"
+	}
+	s.localLogger = s.logger.With(zap.String("name", s.loggerName))
 	err := s.oort.LoadRingConfig(s)
 	if err != nil {
 		return s, err
 	}
 	if s.Config.Debug {
-		log.Println("Ring entries:")
-		ring := s.oort.Ring()
-		for k, _ := range ring.Nodes() {
-			log.Println(ring.Nodes()[k].ID(), ring.Nodes()[k].Addresses())
-		}
-		// TODO: Need to changeover to zap logging.
-		// l := log.New(os.Stdout, "DebugStore ", log.LstdFlags)
-		// s.ValueStoreConfig.LogDebug = l.Printf
-	}
-	if s.TCPMsgRingConfig.UseTLS {
-		log.Println("TCPMsgRing using TLS")
+		// Sets for localLogger too
+		s.logger.SetLevel(zap.DebugLevel)
 	}
 	if s.TCPMsgRingConfig.AddressIndex == 0 {
 		s.TCPMsgRingConfig.AddressIndex = 1
-		log.Println("TCPMsgRing using address index 1")
 	}
 	if s.Config.MutualTLS && s.Config.InsecureSkipVerify {
 		return s, fmt.Errorf("Option MutualTLS=true, and InsecureSkipVerify=true conflict")
@@ -97,7 +101,6 @@ func NewValueStore(oort *oort.Server) (*OortValueStore, error) {
 func (s *OortValueStore) start() {
 	s.vs = nil
 	runtime.GC()
-	log.Println("LocalID appears to be:", s.oort.GetLocalID())
 	var err error
 	s.msgRing, err = ring.NewTCPMsgRing(&s.TCPMsgRingConfig)
 	if err != nil {
@@ -105,6 +108,8 @@ func (s *OortValueStore) start() {
 	}
 	s.ValueStoreConfig.MsgRing = s.msgRing
 	s.msgRing.SetRing(s.oort.Ring())
+	s.ValueStoreConfig.Logger = s.logger
+	s.ValueStoreConfig.LoggerName = s.loggerName
 	var restartChan chan error
 	s.vs, restartChan = store.NewValueStore(&s.ValueStoreConfig)
 	// TODO: I'm guessing we'll want to do something more graceful here; but
@@ -120,7 +125,6 @@ func (s *OortValueStore) start() {
 	}
 	go func(t *ring.TCPMsgRing) {
 		t.Listen()
-		log.Println("TCPMsgRing Listen() returned, shutdown?")
 	}(s.msgRing)
 	go func(t *ring.TCPMsgRing) {
 		mRingChanges := prometheus.NewCounter(prometheus.CounterOpts{
@@ -504,52 +508,52 @@ func (s *OortValueStore) start() {
 			mMsgWriteErrors.Add(float64(tcpMsgRingStats.MsgWriteErrors))
 			stats, err := s.vs.Stats(context.Background(), false)
 			if err != nil {
-				log.Printf("stats error: %s\n", err)
-			} else if s, ok := stats.(*store.ValueStoreStats); ok {
-				mValues.Set(float64(s.Values))
-				mValueBytes.Set(float64(s.ValueBytes))
-				mLookups.Add(float64(s.Lookups))
-				mLookupErrors.Add(float64(s.LookupErrors))
-				mReads.Add(float64(s.Reads))
-				mReadErrors.Add(float64(s.ReadErrors))
-				mWrites.Add(float64(s.Writes))
-				mWriteErrors.Add(float64(s.WriteErrors))
-				mWritesOverridden.Add(float64(s.WritesOverridden))
-				mDeletes.Add(float64(s.Deletes))
-				mDeleteErrors.Add(float64(s.DeleteErrors))
-				mDeletesOverridden.Add(float64(s.DeletesOverridden))
-				mOutBulkSets.Add(float64(s.OutBulkSets))
-				mOutBulkSetValues.Add(float64(s.OutBulkSetValues))
-				mOutBulkSetPushes.Add(float64(s.OutBulkSetPushes))
-				mOutBulkSetPushValues.Add(float64(s.OutBulkSetPushValues))
-				mInBulkSets.Add(float64(s.InBulkSets))
-				mInBulkSetDrops.Add(float64(s.InBulkSetDrops))
-				mInBulkSetInvalids.Add(float64(s.InBulkSetInvalids))
-				mInBulkSetWrites.Add(float64(s.InBulkSetWrites))
-				mInBulkSetWriteErrors.Add(float64(s.InBulkSetWriteErrors))
-				mInBulkSetWritesOverridden.Add(float64(s.InBulkSetWritesOverridden))
-				mOutBulkSetAcks.Add(float64(s.OutBulkSetAcks))
-				mInBulkSetAcks.Add(float64(s.InBulkSetAcks))
-				mInBulkSetAckDrops.Add(float64(s.InBulkSetAckDrops))
-				mInBulkSetAckInvalids.Add(float64(s.InBulkSetAckInvalids))
-				mInBulkSetAckWrites.Add(float64(s.InBulkSetAckWrites))
-				mInBulkSetAckWriteErrors.Add(float64(s.InBulkSetAckWriteErrors))
-				mInBulkSetAckWritesOverridden.Add(float64(s.InBulkSetAckWritesOverridden))
-				mOutPullReplications.Add(float64(s.OutPullReplications))
-				mOutPullReplicationSeconds.Set(float64(s.OutPullReplicationNanoseconds) / 1000000000)
-				mInPullReplications.Add(float64(s.InPullReplications))
-				mInPullReplicationDrops.Add(float64(s.InPullReplicationDrops))
-				mInPullReplicationInvalids.Add(float64(s.InPullReplicationInvalids))
-				mExpiredDeletions.Add(float64(s.ExpiredDeletions))
-				mCompactions.Add(float64(s.Compactions))
-				mSmallFileCompactions.Add(float64(s.SmallFileCompactions))
-				if s.ReadOnly {
+				s.localLogger.Error("stats error", zap.Error(err))
+			} else if vstats, ok := stats.(*store.ValueStoreStats); ok {
+				mValues.Set(float64(vstats.Values))
+				mValueBytes.Set(float64(vstats.ValueBytes))
+				mLookups.Add(float64(vstats.Lookups))
+				mLookupErrors.Add(float64(vstats.LookupErrors))
+				mReads.Add(float64(vstats.Reads))
+				mReadErrors.Add(float64(vstats.ReadErrors))
+				mWrites.Add(float64(vstats.Writes))
+				mWriteErrors.Add(float64(vstats.WriteErrors))
+				mWritesOverridden.Add(float64(vstats.WritesOverridden))
+				mDeletes.Add(float64(vstats.Deletes))
+				mDeleteErrors.Add(float64(vstats.DeleteErrors))
+				mDeletesOverridden.Add(float64(vstats.DeletesOverridden))
+				mOutBulkSets.Add(float64(vstats.OutBulkSets))
+				mOutBulkSetValues.Add(float64(vstats.OutBulkSetValues))
+				mOutBulkSetPushes.Add(float64(vstats.OutBulkSetPushes))
+				mOutBulkSetPushValues.Add(float64(vstats.OutBulkSetPushValues))
+				mInBulkSets.Add(float64(vstats.InBulkSets))
+				mInBulkSetDrops.Add(float64(vstats.InBulkSetDrops))
+				mInBulkSetInvalids.Add(float64(vstats.InBulkSetInvalids))
+				mInBulkSetWrites.Add(float64(vstats.InBulkSetWrites))
+				mInBulkSetWriteErrors.Add(float64(vstats.InBulkSetWriteErrors))
+				mInBulkSetWritesOverridden.Add(float64(vstats.InBulkSetWritesOverridden))
+				mOutBulkSetAcks.Add(float64(vstats.OutBulkSetAcks))
+				mInBulkSetAcks.Add(float64(vstats.InBulkSetAcks))
+				mInBulkSetAckDrops.Add(float64(vstats.InBulkSetAckDrops))
+				mInBulkSetAckInvalids.Add(float64(vstats.InBulkSetAckInvalids))
+				mInBulkSetAckWrites.Add(float64(vstats.InBulkSetAckWrites))
+				mInBulkSetAckWriteErrors.Add(float64(vstats.InBulkSetAckWriteErrors))
+				mInBulkSetAckWritesOverridden.Add(float64(vstats.InBulkSetAckWritesOverridden))
+				mOutPullReplications.Add(float64(vstats.OutPullReplications))
+				mOutPullReplicationSeconds.Set(float64(vstats.OutPullReplicationNanoseconds) / 1000000000)
+				mInPullReplications.Add(float64(vstats.InPullReplications))
+				mInPullReplicationDrops.Add(float64(vstats.InPullReplicationDrops))
+				mInPullReplicationInvalids.Add(float64(vstats.InPullReplicationInvalids))
+				mExpiredDeletions.Add(float64(vstats.ExpiredDeletions))
+				mCompactions.Add(float64(vstats.Compactions))
+				mSmallFileCompactions.Add(float64(vstats.SmallFileCompactions))
+				if vstats.ReadOnly {
 					mReadOnly.Set(1)
 				} else {
 					mReadOnly.Set(0)
 				}
 			} else {
-				log.Printf("%s\n", stats)
+				s.localLogger.Error("unknown stats type", zap.Stringer("stats", stats))
 			}
 		}
 		prometheus.Unregister(mRingChanges)
@@ -618,7 +622,6 @@ func (s *OortValueStore) UpdateRing(ring ring.Ring) {
 	s.Lock()
 	s.msgRing.SetRing(ring)
 	s.Unlock()
-	log.Println("Oortstore updated tcp msg ring.")
 }
 
 func (s *OortValueStore) Write(ctx context.Context, req *valueproto.WriteRequest) (*valueproto.WriteResponse, error) {
@@ -759,8 +762,6 @@ func (s *OortValueStore) Start() {
 	s.start()
 	s.stopped = false
 	s.Unlock()
-	log.Println(s.vs.Stats(context.Background(), true))
-	log.Println("ValueStore start complete")
 }
 
 func (s *OortValueStore) Stop() {
@@ -773,8 +774,6 @@ func (s *OortValueStore) Stop() {
 	s.msgRing.Shutdown()
 	s.stopped = true
 	s.Unlock()
-	log.Println(s.vs.Stats(context.Background(), true))
-	log.Println("ValueStore stop complete")
 }
 
 func (s *OortValueStore) Stats() []byte {
@@ -795,13 +794,12 @@ func (s *OortValueStore) ListenAndServe() {
 			var err error
 			listenAddr := s.oort.GetListenAddr()
 			if listenAddr == "" {
-				log.Fatalln("No listen address specified in ring at address2")
+				s.localLogger.Fatal("No listen address specified in ring at address2")
 			}
 			l, err := net.Listen("tcp", listenAddr)
 			if err != nil {
-				log.Fatalln("Unable to bind to address:", err)
+				s.localLogger.Fatal("Unable to bind to address:", zap.Error(err))
 			}
-			log.Println("ValueStore bound to:", listenAddr)
 			var opts []grpc.ServerOption
 			creds := credentials.NewTLS(s.serverTLSConfig)
 			opts = []grpc.ServerOption{grpc.Creds(creds)}
@@ -812,14 +810,13 @@ func (s *OortValueStore) ListenAndServe() {
 			err = srvr.Serve(l)
 			s.Lock()
 			if err != nil && !s.grpcStopping {
-				log.Println("ValueStore Serve encountered error:", err, "will attempt to restart")
+				s.localLogger.Error("ValueStore Serve encountered error will attempt to restart", zap.Error(err))
 			} else if err != nil && s.grpcStopping {
-				log.Println("ValueStore got error but halt is in progress:", err)
+				s.localLogger.Warn("ValueStore got error but halt is in progress", zap.Error(err))
 				l.Close()
 				s.Unlock()
 				break
 			} else {
-				log.Println("ValueStore Serve exited without error, quiting")
 				l.Close()
 				s.Unlock()
 				break
@@ -831,7 +828,6 @@ func (s *OortValueStore) ListenAndServe() {
 
 func (s *OortValueStore) StopListenAndServe() {
 	s.Lock()
-	log.Println("ValueStore shutting down grpc")
 	s.grpcStopping = true
 	s.grpc.Stop()
 	s.Unlock()

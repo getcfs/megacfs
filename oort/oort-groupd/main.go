@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +11,7 @@ import (
 	"github.com/getcfs/megacfs/oort/oortstore"
 	"github.com/getcfs/megacfs/syndicate/utils/sysmetrics"
 	"github.com/pandemicsyn/cmdctrl"
+	"github.com/uber-go/zap"
 )
 
 const (
@@ -46,7 +46,9 @@ func main() {
 		fmt.Println("go version:", goVersion)
 		return
 	}
-
+	logger := zap.New(zap.NewJSONEncoder())
+	loggerName := "oort-groupd"
+	localLogger := logger.With(zap.String("name", loggerName))
 	updater := cmdctrl.NewGithubUpdater(
 		GithubRepo,
 		GithubProject,
@@ -55,14 +57,13 @@ func main() {
 		fmt.Sprintf("%s/%s.canary", *cwd, ServiceName),
 		oortVersion,
 	)
-	o, err := oort.New(ServiceName, *cwd, updater)
+	o, err := oort.New(ServiceName, *cwd, updater, logger, loggerName)
 	if err != nil {
-		log.Fatalln("Unable to obtain config:", err)
+		localLogger.Fatal("Unable to obtain config", zap.Error(err))
 	}
-	log.Println("Using groupstore backend")
-	backend, err := oortstore.NewGroupStore(o)
+	backend, err := oortstore.NewGroupStore(o, logger, loggerName)
 	if err != nil {
-		log.Fatalln("Unable to initialize GroupStore:", err)
+		localLogger.Fatal("Unable to initialize GroupStore", zap.Error(err))
 	}
 	sysmetrics.StartupMetrics(backend.Config.MetricsAddr, backend.Config.MetricsCollectors)
 	o.SetBackend(backend)
