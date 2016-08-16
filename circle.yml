@@ -1,6 +1,6 @@
 machine:
   environment:
-    GOVER: 1.6.2
+    GOVER: 1.7
     GOROOT: ${HOME}/go$GOVER/go
     BUILDPATH: ${HOME}/${CIRCLE_PROJECT_REPONAME}/build
     PATH: ${GOROOT}/bin:${PATH}
