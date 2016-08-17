@@ -15,7 +15,6 @@ import (
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort/api"
 	"github.com/uber-go/zap"
-	"github.com/uber-go/zap/zwrap"
 
 	"net"
 
@@ -121,12 +120,9 @@ func main() {
 		clientID += "/formicd"
 	}
 
-	oortLogger, err := zwrap.Standardize(baseLogger.With(zap.String("name", "formicd.oort")), logger.Level())
-	if err != nil {
-		logger.Fatal("Cannon setup standard logger", zap.Error(err))
-	}
-	vstore := api.NewReplValueStore(&api.ReplValueStoreConfig{
-		LogDebug:                   oortLogger.Printf,
+	oortLogger := baseLogger.With(zap.String("name", "formicd.oort"))
+	vstore := api.NewReplValueStore(&api.ValueStoreConfig{
+		Logger:                     oortLogger,
 		AddressIndex:               2,
 		StoreFTLSConfig:            vtlsConfig,
 		GRPCOpts:                   vcOpts,
@@ -141,8 +137,8 @@ func main() {
 		logger.Fatal("Cannot start valuestore connector:", zap.Error(err))
 	}
 
-	gstore := api.NewReplGroupStore(&api.ReplGroupStoreConfig{
-		LogDebug:                   oortLogger.Printf,
+	gstore := api.NewReplGroupStore(&api.GroupStoreConfig{
+		Logger:                     oortLogger,
 		AddressIndex:               2,
 		StoreFTLSConfig:            gtlsConfig,
 		GRPCOpts:                   gcOpts,

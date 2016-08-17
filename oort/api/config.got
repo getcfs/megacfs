@@ -8,16 +8,15 @@ import (
     "time"
 
     "github.com/getcfs/megacfs/ftls"
+    "github.com/uber-go/zap"
     "google.golang.org/grpc"
 )
 
-// Repl{{.T}}StoreConfig defines the settings when calling New{{.T}}Store.
-type Repl{{.T}}StoreConfig struct {
-    // LogError sets the func to use for error messages. Defaults to stderr.
-    LogError func(fmt string, args ...interface{})
-    // LogDebug sets the func to use for debug messages. Defaults to not
-    // logging debug messages.
-    LogDebug func(fmt string, args ...interface{})
+// {{.T}}StoreConfig defines the settings when calling New{{.T}}Store.
+type {{.T}}StoreConfig struct {
+    // Logger defines where log output will go. If not set, the logger will
+    // default to zap.New(zap.NewJSONEncoder()).
+    Logger zap.Logger
     // AddressIndex indicates which of the ring node addresses to use when
     // connecting to a node (see github.com/gholt/ring/Node.Address).
     AddressIndex int
@@ -60,8 +59,8 @@ type Repl{{.T}}StoreConfig struct {
     RingCachePath string
 }
 
-func resolveRepl{{.T}}StoreConfig(c *Repl{{.T}}StoreConfig) *Repl{{.T}}StoreConfig {
-    cfg := &Repl{{.T}}StoreConfig{}
+func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
+    cfg := &{{.T}}StoreConfig{}
     if c != nil {
         *cfg = *c
     }
