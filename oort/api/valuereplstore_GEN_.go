@@ -503,10 +503,12 @@ func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, va
 }
 
 func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64, value []byte) (int64, error) {
+	rs.logger.Debug("Write", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)))
 	if len(value) == 0 {
-		panic(fmt.Sprintf("REMOVEME ReplValueStore asked to Write a zlv"))
+		rs.logger.Fatal("REMOVEME ReplValueStore asked to Write a zlv")
 	}
 	if len(value) > rs.valueCap {
+		rs.logger.Debug("Write return point 1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int("valueCap", rs.valueCap))
 		return 0, fmt.Errorf("value length of %d > %d", len(value), rs.valueCap)
 	}
 	type rettype struct {
@@ -516,6 +518,7 @@ func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, t
 	ec := make(chan *rettype)
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
+		rs.logger.Debug("Write return point 2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Error(err))
 		return 0, err
 	}
 	for _, s := range stores {
@@ -523,7 +526,7 @@ func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, t
 			ret := &rettype{}
 			var err error
 			if len(value) == 0 {
-				panic(fmt.Sprintf("REMOVEME inside ReplValueStore asked to Write a zlv"))
+				rs.logger.Fatal("REMOVEME inside ReplValueStore asked to Write a zlv")
 			}
 			ret.oldTimestampMicro, err = s.Write(ctx, keyA, keyB, timestampMicro, value)
 			if err != nil {
@@ -549,12 +552,15 @@ func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, t
 		errs = nil
 	}
 	if errs == nil {
+		rs.logger.Debug("Write return point 3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int64("oldTimestampMicro", oldTimestampMicro))
 		return oldTimestampMicro, nil
 	}
+	rs.logger.Debug("Write return point 4", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int64("oldTimestampMicro", oldTimestampMicro), zap.Int("lenErrs", len(errs)))
 	return oldTimestampMicro, errs
 }
 
 func (rs *ReplValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64) (int64, error) {
+	rs.logger.Debug("Delete", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro))
 	type rettype struct {
 		oldTimestampMicro int64
 		err               ReplValueStoreError
@@ -562,6 +568,7 @@ func (rs *ReplValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 	ec := make(chan *rettype)
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
+		rs.logger.Debug("Delete return point 1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Error(err))
 		return 0, err
 	}
 	for _, s := range stores {
@@ -592,8 +599,10 @@ func (rs *ReplValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 		errs = nil
 	}
 	if errs == nil {
+		rs.logger.Debug("Delete return point 2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro))
 		return oldTimestampMicro, nil
 	}
+	rs.logger.Debug("Delete return point 3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int64("oldTimestampMicro", oldTimestampMicro), zap.Int("lenErrs", len(errs)))
 	return oldTimestampMicro, errs
 }
 
