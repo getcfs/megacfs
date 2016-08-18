@@ -327,7 +327,7 @@ func (c *Client) getValueClient() error {
 	if c.vdirect != "" {
 		c.vstore = api.NewValueStore(c.vdirect, 10, tlsConfig, opts...)
 	} else {
-		c.vstore = api.NewReplValueStore(&api.ReplValueStoreConfig{
+		c.vstore = api.NewReplValueStore(&api.ValueStoreConfig{
 			AddressIndex:       2,
 			StoreFTLSConfig:    tlsConfig,
 			GRPCOpts:           opts,
@@ -363,7 +363,7 @@ func (c *Client) getGroupClient() error {
 	if c.gdirect != "" {
 		c.gstore = api.NewGroupStore(c.gdirect, 10, tlsConfig, opts...)
 	} else {
-		c.gstore = api.NewReplGroupStore(&api.ReplGroupStoreConfig{
+		c.gstore = api.NewReplGroupStore(&api.GroupStoreConfig{
 			AddressIndex:       2,
 			StoreFTLSConfig:    tlsConfig,
 			GRPCOpts:           opts,

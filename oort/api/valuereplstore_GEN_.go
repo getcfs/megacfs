@@ -14,17 +14,15 @@ import (
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort/oort"
 	synpb "github.com/getcfs/megacfs/syndicate/api/proto"
-	"github.com/gholt/flog"
 	"github.com/gholt/ring"
 	"github.com/gholt/store"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
 type ReplValueStore struct {
-	logError                   func(string, ...interface{})
-	logDebug                   func(string, ...interface{})
-	logDebugOn                 bool
+	logger                     zap.Logger
 	addressIndex               int
 	valueCap                   int
 	poolSize                   int
@@ -45,12 +43,10 @@ type ReplValueStore struct {
 	stores     map[string]store.ValueStore
 }
 
-func NewReplValueStore(c *ReplValueStoreConfig) *ReplValueStore {
-	cfg := resolveReplValueStoreConfig(c)
+func NewReplValueStore(c *ValueStoreConfig) *ReplValueStore {
+	cfg := resolveValueStoreConfig(c)
 	rs := &ReplValueStore{
-		logError:                   cfg.LogError,
-		logDebug:                   cfg.LogDebug,
-		logDebugOn:                 cfg.LogDebug != nil,
+		logger:                     cfg.Logger,
 		addressIndex:               cfg.AddressIndex,
 		valueCap:                   int(cfg.ValueCap),
 		poolSize:                   cfg.PoolSize,
@@ -64,18 +60,15 @@ func NewReplValueStore(c *ReplValueStoreConfig) *ReplValueStore {
 		ringCachePath:              cfg.RingCachePath,
 		ringClientID:               cfg.RingClientID,
 	}
-	if rs.logError == nil {
-		rs.logError = flog.Default.ErrorPrintf
-	}
-	if rs.logDebug == nil {
-		rs.logDebug = func(string, ...interface{}) {}
+	if rs.logger == nil {
+		rs.logger = zap.New(zap.NewJSONEncoder())
 	}
 	if rs.ringCachePath != "" {
 		if fp, err := os.Open(rs.ringCachePath); err != nil {
-			rs.logDebug("replValueStore: error loading cached ring %q: %s", rs.ringCachePath, err)
+			rs.logger.Debug("error loading cached ring", zap.String("path", rs.ringCachePath), zap.Error(err))
 		} else if r, err := ring.LoadRing(fp); err != nil {
 			fp.Close()
-			rs.logDebug("replValueStore: error loading cached ring %q: %s", rs.ringCachePath, err)
+			rs.logger.Debug("error loading cached ring", zap.String("path", rs.ringCachePath), zap.Error(err))
 		} else {
 			fp.Close()
 			rs.ring = r
@@ -112,16 +105,16 @@ func (rs *ReplValueStore) SetRing(r ring.Ring) {
 		_ = os.MkdirAll(dir, 0755)
 		fp, err := ioutil.TempFile(dir, name)
 		if err != nil {
-			rs.logDebug("replValueStore: error caching ring %q: %s", rs.ringCachePath, err)
+			rs.logger.Debug("error caching ring", zap.String("path", rs.ringCachePath), zap.Error(err))
 		} else if err := r.Persist(fp); err != nil {
 			fp.Close()
 			os.Remove(fp.Name())
-			rs.logDebug("replValueStore: error caching ring %q: %s", rs.ringCachePath, err)
+			rs.logger.Debug("error caching ring", zap.String("path", rs.ringCachePath), zap.Error(err))
 		} else {
 			fp.Close()
 			if err := os.Rename(fp.Name(), rs.ringCachePath); err != nil {
 				os.Remove(fp.Name())
-				rs.logDebug("replValueStore: error caching ring %q: %s", rs.ringCachePath, err)
+				rs.logger.Debug("error caching ring", zap.String("path", rs.ringCachePath), zap.Error(err))
 			}
 		}
 	}
@@ -152,7 +145,7 @@ func (rs *ReplValueStore) SetRing(r ring.Ring) {
 		rs.storesLock.Unlock()
 		for i, s := range shutdownStores {
 			if err := s.Shutdown(context.Background()); err != nil {
-				rs.logDebug("replValueStore: error during shutdown of store %s: %s", shutdownAddrs[i], err)
+				rs.logger.Debug("error during shutdown of store", zap.String("addr", shutdownAddrs[i]), zap.Error(err))
 			}
 		}
 	}
@@ -244,20 +237,20 @@ func (rs *ReplValueStore) ringServerConnector(exitChan chan struct{}) {
 
 			ringServer, err = oort.GetRingServer("value")
 			if err != nil {
-				rs.logError("replValueStore: error resolving ring service: %s", err)
+				rs.logger.Error("error resolving ring service", zap.Error(err))
 				sleeper()
 				continue
 			}
 		}
 		conn, err := grpc.Dial(ringServer, rs.ringServerGRPCOpts...)
 		if err != nil {
-			rs.logError("replValueStore: error connecting to ring service %q: %s", ringServer, err)
+			rs.logger.Error("error connecting to ring service", zap.String("ringServer", ringServer), zap.Error(err))
 			sleeper()
 			continue
 		}
 		stream, err := synpb.NewSyndicateClient(conn).GetRingStream(context.Background(), &synpb.SubscriberID{Id: rs.ringClientID})
 		if err != nil {
-			rs.logError("replValueStore: error creating stream with ring service %q: %s", ringServer, err)
+			rs.logger.Error("error creating stream with ring service", zap.String("ringServer", ringServer), zap.Error(err))
 			sleeper()
 			continue
 		}
@@ -301,19 +294,19 @@ func (rs *ReplValueStore) ringServerConnector(exitChan chan struct{}) {
 			}
 			res, err := stream.Recv()
 			if err != nil {
-				rs.logDebug("replValueStore: error with stream to ring service %q: %s", ringServer, err)
+				rs.logger.Debug("error with stream to ring service", zap.String("ringServer", ringServer), zap.Error(err))
 				break
 			}
 			atomic.AddInt32(activity, 1)
 			if res != nil {
 				if r, err := ring.LoadRing(bytes.NewBuffer(res.Ring)); err != nil {
-					rs.logDebug("replValueStore: error with ring received from stream to ring service %q: %s", ringServer, err)
+					rs.logger.Debug("error with ring received from stream to ring service", zap.String("ringServer", ringServer), zap.Error(err))
 				} else {
 					// This will cache the ring if ringCachePath is not empty.
 					rs.SetRing(r)
 					// Resets the exponential sleeper since we had success.
 					sleeperTicks = 2
-					rs.logDebug("replValueStore: got new ring from stream to ring service %q: %d", ringServer, res.Version)
+					rs.logger.Debug("got new ring from stream to ring service", zap.String("ringServer", ringServer), zap.Int64("version", res.Version))
 				}
 			}
 		}
@@ -351,7 +344,7 @@ func (rs *ReplValueStore) Shutdown(ctx context.Context) error {
 	rs.storesLock.Lock()
 	for addr, s := range rs.stores {
 		if err := s.Shutdown(ctx); err != nil {
-			rs.logDebug("replValueStore: error during shutdown of store %s: %s", addr, err)
+			rs.logger.Debug("error during shutdown of store", zap.String("addr", addr), zap.Error(err))
 		}
 		delete(rs.stores, addr)
 		select {
@@ -436,7 +429,7 @@ func (rs *ReplValueStore) Lookup(ctx context.Context, keyA, keyB uint64) (int64,
 	}
 	if len(errs) < len(stores) {
 		for _, err := range errs {
-			rs.logDebug("replValueStore: error during lookup: %s", err)
+			rs.logger.Debug("error during lookup", zap.Error(err))
 		}
 		errs = nil
 	}
@@ -455,7 +448,7 @@ func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, va
 	ec := make(chan *rettype)
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
-		rs.logDebug("replValueStore Read %x %x: error from storesFor: %s", keyA, keyB, err)
+		rs.logger.Debug("Read error from storesFor", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Error(err))
 		return 0, nil, err
 	}
 	for _, s := range stores {
@@ -488,32 +481,34 @@ func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, va
 		rvalue = append(value, rvalue...)
 	}
 	for _, err := range errs {
-		rs.logDebug("replValueStore Read %x %x: error during read: %s", keyA, keyB, err)
+		rs.logger.Debug("Read error", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Error(err))
 	}
 	if hadNotFoundErr {
 		nferrs := make(ReplValueStoreErrorNotFound, len(errs))
 		for i, v := range errs {
 			nferrs[i] = v
 		}
-		rs.logDebug("replValueStore Read %x %x: returning at point1: %d %d %v", keyA, keyB, timestampMicro, len(rvalue), nferrs)
+		rs.logger.Debug("Read: returning at point1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(rvalue)), zap.Error(nferrs))
 		return timestampMicro, rvalue, nferrs
 	}
 	if len(errs) < len(stores) {
 		errs = nil
 	}
 	if errs == nil {
-		rs.logDebug("replValueStore Read %x %x: returning at point2: %d %d", keyA, keyB, timestampMicro, len(rvalue))
+		rs.logger.Debug("Read: returning at point2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(rvalue)))
 		return timestampMicro, rvalue, nil
 	}
-	rs.logDebug("replValueStore Read %x %x: returning at point3: %d %d %v", keyA, keyB, timestampMicro, len(rvalue), errs)
+	rs.logger.Debug("Read: returning at point3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestmapMicro", timestampMicro), zap.Int("len", len(rvalue)), zap.Error(errs))
 	return timestampMicro, rvalue, errs
 }
 
 func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64, value []byte) (int64, error) {
+	rs.logger.Debug("Write", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)))
 	if len(value) == 0 {
-		panic(fmt.Sprintf("REMOVEME ReplValueStore asked to Write a zlv"))
+		rs.logger.Fatal("REMOVEME ReplValueStore asked to Write a zlv")
 	}
 	if len(value) > rs.valueCap {
+		rs.logger.Debug("Write return point 1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int("valueCap", rs.valueCap))
 		return 0, fmt.Errorf("value length of %d > %d", len(value), rs.valueCap)
 	}
 	type rettype struct {
@@ -523,6 +518,7 @@ func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, t
 	ec := make(chan *rettype)
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
+		rs.logger.Debug("Write return point 2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Error(err))
 		return 0, err
 	}
 	for _, s := range stores {
@@ -530,7 +526,7 @@ func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, t
 			ret := &rettype{}
 			var err error
 			if len(value) == 0 {
-				panic(fmt.Sprintf("REMOVEME inside ReplValueStore asked to Write a zlv"))
+				rs.logger.Fatal("REMOVEME inside ReplValueStore asked to Write a zlv")
 			}
 			ret.oldTimestampMicro, err = s.Write(ctx, keyA, keyB, timestampMicro, value)
 			if err != nil {
@@ -551,17 +547,20 @@ func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, t
 	}
 	if len(errs) < (len(stores)+1)/2 {
 		for _, err := range errs {
-			rs.logDebug("replValueStore: error during write: %s", err)
+			rs.logger.Debug("error during write", zap.Error(err))
 		}
 		errs = nil
 	}
 	if errs == nil {
+		rs.logger.Debug("Write return point 3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int64("oldTimestampMicro", oldTimestampMicro))
 		return oldTimestampMicro, nil
 	}
+	rs.logger.Debug("Write return point 4", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int64("oldTimestampMicro", oldTimestampMicro), zap.Int("lenErrs", len(errs)))
 	return oldTimestampMicro, errs
 }
 
 func (rs *ReplValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64) (int64, error) {
+	rs.logger.Debug("Delete", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro))
 	type rettype struct {
 		oldTimestampMicro int64
 		err               ReplValueStoreError
@@ -569,6 +568,7 @@ func (rs *ReplValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 	ec := make(chan *rettype)
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
+		rs.logger.Debug("Delete return point 1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Error(err))
 		return 0, err
 	}
 	for _, s := range stores {
@@ -594,13 +594,15 @@ func (rs *ReplValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 	}
 	if len(errs) < (len(stores)+1)/2 {
 		for _, err := range errs {
-			rs.logDebug("replValueStore: error during delete: %s", err)
+			rs.logger.Debug("error during delete", zap.Error(err))
 		}
 		errs = nil
 	}
 	if errs == nil {
+		rs.logger.Debug("Delete return point 2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro))
 		return oldTimestampMicro, nil
 	}
+	rs.logger.Debug("Delete return point 3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int64("oldTimestampMicro", oldTimestampMicro), zap.Int("lenErrs", len(errs)))
 	return oldTimestampMicro, errs
 }
 
