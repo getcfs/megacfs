@@ -283,7 +283,17 @@ message Tombstone {
     uint64 inode  = 4;
     uint64 blocks = 5; // Blocks from the original object that need to be deleted
 }
-    
+
+// Dirty
+// Stores information needed to keep track of dirty items
+message Dirty {
+    int64  dtime  = 1; // Timestamp micro the update was made
+    int64  qtime  = 2; // Timestamp micro of the most recent queing of delete
+    bytes  fsId   = 3; // Needed to get the block IDs
+    uint64 inode  = 4;
+    uint64 blocks = 5; // Blocks from the original object that was dirty
+}
+
 // DirEntry
 // This is used for the serialization of dir info in the group score
 // This is *not* used for api calls
