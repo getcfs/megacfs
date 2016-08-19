@@ -30,16 +30,24 @@ func GetID(fsid []byte, inode, block uint64) []byte {
 	return b.Bytes()
 }
 
-func GetDeletedID(fsid []byte) []byte {
+func GetSystemID(fsid []byte, dir string) []byte {
 	h := murmur3.New128()
 	h.Write([]byte("/system/"))
 	h.Write(fsid)
-	h.Write([]byte("/deleted"))
+	h.Write([]byte(dir))
 	s1, s2 := h.Sum128()
 	b := bytes.NewBuffer([]byte(""))
 	binary.Write(b, binary.BigEndian, s1)
 	binary.Write(b, binary.BigEndian, s2)
 	return b.Bytes()
+}
+
+func GetDeletedID(fsid []byte) []byte {
+	return GetSystemID(fsid, "deleted")
+}
+
+func GetDirtyID(fsid []byte) []byte {
+	return GetSystemID(fsid, "dirty")
 }
 
 func Marshal(pb proto.Message) ([]byte, error) {

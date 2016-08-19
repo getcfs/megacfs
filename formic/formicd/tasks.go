@@ -48,6 +48,64 @@ func (u *Updatinator) run() {
 	}
 }
 
+type DirtyItem struct {
+	dirty *pb.Dirty
+}
+
+// TODO: Crawl the dirty folders to look for dirty objects to cleanup
+
+type Cleaninator struct {
+	in    chan *DirtyItem
+	fs    FileService
+	comms *StoreComms
+	log   zap.Logger
+}
+
+func newCleaninator(in chan *DirtyItem, fs FileService, comms *StoreComms, logger zap.Logger) *Cleaninator {
+	return &Cleaninator{
+		in:    in,
+		fs:    fs,
+		log:   logger,
+		comms: comms,
+	}
+}
+
+func (c *Cleaninator) run() {
+	// TODO: Parallelize?
+	for {
+		toclean := <-c.in
+		dirty := toclean.dirty
+		c.log.Debug("Cleaning", zap.Object("item", dirty))
+		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+		fails := 0
+		for b := dirty.Blocks + 1; b > 0; b-- {
+			// Try to delete the old block
+			id := formic.GetID(dirty.FsId, dirty.Inode, b)
+			err := c.fs.DeleteChunk(ctx, id, dirty.Dtime)
+			if err == ErrStoreHasNewerValue {
+				// Something has already been writte, so we are good
+				break
+			} else if store.IsNotFound(err) {
+				continue
+			} else if err != nil {
+				fails++
+			}
+		}
+		if fails > 0 {
+			// Not everything could be cleaned, so queue to try again later
+			c.in <- toclean
+		} else {
+			// All orphaned data is deleted so remove the tombstone
+			c.log.Debug("Done Cleaning", zap.Object("item", dirty))
+			err := c.comms.DeleteGroupItem(ctx, formic.GetDirtyID(dirty.FsId), []byte(fmt.Sprintf("%d", dirty.Inode)))
+			if err != nil && !store.IsNotFound(err) {
+				// Failed to remove so queue again to retry later
+				c.in <- toclean
+			}
+		}
+	}
+}
+
 type DeleteItem struct {
 	ts *pb.Tombstone
 }

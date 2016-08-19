@@ -179,15 +179,17 @@ type OortFS struct {
 	hasher     func() hash.Hash32
 	comms      *StoreComms
 	deleteChan chan *DeleteItem
+	dirtyChan  chan *DirtyItem
 	log        zap.Logger
 }
 
-func NewOortFS(comms *StoreComms, logger zap.Logger, deleteChan chan *DeleteItem) *OortFS {
+func NewOortFS(comms *StoreComms, logger zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem) *OortFS {
 	o := &OortFS{
 		hasher:     crc32.NewIEEE,
 		comms:      comms,
 		log:        logger,
 		deleteChan: deleteChan,
+		dirtyChan:  dirtyChan,
 	}
 	return o
 }
@@ -242,12 +244,7 @@ func (o *OortFS) GetAttr(ctx context.Context, id []byte) (*pb.Attr, error) {
 
 func (o *OortFS) SetAttr(ctx context.Context, id []byte, attr *pb.Attr, v uint32) (*pb.Attr, error) {
 	valid := fuse.SetattrValid(v)
-	b, err := o.GetChunk(ctx, id)
-	if err != nil {
-		return &pb.Attr{}, err
-	}
-	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	n, err := o.GetInode(ctx, id)
 	if err != nil {
 		return &pb.Attr{}, err
 	}
@@ -255,6 +252,33 @@ func (o *OortFS) SetAttr(ctx context.Context, id []byte, attr *pb.Attr, v uint32
 		n.Attr.Mode = attr.Mode
 	}
 	if valid.Size() {
+		if attr.Size < n.Attr.Size {
+			// We need to mark this file as dirty to clean up unused blocks
+			fsid, err := GetFsId(ctx)
+			if err != nil {
+				return &pb.Attr{}, err
+			}
+			d := &pb.Dirty{}
+			tsm := brimtime.TimeToUnixMicro(time.Now())
+			d.Dtime = tsm
+			d.Qtime = tsm
+			d.FsId = fsid.Bytes()
+			d.Blocks = n.Blocks
+			d.Inode = n.Inode
+			// Write the Tombstone to the dirty listing for the fsid
+			b, err := formic.Marshal(d)
+			if err != nil {
+				return &pb.Attr{}, err
+			}
+			err = o.comms.WriteGroupTS(ctx, formic.GetDirtyID(fsid.Bytes()), []byte(fmt.Sprintf("%d", d.Inode)), b, tsm)
+			if err != nil {
+				return &pb.Attr{}, err
+			}
+			o.dirtyChan <- &DirtyItem{
+				dirty: d,
+			}
+
+		}
 		if n.Attr.Size == 0 {
 			n.Blocks = 0
 		}
@@ -272,7 +296,7 @@ func (o *OortFS) SetAttr(ctx context.Context, id []byte, attr *pb.Attr, v uint32
 	if valid.Gid() {
 		n.Attr.Gid = attr.Gid
 	}
-	b, err = formic.Marshal(n)
+	b, err := formic.Marshal(n)
 	if err != nil {
 		return &pb.Attr{}, err
 	}
@@ -453,6 +477,10 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 	t.Blocks = inode.Blocks
 	t.Inode = inode.Inode
 	// Write the Tombstone to the delete listing for the fsid
+	b, err = formic.Marshal(t)
+	if err != nil {
+		return 1, err
+	}
 	err = o.comms.WriteGroupTS(ctx, formic.GetDeletedID(fsid.Bytes()), []byte(fmt.Sprintf("%d", t.Inode)), b, tsm)
 	if err != nil {
 		return 1, err
