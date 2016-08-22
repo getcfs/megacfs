@@ -10,7 +10,6 @@ import:
   - fuseutil
 - package: github.com/gholt/brimtext
 - package: github.com/gholt/brimtime
-- package: github.com/gholt/flog
 - package: github.com/gholt/ring
 - package: github.com/gholt/store
 - package: github.com/gogo/protobuf
