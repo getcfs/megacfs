@@ -23,7 +23,6 @@ import (
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
-	"github.com/prometheus/common/log"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spaolacci/murmur3"
 	"github.com/uber-go/zap"
@@ -213,8 +212,8 @@ func (s *FileSystemAPIServer) ShowFS(ctx context.Context, r *pb.ShowFSRequest) (
 	cKeyA, cKeyB := murmur3.Sum128([]byte(fs.ID))
 	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if store.IsNotFound(err) {
-		log.Info("SHOW FAILED", zap.String("error", "IDNotFound"))
-		return nil, errf(codes.NotFound, "%v", "File System ID Not Found")
+		log.Info("SHOW FAILED", zap.String("error", "NotFound"))
+		return nil, errf(codes.NotFound, "%v", "Not Found")
 	}
 	if err != nil {
 		log.Error("SHOW FAILED", zap.Error(err))
@@ -414,20 +413,11 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 // UpdateFS ...
 func (s *FileSystemAPIServer) UpdateFS(ctx context.Context, r *pb.UpdateFSRequest) (*pb.UpdateFSResponse, error) {
 	var err error
-	var value []byte
-	var fsRef FileSysRef
-	var fsSysAttr FileSysAttr
-	var fsSysAttrByte []byte
 	srcAddr := ""
 	// Get incomming ip
 	pr, ok := peer.FromContext(ctx)
 	if ok {
 		srcAddr = pr.Addr.String()
-	}
-
-	if r.Filesys.Name == "" {
-		log.Info("UPDATE FAILED", zap.String("error", "NameRequired"), zap.String("name", ""))
-		return nil, errf(codes.FailedPrecondition, "%v", "File System name cannot be empty")
 	}
 
 	// validate Token
@@ -439,53 +429,11 @@ func (s *FileSystemAPIServer) UpdateFS(ctx context.Context, r *pb.UpdateFSReques
 	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID), zap.String("fsid", r.FSid))
 
 	// validate that Token/Account own this file system
-	// Read FileSysRef entry to determine if it exists
-	pKey := fmt.Sprintf("/fs")
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB := murmur3.Sum128([]byte(r.FSid))
-	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		log.Info("UPDATE FAILED", zap.String("error", "IDNotFound"))
-		return nil, errf(codes.NotFound, "%v", "File System ID Not Found")
-	}
-	if err != nil {
-		log.Error("UPDATE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-	err = json.Unmarshal(value, &fsRef)
-	if err != nil {
-		log.Error("UPDATE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-	if fsRef.AcctID != acctID {
-		log.Info("UPDATE FAILED", zap.String("error", "AccountMismatch"), zap.String("acct", fsRef.AcctID))
-		return nil, errf(codes.FailedPrecondition, "%v", "Account Mismatch")
-	}
-
-	// Write file system attributes
-	// write /fs/FSID						name						FileSysAttr
-	pKey = fmt.Sprintf("/fs/%s", r.FSid)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
-	fsSysAttr.Attr = "name"
-	fsSysAttr.Value = r.Filesys.Name
-	fsSysAttr.FSID = r.FSid
-	fsSysAttrByte, err = json.Marshal(fsSysAttr)
-	if err != nil {
-		log.Error("UPDATE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
-	if err != nil {
-		log.Error("UPDATE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
 
 	// return message
 	// Log Operation
-	log.Info("UPDATE", zap.String("acct", r.FSid), zap.String("name", r.Filesys.Name))
-	return &pb.UpdateFSResponse{Data: r.FSid}, nil
+	log.Info("UPDATE NOTIMPLEMENTED")
+	return &pb.UpdateFSResponse{Data: "UPDATE operation is not supported in EA"}, nil
 }
 
 // GrantAddrFS ...
@@ -511,14 +459,15 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 	}
 	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID), zap.String("fsid", r.FSid))
 
-	// Read FileSysRef entry to determine if it exists and Account matches
+	// Validate Token/Account own the file system
+	// Read FileSysRef entry to determine if it exists
 	pKey := fmt.Sprintf("/fs")
 	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
 	cKeyA, cKeyB := murmur3.Sum128([]byte(r.FSid))
 	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if store.IsNotFound(err) {
-		log.Info("GRANT FAILED", zap.String("error", "IDNotFound"))
-		return nil, errf(codes.NotFound, "%v", "File System ID Not Found")
+		log.Info("GRANT FAILED", zap.String("error", "NotFound"))
+		return nil, errf(codes.NotFound, "%v", "Not Found")
 	}
 	if err != nil {
 		log.Error("GRANT FAILED", zap.Error(err))
@@ -586,8 +535,8 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	cKeyA, cKeyB := murmur3.Sum128([]byte(r.FSid))
 	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if store.IsNotFound(err) {
-		log.Info("REVOKE FAILED", zap.String("error", "IDNotFound"))
-		return nil, errf(codes.NotFound, "%v", "File System ID Not Found")
+		log.Info("REVOKE FAILED", zap.String("error", "NotFound"))
+		return nil, errf(codes.NotFound, "%v", "Not Found")
 	}
 	if err != nil {
 		log.Error("REVOKE FAILED", zap.Error(err))
@@ -611,8 +560,8 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	_, err = s.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
 	if store.IsNotFound(err) {
-		log.Info("REVOKE FAILED", zap.String("error", "IDNotFound"))
-		return nil, errf(codes.NotFound, "%v", "File System ID Not Found")
+		log.Info("REVOKE FAILED", zap.String("error", "NotFound"))
+		return nil, errf(codes.NotFound, "%v", "Not Found")
 	}
 
 	// return Addr was revoked
