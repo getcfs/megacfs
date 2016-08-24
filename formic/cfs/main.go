@@ -502,6 +502,13 @@ func main() {
 		region := strings.ToLower(parts[0])
 		fsid := parts[1]
 		mountpoint := f.Args()[1]
+		// Verify mountpoint exists
+		_, err = os.Stat(mountpoint)
+		if os.IsNotExist(err) {
+			fmt.Printf("Mount point %s does not exist\n", mountpoint)
+			os.Exit(1)
+		}
+		// Verify region
 		addr, ok := regions[region]
 		if !ok {
 			fmt.Println("Invalid region:", region)
