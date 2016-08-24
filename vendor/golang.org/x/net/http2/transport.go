@@ -16,6 +16,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"sort"
@@ -162,14 +163,14 @@ type ClientConn struct {
 	br              *bufio.Reader
 	fr              *Framer
 	lastActive      time.Time
-
-	// Settings from peer:
+	// Settings from peer: (also guarded by mu)
 	maxFrameSize         uint32
 	maxConcurrentStreams uint32
 	initialWindowSize    uint32
-	hbuf                 bytes.Buffer // HPACK encoder writes into this
-	henc                 *hpack.Encoder
-	freeBuf              [][]byte
+
+	hbuf    bytes.Buffer // HPACK encoder writes into this
+	henc    *hpack.Encoder
+	freeBuf [][]byte
 
 	wmu  sync.Mutex // held while writing; acquire AFTER mu if holding both
 	werr error      // first write error that has occurred
@@ -427,8 +428,9 @@ func (t *Transport) newClientConn(c net.Conn, singleUse bool) (*ClientConn, erro
 		wantSettingsAck:      true,
 	}
 	if VerboseLogs {
-		t.vlogf("http2: Transport creating client conn %#x to %v", cc, c.RemoteAddr())
+		t.vlogf("http2: Transport creating client conn %p to %v", cc, c.RemoteAddr())
 	}
+
 	cc.cond = sync.NewCond(&cc.mu)
 	cc.flow.add(int32(initialWindowSize))
 
@@ -498,7 +500,7 @@ func (cc *ClientConn) canTakeNewRequestLocked() bool {
 	}
 	return cc.goAway == nil && !cc.closed &&
 		int64(len(cc.streams)+1) < int64(cc.maxConcurrentStreams) &&
-		cc.nextStreamID < 2147483647
+		cc.nextStreamID < math.MaxInt32
 }
 
 func (cc *ClientConn) closeIfIdle() {
@@ -513,9 +515,8 @@ func (cc *ClientConn) closeIfIdle() {
 	cc.mu.Unlock()
 
 	if VerboseLogs {
-		cc.vlogf("http2: Transport closing idle conn %#x (forSingleUse=%v, maxStream=%v)", cc, cc.singleUse, nextID-2)
+		cc.vlogf("http2: Transport closing idle conn %p (forSingleUse=%v, maxStream=%v)", cc, cc.singleUse, nextID-2)
 	}
-
 	cc.tconn.Close()
 }
 
@@ -621,15 +622,18 @@ func bodyAndLength(req *http.Request) (body io.Reader, contentLen int64) {
 	// We have a body but a zero content length. Test to see if
 	// it's actually zero or just unset.
 	var buf [1]byte
-	n, rerr := io.ReadFull(body, buf[:])
+	n, rerr := body.Read(buf[:])
 	if rerr != nil && rerr != io.EOF {
 		return errorReader{rerr}, -1
 	}
 	if n == 1 {
 		// Oh, guess there is data in this Body Reader after all.
 		// The ContentLength field just wasn't set.
-		// Stich the Body back together again, re-attaching our
+		// Stitch the Body back together again, re-attaching our
 		// consumed byte.
+		if rerr == io.EOF {
+			return bytes.NewReader(buf[:]), 1
+		}
 		return io.MultiReader(bytes.NewReader(buf[:]), body), -1
 	}
 	// Body is actually zero bytes.
@@ -900,10 +904,11 @@ func (cs *clientStream) writeRequestBody(body io.Reader, bodyCloser io.Closer) (
 			err = cc.fr.WriteData(cs.ID, sentEnd, data)
 			if err == nil {
 				// TODO(bradfitz): this flush is for latency, not bandwidth.
-				// Most requests won't need this. Make this opt-in or opt-out?
-				// Use some heuristic on the body type? Nagel-like timers?
-				// Based on 'n'? Only last chunk of this for loop, unless flow control
-				// tokens are low? For now, always:
+				// Most requests won't need this. Make this opt-in or
+				// opt-out?  Use some heuristic on the body type? Nagel-like
+				// timers?  Based on 'n'? Only last chunk of this for loop,
+				// unless flow control tokens are low? For now, always.
+				// If we change this, see comment below.
 				err = cc.bw.Flush()
 			}
 			cc.wmu.Unlock()
@@ -913,8 +918,15 @@ func (cs *clientStream) writeRequestBody(body io.Reader, bodyCloser io.Closer) (
 		}
 	}
 
+	if sentEnd {
+		// Already sent END_STREAM (which implies we have no
+		// trailers) and flushed, because currently all
+		// WriteData frames above get a flush. So we're done.
+		return nil
+	}
+
 	var trls []byte
-	if !sentEnd && hasTrailers {
+	if hasTrailers {
 		cc.mu.Lock()
 		defer cc.mu.Unlock()
 		trls = cc.encodeTrailers(req)
@@ -923,8 +935,8 @@ func (cs *clientStream) writeRequestBody(body io.Reader, bodyCloser io.Closer) (
 	cc.wmu.Lock()
 	defer cc.wmu.Unlock()
 
-	// Avoid forgetting to send an END_STREAM if the encoded
-	// trailers are 0 bytes. Both results produce and END_STREAM.
+	// Two ways to send END_STREAM: either with trailers, or
+	// with an empty DATA frame.
 	if len(trls) > 0 {
 		err = cc.writeHeaders(cs.ID, true, trls)
 	} else {
@@ -1229,7 +1241,7 @@ func (rl *clientConnReadLoop) run() error {
 	for {
 		f, err := cc.fr.ReadFrame()
 		if err != nil {
-			cc.vlogf("http2: Transport readFrame error on conn %#x: (%T) %v", cc, err, err)
+			cc.vlogf("http2: Transport readFrame error on conn %p: (%T) %v", cc, err, err)
 		}
 		if se, ok := err.(StreamError); ok {
 			if cs := cc.streamByID(se.StreamID, true /*ended; remove it*/); cs != nil {
@@ -1282,7 +1294,7 @@ func (rl *clientConnReadLoop) run() error {
 		}
 		if err != nil {
 			if VerboseLogs {
-				cc.vlogf("http2: Transport conn %#x received error from processing frame %v: %v", cc, summarizeFrame(f), err)
+				cc.vlogf("http2: Transport conn %p received error from processing frame %v: %v", cc, summarizeFrame(f), err)
 			}
 			return err
 		}
@@ -1698,11 +1710,23 @@ func (rl *clientConnReadLoop) processSettings(f *SettingsFrame) error {
 		case SettingMaxConcurrentStreams:
 			cc.maxConcurrentStreams = s.Val
 		case SettingInitialWindowSize:
-			// TODO: error if this is too large.
+			// Values above the maximum flow-control
+			// window size of 2^31-1 MUST be treated as a
+			// connection error (Section 5.4.1) of type
+			// FLOW_CONTROL_ERROR.
+			if s.Val > math.MaxInt32 {
+				return ConnectionError(ErrCodeFlowControl)
+			}
 
-			// TODO: adjust flow control of still-open
+			// Adjust flow control of currently-open
 			// frames by the difference of the old initial
 			// window size and this one.
+			delta := int32(s.Val) - int32(cc.initialWindowSize)
+			for _, cs := range cc.streams {
+				cs.flow.add(delta)
+			}
+			cc.cond.Broadcast()
+
 			cc.initialWindowSize = s.Val
 		default:
 			// TODO(bradfitz): handle more settings? SETTINGS_HEADER_TABLE_SIZE probably.
