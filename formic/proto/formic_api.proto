@@ -142,7 +142,7 @@ message RemoveResponse {
 
 // LookupRequest
 message LookupRequest {
-    uint64 parent = 1; 
+    uint64 parent = 1;
     string name   = 2;
 }
 
@@ -253,7 +253,7 @@ message StatfsResponse {
 message InitFsRequest {}
 message InitFsResponse {}
 
-// Since this data can sit around for a while, we track a version number of the api so that it 
+// Since this data can sit around for a while, we track a version number of the api so that it
 // is easier to explicitly check what version we are using and act accordingly
 
 // Inode
@@ -378,7 +378,7 @@ message DeleteFSResponse {
 message UpdateFSRequest {
   string  Token           = 1;
   string  FSid            = 2;
-  ModFS   Filesys         = 4;
+  ModFS   Filesys         = 3;
 }
 
 // Response from an update operation
