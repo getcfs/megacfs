@@ -2230,6 +2230,76 @@ func TestTransportReturnsUnusedFlowControl(t *testing.T) {
 	ct.run()
 }
 
+// Issue 16612: adjust flow control on open streams when transport
+// receives SETTINGS with INITIAL_WINDOW_SIZE from server.
+func TestTransportAdjustsFlowControl(t *testing.T) {
+	ct := newClientTester(t)
+	clientDone := make(chan struct{})
+
+	const bodySize = 1 << 20
+
+	ct.client = func() error {
+		defer ct.cc.(*net.TCPConn).CloseWrite()
+		defer close(clientDone)
+
+		req, _ := http.NewRequest("POST", "https://dummy.tld/", struct{ io.Reader }{io.LimitReader(neverEnding('A'), bodySize)})
+		res, err := ct.tr.RoundTrip(req)
+		if err != nil {
+			return err
+		}
+		res.Body.Close()
+		return nil
+	}
+	ct.server = func() error {
+		_, err := io.ReadFull(ct.sc, make([]byte, len(ClientPreface)))
+		if err != nil {
+			return fmt.Errorf("reading client preface: %v", err)
+		}
+
+		var gotBytes int64
+		var sentSettings bool
+		for {
+			f, err := ct.fr.ReadFrame()
+			if err != nil {
+				select {
+				case <-clientDone:
+					return nil
+				default:
+					return fmt.Errorf("ReadFrame while waiting for Headers: %v", err)
+				}
+			}
+			switch f := f.(type) {
+			case *DataFrame:
+				gotBytes += int64(len(f.Data()))
+				// After we've got half the client's
+				// initial flow control window's worth
+				// of request body data, give it just
+				// enough flow control to finish.
+				if gotBytes >= initialWindowSize/2 && !sentSettings {
+					sentSettings = true
+
+					ct.fr.WriteSettings(Setting{ID: SettingInitialWindowSize, Val: bodySize})
+					ct.fr.WriteWindowUpdate(0, bodySize)
+					ct.fr.WriteSettingsAck()
+				}
+
+				if f.StreamEnded() {
+					var buf bytes.Buffer
+					enc := hpack.NewEncoder(&buf)
+					enc.WriteField(hpack.HeaderField{Name: ":status", Value: "200"})
+					ct.fr.WriteHeaders(HeadersFrameParam{
+						StreamID:      f.StreamID,
+						EndHeaders:    true,
+						EndStream:     true,
+						BlockFragment: buf.Bytes(),
+					})
+				}
+			}
+		}
+	}
+	ct.run()
+}
+
 // See golang.org/issue/16556
 func TestTransportReturnsDataPaddingFlowControl(t *testing.T) {
 	ct := newClientTester(t)
@@ -2356,4 +2426,45 @@ func TestTransportReturnsErrorOnBadResponseHeaders(t *testing.T) {
 		return nil
 	}
 	ct.run()
+}
+
+// byteAndEOFReader returns is in an io.Reader which reads one byte
+// (the underlying byte) and io.EOF at once in its Read call.
+type byteAndEOFReader byte
+
+func (b byteAndEOFReader) Read(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		panic("unexpected useless call")
+	}
+	p[0] = byte(b)
+	return 1, io.EOF
+}
+
+// Issue 16788: the Transport had a regression where it started
+// sending a spurious DATA frame with a duplicate END_STREAM bit after
+// the request body writer goroutine had already read an EOF from the
+// Request.Body and included the END_STREAM on a data-carrying DATA
+// frame.
+//
+// Notably, to trigger this, the requests need to use a Request.Body
+// which returns (non-0, io.EOF) and also needs to set the ContentLength
+// explicitly.
+func TestTransportBodyDoubleEndStream(t *testing.T) {
+	st := newServerTester(t, func(w http.ResponseWriter, r *http.Request) {
+		// Nothing.
+	}, optOnlyServer)
+	defer st.Close()
+
+	tr := &Transport{TLSClientConfig: tlsConfigInsecure}
+	defer tr.CloseIdleConnections()
+
+	for i := 0; i < 2; i++ {
+		req, _ := http.NewRequest("POST", st.ts.URL, byteAndEOFReader('a'))
+		req.ContentLength = 1
+		res, err := tr.RoundTrip(req)
+		if err != nil {
+			t.Fatalf("failure on req %d: %v", i+1, err)
+		}
+		defer res.Body.Close()
+	}
 }
