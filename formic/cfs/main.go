@@ -159,6 +159,7 @@ func main() {
 		fmt.Println("    list         list all filesystems")
 		fmt.Println("    create       create a new filesytem")
 		fmt.Println("    show         show filesystem details")
+		fmt.Println("    update       update filesystem name")
 		fmt.Println("    delete       delete an existing filesystem")
 		fmt.Println("    grant        grant access to a filesystem")
 		fmt.Println("    revoke       revoke access to a filesystem")
@@ -360,6 +361,43 @@ func main() {
 		ws := pb.NewFileSystemAPIClient(c)
 		token := auth(username, apikey)
 		res, err := ws.DeleteFS(context.Background(), &pb.DeleteFSRequest{Token: token, FSid: fsid})
+		if err != nil {
+			log.Fatalf("Request Error: %v", err)
+			c.Close()
+			os.Exit(1)
+		}
+		c.Close()
+		fmt.Println(res.Data)
+	case "update":
+		if !configured {
+			fmt.Println("You must run \"cfs configure\" first.")
+			os.Exit(1)
+		}
+		f := flag.NewFlagSet("update", flag.ContinueOnError)
+		f.Usage = func() {
+			fmt.Println("Usage:")
+			fmt.Println("    cfs update <name> <fsid>")
+			fmt.Println("Example:")
+			fmt.Println("    cfs update newname 11111111-1111-1111-1111-111111111111")
+			os.Exit(1)
+		}
+		f.Parse(flag.Args()[1:])
+		if f.NArg() != 2 {
+			f.Usage()
+		}
+		newFS := &pb.ModFS{
+			Name: f.Args()[0],
+		}
+		fsid := f.Args()[1]
+		addr, ok := regions[region]
+		if !ok {
+			fmt.Println("Invalid region:", region)
+			os.Exit(1)
+		}
+		c := setupWS(addr)
+		ws := pb.NewFileSystemAPIClient(c)
+		token := auth(username, apikey)
+		res, err := ws.UpdateFS(context.Background(), &pb.UpdateFSRequest{Token: token, FSid: fsid, Filesys: newFS})
 		if err != nil {
 			log.Fatalf("Request Error: %v", err)
 			c.Close()
