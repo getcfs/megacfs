@@ -160,9 +160,12 @@ func main() {
 	}
 	// TODO: How big should the chan be, or should we have another in memory queue that feeds the chan?
 	deleteChan := make(chan *DeleteItem, 1000)
-	fs := NewOortFS(comms, logger, deleteChan)
+	dirtyChan := make(chan *DirtyItem, 1000)
+	fs := NewOortFS(comms, logger, deleteChan, dirtyChan)
 	deletes := newDeletinator(deleteChan, fs, comms, baseLogger.With(zap.String("name", "formicd.deletinator")))
+	cleaner := newCleaninator(dirtyChan, fs, comms, baseLogger.With(zap.String("name", "formicd.cleaninator")))
 	go deletes.run()
+	go cleaner.run()
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.port))
 	if err != nil {
 		logger.Fatal("Failed to bind formicd to port", zap.Error(err))

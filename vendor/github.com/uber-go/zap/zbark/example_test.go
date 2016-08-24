@@ -21,11 +21,16 @@
 package zbark_test
 
 import (
+	"os"
+
 	"github.com/uber-go/zap"
 	"github.com/uber-go/zap/zbark"
+
+	"github.com/Sirupsen/logrus"
+	"github.com/uber-common/bark"
 )
 
-func Example() {
+func ExampleBarkify() {
 	zapLogger := zap.New(zap.NewJSONEncoder(
 		zap.NoTime(), // discard timestamps in tests
 	))
@@ -38,4 +43,20 @@ func Example() {
 
 	// Output:
 	// {"level":"info","msg":"Bark accepts arbitrary types.","errors":0}
+}
+
+func ExampleDebarkify() {
+	logrusLogger := logrus.New()
+	logrusLogger.Out = os.Stdout
+	logrusLogger.Formatter = &logrus.JSONFormatter{
+		TimestampFormat: "lies",
+	}
+	barkLogger := bark.NewLoggerFromLogrus(logrusLogger).WithField("errors", 0)
+	logger := zbark.Debarkify(barkLogger, zap.DebugLevel)
+
+	// The wrapped logger has zap's actually fluent API.
+	logger.Info("Zap accepts", zap.String("typed", "fields"))
+
+	// Output:
+	// {"errors":0,"level":"info","msg":"Zap accepts","time":"lies","typed":"fields"}
 }
