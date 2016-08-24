@@ -25,6 +25,7 @@ import (
 var regions = map[string]string{
 	"aio": "127.0.0.1:8445",
 	"iad": "api.ea.iad.rackfs.com:8445",
+	"dev": "api.dev.iad.rackfs.com:8445",
 }
 
 type server struct {
