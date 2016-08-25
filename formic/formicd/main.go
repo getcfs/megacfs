@@ -19,6 +19,7 @@ import (
 	"net"
 
 	"github.com/getcfs/megacfs/syndicate/utils/sysmetrics"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -61,17 +62,11 @@ func main() {
 	// Setup logging
 	baseLogger := zap.New(zap.NewJSONEncoder())
 	if cfg.debug {
-		fmt.Println("DEBUG!")
 		baseLogger.SetLevel(zap.DebugLevel)
 	} else {
 		baseLogger.SetLevel(zap.InfoLevel)
 	}
 	logger := baseLogger.With(zap.String("name", "formicd"))
-
-	err := setupMetrics(cfg.metricsAddr, cfg.metricsCollectors)
-	if err != nil {
-		logger.Fatal("Couldn't load collectors", zap.Error(err))
-	}
 
 	var opts []grpc.ServerOption
 	creds, err := credentials.NewServerTLSFromFile(path.Join(cfg.path, "server.crt"), path.Join(cfg.path, "server.key"))
@@ -79,6 +74,11 @@ func main() {
 		logger.Fatal("Couldn't load cert from file", zap.Error(err))
 	}
 	opts = []grpc.ServerOption{grpc.Creds(creds)}
+	if cfg.grpcMetrics {
+		opts = append(opts, grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
+		opts = append(opts, grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor))
+	}
+
 	s := grpc.NewServer(opts...)
 
 	var vcOpts []grpc.DialOption
@@ -166,6 +166,13 @@ func main() {
 	cleaner := newCleaninator(dirtyChan, fs, comms, baseLogger.With(zap.String("name", "formicd.cleaninator")))
 	go deletes.run()
 	go cleaner.run()
+
+	// Setup metrics collection
+	err = setupMetrics(cfg.metricsAddr, cfg.metricsCollectors)
+	if err != nil {
+		logger.Fatal("Couldn't load collectors", zap.Error(err))
+	}
+
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.port))
 	if err != nil {
 		logger.Fatal("Failed to bind formicd to port", zap.Error(err))
