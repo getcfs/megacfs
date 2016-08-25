@@ -47,3 +47,4 @@ import:
   - peer
 - package: gopkg.in/urfave/cli.v2
 - package: github.com/uber-go/zap
+- package: github.com/grpc-ecosystem/go-grpc-prometheus

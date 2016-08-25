@@ -20,6 +20,7 @@ type config struct {
 	poolSize                   int
 	concurrentRequestsPerStore int
 	debug                      bool
+	grpcMetrics                bool
 }
 
 func resolveConfig(c *config) *config {
@@ -62,7 +63,7 @@ func resolveConfig(c *config) *config {
 			cfg.nodeId = val
 		}
 	}
-	cfg.metricsAddr = ":9100"
+	cfg.metricsAddr = ":9400"
 	if env := os.Getenv("FORMICD_METRICS_ADDR"); env != "" {
 		cfg.metricsAddr = env
 	}
@@ -82,6 +83,10 @@ func resolveConfig(c *config) *config {
 	cfg.debug = false
 	if env := os.Getenv("FORMICD_DEBUG"); env == "true" {
 		cfg.debug = true
+	}
+	cfg.grpcMetrics = true
+	if env := os.Getenv("FORMICD_GRPC_METRICS"); env == "false" {
+		cfg.grpcMetrics = false
 	}
 
 	return cfg
