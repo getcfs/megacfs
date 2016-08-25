@@ -25,6 +25,7 @@ import (
 var regions = map[string]string{
 	"aio": "127.0.0.1:8445",
 	"iad": "api.ea.iad.rackfs.com:8445",
+	"dev": "api.dev.iad.rackfs.com:8445",
 }
 
 type server struct {
@@ -87,7 +88,7 @@ var buildDate string
 var commitVersion string
 var goVersion string
 
-type AuthResponse struct {
+type authResponse struct {
 	Access struct {
 		Token struct {
 			ID string `json:"id"`
@@ -118,7 +119,7 @@ func auth(username string, apikey string) string {
 	}
 
 	// parse token from response
-	var authResp AuthResponse
+	var authResp authResponse
 	r, _ := ioutil.ReadAll(resp.Body)
 	json.Unmarshal(r, &authResp)
 	token := authResp.Access.Token.ID
@@ -493,10 +494,10 @@ func main() {
 		if f.NArg() != 2 {
 			f.Usage()
 		}
-		region_fsid := f.Args()[0]
-		parts := strings.Split(region_fsid, ":")
+		regionFsid := f.Args()[0]
+		parts := strings.Split(regionFsid, ":")
 		if len(parts) != 2 {
-			fmt.Println("Invalid filesystem:", region_fsid)
+			fmt.Println("Invalid filesystem:", regionFsid)
 			f.Usage()
 		}
 		region := strings.ToLower(parts[0])
