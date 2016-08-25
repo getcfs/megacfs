@@ -63,7 +63,7 @@ func resolveConfig(c *config) *config {
 			cfg.nodeId = val
 		}
 	}
-	cfg.metricsAddr = ":9400"
+	cfg.metricsAddr = ":9100"
 	if env := os.Getenv("FORMICD_METRICS_ADDR"); env != "" {
 		cfg.metricsAddr = env
 	}
