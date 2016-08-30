@@ -342,6 +342,11 @@ func (s *OortGroupStore) start() {
 			Name:      "OutBulkSetPushValues",
 			Help:      "Count of values in outgoing bulk-set messages; these bulk-set messages are those due to push replication.",
 		})
+		mOutPushReplicationSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "Store",
+			Name:      "OutPushReplicationSeconds",
+			Help:      "How long the last out push replication pass took.",
+		})
 		mInBulkSets := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "Store",
 			Name:      "InBulkSets",
@@ -452,6 +457,21 @@ func (s *OortGroupStore) start() {
 			Name:      "ReadOnly",
 			Help:      "Indicates when the store has been put in read-only mode, whether by an operator or automatically by the watcher.",
 		})
+		mCompactionSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "Store",
+			Name:      "CompactionSeconds",
+			Help:      "How long the last compaction pass took.",
+		})
+		mTombstoneDiscardSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "Store",
+			Name:      "TombstoneDiscardSeconds",
+			Help:      "How long the last tombstone discard pass took.",
+		})
+		mAuditSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "Store",
+			Name:      "AuditSeconds",
+			Help:      "How long the last audit pass took.",
+		})
 		prometheus.Register(mRingChanges)
 		prometheus.Register(mRingChangeCloses)
 		prometheus.Register(mMsgToNodes)
@@ -495,6 +515,7 @@ func (s *OortGroupStore) start() {
 		prometheus.Register(mOutBulkSetValues)
 		prometheus.Register(mOutBulkSetPushes)
 		prometheus.Register(mOutBulkSetPushValues)
+		prometheus.Register(mOutPushReplicationSeconds)
 		prometheus.Register(mInBulkSets)
 		prometheus.Register(mInBulkSetDrops)
 		prometheus.Register(mInBulkSetInvalids)
@@ -516,6 +537,9 @@ func (s *OortGroupStore) start() {
 		prometheus.Register(mExpiredDeletions)
 		prometheus.Register(mCompactions)
 		prometheus.Register(mSmallFileCompactions)
+		prometheus.Register(mCompactionSeconds)
+		prometheus.Register(mTombstoneDiscardSeconds)
+		prometheus.Register(mAuditSeconds)
 		prometheus.Register(mReadOnly)
 		tcpMsgRingStats := t.Stats(false)
 		for !tcpMsgRingStats.Shutdown {
@@ -568,6 +592,7 @@ func (s *OortGroupStore) start() {
 				mOutBulkSetValues.Add(float64(gstats.OutBulkSetValues))
 				mOutBulkSetPushes.Add(float64(gstats.OutBulkSetPushes))
 				mOutBulkSetPushValues.Add(float64(gstats.OutBulkSetPushValues))
+				mOutPushReplicationSeconds.Set(float64(gstats.OutPushReplicationNanoseconds) / 1000000000)
 				mInBulkSets.Add(float64(gstats.InBulkSets))
 				mInBulkSetDrops.Add(float64(gstats.InBulkSetDrops))
 				mInBulkSetInvalids.Add(float64(gstats.InBulkSetInvalids))
@@ -589,6 +614,9 @@ func (s *OortGroupStore) start() {
 				mExpiredDeletions.Add(float64(gstats.ExpiredDeletions))
 				mCompactions.Add(float64(gstats.Compactions))
 				mSmallFileCompactions.Add(float64(gstats.SmallFileCompactions))
+				mCompactionSeconds.Set(float64(gstats.CompactionNanoseconds) / 1000000000)
+				mTombstoneDiscardSeconds.Set(float64(gstats.TombstoneDiscardNanoseconds) / 1000000000)
+				mAuditSeconds.Set(float64(gstats.AuditNanoseconds) / 1000000000)
 				if gstats.ReadOnly {
 					mReadOnly.Set(1)
 				} else {
