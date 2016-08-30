@@ -53,6 +53,9 @@ type ValueStoreStats struct {
 	// OutBulkSetPushValues is the number of values in outgoing bulk-set
 	// messages; these bulk-set messages are those due to push replication.
 	OutBulkSetPushValues int32
+	// OutPushReplicationNanoseconds is how long the last out push replication
+	// pass took.
+	OutPushReplicationNanoseconds int64
 	// InBulkSets is the number of incoming bulk-set messages.
 	InBulkSets int32
 	// InBulkSetDrops is the number of incoming bulk-set messages dropped due
@@ -108,6 +111,8 @@ type ValueStoreStats struct {
 	// TombstoneDiscardNanoseconds is how long the last tombstone discard pass
 	// took.
 	TombstoneDiscardNanoseconds int64
+	// CompactionNanoseconds is how long the last compaction pass took.
+	CompactionNanoseconds int64
 	// Compactions is the number of disk file sets compacted due to their
 	// contents exceeding a staleness threshold. For example, this happens when
 	// enough of the values have been overwritten or deleted in more recent
@@ -144,6 +149,8 @@ type ValueStoreStats struct {
 	// ReadOnly indicates when the system has been put in read-only mode,
 	// whether by DisableWrites or automatically by the watcher.
 	ReadOnly bool
+	// AuditNanoseconds is how long the last audit pass took.
+	AuditNanoseconds int64
 
 	debug                      bool
 	freeableMemBlockChansCap   int
@@ -202,6 +209,7 @@ func (store *defaultValueStore) Stats(ctx context.Context, debug bool) (fmt.Stri
 		OutBulkSetValues:              atomic.LoadInt32(&store.outBulkSetValues),
 		OutBulkSetPushes:              atomic.LoadInt32(&store.outBulkSetPushes),
 		OutBulkSetPushValues:          atomic.LoadInt32(&store.outBulkSetPushValues),
+		OutPushReplicationNanoseconds: atomic.LoadInt64(&store.outPushReplicationNanoseconds),
 		InBulkSets:                    atomic.LoadInt32(&store.inBulkSets),
 		InBulkSetDrops:                atomic.LoadInt32(&store.inBulkSetDrops),
 		InBulkSetInvalids:             atomic.LoadInt32(&store.inBulkSetInvalids),
@@ -222,6 +230,7 @@ func (store *defaultValueStore) Stats(ctx context.Context, debug bool) (fmt.Stri
 		InPullReplicationInvalids:     atomic.LoadInt32(&store.inPullReplicationInvalids),
 		ExpiredDeletions:              atomic.LoadInt32(&store.expiredDeletions),
 		TombstoneDiscardNanoseconds:   atomic.LoadInt64(&store.tombstoneDiscardNanoseconds),
+		CompactionNanoseconds:         atomic.LoadInt64(&store.compactionNanoseconds),
 		Compactions:                   atomic.LoadInt32(&store.compactions),
 		SmallFileCompactions:          atomic.LoadInt32(&store.smallFileCompactions),
 		DiskFree:                      atomic.LoadUint64(&store.watcherState.diskFree),
@@ -233,6 +242,7 @@ func (store *defaultValueStore) Stats(ctx context.Context, debug bool) (fmt.Stri
 		MemFree:                       atomic.LoadUint64(&store.watcherState.memFree),
 		MemUsed:                       atomic.LoadUint64(&store.watcherState.memUsed),
 		MemSize:                       atomic.LoadUint64(&store.watcherState.memSize),
+		AuditNanoseconds:              atomic.LoadInt64(&store.auditNanoseconds),
 	}
 	store.disableEnableWritesLock.Lock()
 	stats.ReadOnly = store.readOnly
@@ -267,7 +277,6 @@ func (store *defaultValueStore) Stats(ctx context.Context, debug bool) (fmt.Stri
 	atomic.AddInt32(&store.inBulkSetAckWriteErrors, -stats.InBulkSetAckWriteErrors)
 	atomic.AddInt32(&store.inBulkSetAckWritesOverridden, -stats.InBulkSetAckWritesOverridden)
 	atomic.AddInt32(&store.outPullReplications, -stats.OutPullReplications)
-	// Leaving outPullReplicationNanoseconds alone.
 	atomic.AddInt32(&store.inPullReplications, -stats.InPullReplications)
 	atomic.AddInt32(&store.inPullReplicationDrops, -stats.InPullReplicationDrops)
 	atomic.AddInt32(&store.inPullReplicationInvalids, -stats.InPullReplicationInvalids)
@@ -350,6 +359,7 @@ func (stats *ValueStoreStats) String() string {
 		{"OutBulkSetValues", fmt.Sprintf("%d", stats.OutBulkSetValues)},
 		{"OutBulkSetPushes", fmt.Sprintf("%d", stats.OutBulkSetPushes)},
 		{"OutBulkSetPushValues", fmt.Sprintf("%d", stats.OutBulkSetPushValues)},
+		{"OutPushReplicationNanoseconds", fmt.Sprintf("%d", stats.OutPushReplicationNanoseconds)},
 		{"InBulkSets", fmt.Sprintf("%d", stats.InBulkSets)},
 		{"InBulkSetDrops", fmt.Sprintf("%d", stats.InBulkSetDrops)},
 		{"InBulkSetInvalids", fmt.Sprintf("%d", stats.InBulkSetInvalids)},
@@ -369,6 +379,8 @@ func (stats *ValueStoreStats) String() string {
 		{"InPullReplicationDrops", fmt.Sprintf("%d", stats.InPullReplicationDrops)},
 		{"InPullReplicationInvalids", fmt.Sprintf("%d", stats.InPullReplicationInvalids)},
 		{"ExpiredDeletions", fmt.Sprintf("%d", stats.ExpiredDeletions)},
+		{"TombstoneDiscardNanoseconds", fmt.Sprintf("%d", stats.TombstoneDiscardNanoseconds)},
+		{"CompactionNanoseconds", fmt.Sprintf("%d", stats.CompactionNanoseconds)},
 		{"Compactions", fmt.Sprintf("%d", stats.Compactions)},
 		{"SmallFileCompactions", fmt.Sprintf("%d", stats.SmallFileCompactions)},
 		{"DiskFree", fmt.Sprintf("%d", stats.DiskFree)},
@@ -380,6 +392,7 @@ func (stats *ValueStoreStats) String() string {
 		{"MemFree", fmt.Sprintf("%d", stats.MemFree)},
 		{"MemUsed", fmt.Sprintf("%d", stats.MemUsed)},
 		{"MemSize", fmt.Sprintf("%d", stats.MemSize)},
+		{"AuditNanoseconds", fmt.Sprintf("%d", stats.AuditNanoseconds)},
 	}
 	if stats.debug {
 		report = append(report, [][]string{

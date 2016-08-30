@@ -92,6 +92,7 @@ type defaultValueStore struct {
 	outBulkSetValues              int32
 	outBulkSetPushes              int32
 	outBulkSetPushValues          int32
+	outPushReplicationNanoseconds int64
 	inBulkSets                    int32
 	inBulkSetDrops                int32
 	inBulkSetInvalids             int32
@@ -112,8 +113,10 @@ type defaultValueStore struct {
 	inPullReplicationInvalids     int32
 	expiredDeletions              int32
 	tombstoneDiscardNanoseconds   int64
+	compactionNanoseconds         int64
 	compactions                   int32
 	smallFileCompactions          int32
+	auditNanoseconds              int64
 
 	// Used by the flusher only
 	modifications int32
