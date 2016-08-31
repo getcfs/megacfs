@@ -48,3 +48,6 @@ import:
 - package: gopkg.in/urfave/cli.v2
 - package: github.com/uber-go/zap
 - package: github.com/grpc-ecosystem/go-grpc-prometheus
+- package: golang.org/x/crypto
+  subpackages:
+  - nacl/secretbox

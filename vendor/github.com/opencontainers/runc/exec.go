@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/opencontainers/runc/libcontainer"
 	"github.com/opencontainers/runc/libcontainer/utils"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/urfave/cli"
@@ -17,7 +18,7 @@ import (
 var execCommand = cli.Command{
 	Name:  "exec",
 	Usage: "execute new process inside the container",
-	ArgsUsage: `<container-id> <container command>
+	ArgsUsage: `<container-id> -- <container command> [command options]
 
 Where "<container-id>" is the name for the instance of the container and
 "<container command>" is the command to be executed in the container.
@@ -101,6 +102,13 @@ func execProcess(context *cli.Context) (int, error) {
 	if err != nil {
 		return -1, err
 	}
+	status, err := container.Status()
+	if err != nil {
+		return -1, err
+	}
+	if status == libcontainer.Stopped {
+		return -1, fmt.Errorf("cannot exec a container that has run and stopped")
+	}
 	path := context.String("process")
 	if path == "" && len(context.Args()) == 1 {
 		return -1, fmt.Errorf("process args cannot be empty")
@@ -149,6 +157,9 @@ func getProcess(context *cli.Context, bundle string) (*specs.Process, error) {
 	}
 	p := spec.Process
 	p.Args = context.Args()[1:]
+	if len(p.Args) > 1 && p.Args[0] == "--" {
+		p.Args = p.Args[1:]
+	}
 	// override the cwd, if passed
 	if context.String("cwd") != "" {
 		p.Cwd = context.String("cwd")

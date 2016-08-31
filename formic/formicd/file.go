@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash"
 	"hash/crc32"
+	"io"
 	"os"
 	"sort"
 	"time"
@@ -17,6 +20,7 @@ import (
 	"github.com/gholt/store"
 	"github.com/spaolacci/murmur3"
 	"github.com/uber-go/zap"
+	"golang.org/x/crypto/nacl/secretbox"
 	"golang.org/x/net/context"
 )
 
@@ -74,18 +78,47 @@ func (o *StoreComms) ReadValue(ctx context.Context, id []byte) ([]byte, error) {
 	// lessen gc pressure.
 	keyA, keyB := murmur3.Sum128(id)
 	_, v, err := o.vstore.Read(ctx, keyA, keyB, nil)
-	return v, err
+
+	// TODO: get a real secret from an appropriate location
+	secretKeyBytes, err := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	if err != nil {
+		return nil, err
+	}
+	var secretKey [32]byte
+	copy(secretKey[:], secretKeyBytes)
+
+	var decryptNonce [24]byte
+	copy(decryptNonce[:], v[:24])
+	decrypted, ok := secretbox.Open([]byte{}, v[24:], &decryptNonce, &secretKey)
+	if !ok {
+		return nil, nil // TODO: need some kind of error here
+	}
+	return decrypted, err
 }
 
 func (o *StoreComms) WriteValue(ctx context.Context, id, data []byte) error {
+	// TODO: get a real secret from an appropriate location
+	secretKeyBytes, err := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	if err != nil {
+		return err
+	}
+	var secretKey [32]byte
+	copy(secretKey[:], secretKeyBytes)
+
+	var nonce [24]byte
+	if _, err := io.ReadFull(rand.Reader, nonce[:]); err != nil {
+		return err
+	}
+	encrypted := secretbox.Seal(nonce[:], data, &nonce, &secretKey)
+
 	keyA, keyB := murmur3.Sum128(id)
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	oldTimestampMicro, err := o.vstore.Write(ctx, keyA, keyB, timestampMicro, data)
+	oldTimestampMicro, err := o.vstore.Write(ctx, keyA, keyB, timestampMicro, encrypted)
 	retries := 0
 	for (oldTimestampMicro >= timestampMicro) && (retries < MaxRetries) {
 		retries++
 		timestampMicro = brimtime.TimeToUnixMicro(time.Now())
-		oldTimestampMicro, err = o.vstore.Write(ctx, keyA, keyB, timestampMicro, data)
+		oldTimestampMicro, err = o.vstore.Write(ctx, keyA, keyB, timestampMicro, encrypted)
 	}
 	if err != nil {
 		return err
