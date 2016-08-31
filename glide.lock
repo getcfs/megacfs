@@ -1,5 +1,5 @@
-hash: 73fcdf9943107b0ed42e61c4a3b07800731a50acc0e0291da84602592f3dd23e
-updated: 2016-08-30T13:41:28.574068-05:00
+hash: 988aae30dbf8c751a85d2ff5860d1f487182bac0b1ed18889eea6e566e9981df
+updated: 2016-08-25T17:27:24.721361222Z
 imports:
 - name: github.com/beevik/ntp
   version: 8ed1e691d326c0ab1169cacbc1e8b5c988089c04
@@ -12,11 +12,11 @@ imports:
 - name: github.com/cloudfoundry/gosigar
   version: c32d31af94b0e9d3b2877e49c1a581ad5a793343
 - name: github.com/coreos/go-systemd
-  version: 43e4800a6165b4e02bb2a36673c54b230d6f7b26
+  version: bc4673a015e2bef29b93c19ed1aa9aefb65339bf
   subpackages:
   - activation
-  - dbus
   - util
+  - dbus
 - name: github.com/coreos/pkg
   version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
   subpackages:
@@ -26,7 +26,7 @@ imports:
   subpackages:
   - sockets
 - name: github.com/docker/go-plugins-helpers
-  version: 8f6a7e66062c5a7d19174e8ecfbe1befbb38b676
+  version: f3a3876798ee4f63bee3e7ee8911a2c27e7710b9
   subpackages:
   - sdk
 - name: github.com/getcfs/fuse
@@ -46,19 +46,19 @@ imports:
 - name: github.com/gholt/ring
   version: 1d0ccd072a78616d2f59e47c400bb536ed2c3565
 - name: github.com/gholt/store
-  version: a32f6838c8df87134fc0c4312f05b14bf4a8ac92
+  version: bc16e3b97524dee529b2251ea05c4e5d4854d47c
 - name: github.com/go-ole/go-ole
   version: 7dfdcf409020452e29b4babcbb22f984d2aa308a
   subpackages:
   - oleutil
 - name: github.com/godbus/dbus
-  version: 9998ce8520caaa4a287fa5122ecb5d1ca1aeaede
+  version: 58b0385796c5b97c6934388174215143cbd111bf
 - name: github.com/gogo/protobuf
-  version: 966a6f4b3274f2692aa2f30df2ea5c7172c832ca
+  version: 7b4645ae1960b1f962390cc62f5ee4da5770436e
   subpackages:
   - proto
 - name: github.com/golang/protobuf
-  version: 1f49d83d9aa00e6ce4fc8258c71cc7786aec968a
+  version: 888eb0692c857ec880338addf316bd662d5e630e
   subpackages:
   - proto
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
@@ -77,7 +77,7 @@ imports:
 - name: github.com/Microsoft/go-winio
   version: ce2922f643c8fd76b46cadc7f404a06282678b34
 - name: github.com/opencontainers/runc
-  version: 189a2ab2f7acc59043e457cea25b58f631443f08
+  version: 91dd6d2452247624b076d52b201c532019ef16b4
   subpackages:
   - libcontainer/user
 - name: github.com/pandemicsyn/cmdctrl
@@ -94,7 +94,7 @@ imports:
 - name: github.com/pkg/profile
   version: 303fad789382e54372c3b92956e55fadf81b413d
 - name: github.com/prometheus/client_golang
-  version: ea6e1db4cb8127eeb0b6954f7320363e5451820f
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -102,12 +102,12 @@ imports:
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 616e90af75cc300730196d04f3676f838d70414f
+  version: ebdfc6da46522d58825777cf1f90490a5b1ef1d8
   subpackages:
-  - expfmt
-  - internal/bitbucket.org/ww/goautoneg
   - log
+  - expfmt
   - model
+  - internal/bitbucket.org/ww/goautoneg
 - name: github.com/prometheus/procfs
   version: abf152e5f3e97f2fafac028d2cc06c1feb87ffa5
 - name: github.com/ricochet2200/go-disk-usage
@@ -119,15 +119,15 @@ imports:
 - name: github.com/satori/go.uuid
   version: 0aa62d5ddceb50dbcb909d790b5345affd3669b6
 - name: github.com/shirou/gopsutil
-  version: 859c81da50839c6829da58c9e90e1fff1edd8194
+  version: 0130d5f08802b427a7a512f16fe76367c99c3ec1
   subpackages:
   - disk
-  - internal/common
   - mem
+  - internal/common
 - name: github.com/shurcooL/sanitized_anchor_name
   version: 10ef21a441db47d8b13ebcc5fd2310f636973c77
 - name: github.com/Sirupsen/logrus
-  version: 3ec0642a7fb6488f65b06f9040adc67e3990296a
+  version: 08a8a7c27e3d058a8989316a850daad1c10bf4ab
 - name: github.com/soundcloud/go-runit
   version: 06ad41a06c4a586951fb8040a697ecd39729640b
   subpackages:
@@ -139,38 +139,37 @@ imports:
 - name: github.com/uber-go/atomic
   version: 0c9e689d64f004564b79d9a663634756df322902
 - name: github.com/uber-go/zap
-  version: fc9fbdfe46f6dc6a78028f22a2fb086dd13182fd
+  version: d11d2851fcabcf03421c4dbdbc3146fc74eb1035
 - name: golang.org/x/crypto
-  version: b13fc1fd382d01861b16b2e6474487d3d4d27f20
+  version: 351dc6a5bf92a5f2ae22fadeee08eb6a45aa2d93
   subpackages:
-  - nacl/secretbox
   - ssh/terminal
 - name: golang.org/x/net
-  version: 6250b412798208e6c90b03b7c4f226de5aa299e2
+  version: 3a1f9ef983bc408afd0a9e63fd9c962ae853e543
   subpackages:
   - context
   - http2
-  - http2/hpack
-  - internal/timeseries
-  - lex/httplex
-  - proxy
   - trace
+  - http2/hpack
+  - lex/httplex
+  - internal/timeseries
+  - proxy
 - name: golang.org/x/sys
   version: a646d33e2ee3172a661fc09bca23bb4889a41bc8
   subpackages:
   - unix
   - windows
 - name: google.golang.org/grpc
-  version: 79b7c349179cdd6efd8bac4a1ce7f01b98c16e9b
+  version: 9874075aee19e6927aa4ff5b76ee25701bb95922
   subpackages:
   - codes
   - credentials
   - grpclog
-  - internal
   - metadata
-  - naming
   - peer
+  - internal
+  - naming
   - transport
 - name: gopkg.in/urfave/cli.v2
-  version: 2616eeb540ed8006d0a5228a68fe571ba5d5862b
+  version: adf6897aa2891768c93dc274b9beb3c7e855bf0d
 testImports: []

@@ -188,7 +188,7 @@ func (l *LinuxFactory) Load(id string) (Container, error) {
 		return nil, newGenericError(fmt.Errorf("invalid root"), ConfigInvalid)
 	}
 	containerRoot := filepath.Join(l.Root, id)
-	state, err := l.loadState(containerRoot, id)
+	state, err := l.loadState(containerRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -273,11 +273,11 @@ func (l *LinuxFactory) StartInitialization() (err error) {
 	return i.Init()
 }
 
-func (l *LinuxFactory) loadState(root, id string) (*State, error) {
+func (l *LinuxFactory) loadState(root string) (*State, error) {
 	f, err := os.Open(filepath.Join(root, stateFilename))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, newGenericError(fmt.Errorf("container %q does not exists", id), ContainerNotExists)
+			return nil, newGenericError(err, ContainerNotExists)
 		}
 		return nil, newGenericError(err, SystemError)
 	}
