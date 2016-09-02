@@ -27,6 +27,8 @@ sudo yum install fuse       # CentOS
 sudo dnf install fuse       # Fedora
 ```
 
+**Note:** You might need to update your list of packages before installing FUSE.
+
 CFS requires FUSE version 2.6 or greater, which you can verify with the following command.
 ```
 $ fusermount -V
@@ -39,7 +41,7 @@ The CFS client is used to manage your CFS filesystems in addition to handling cl
 
 The following command will install/update the CFS client.
 ```
-curl -fsSL https://raw.githubusercontent.com/getcfs/megacfs/master/install | sh
+curl -fsSL https://raw.githubusercontent.com/getcfs/megacfs/master/install | sudo sh
 ```
 
 Try running ```cfs``` to verify the client is installed.
@@ -144,8 +146,8 @@ IP: 10.1.2.3
 
 **Note:** You can use the following commands to find your ServiceNet IP address (10.x.x.x) and CFS filesystem ID.
 ```
-ip          # (or ifconfig) to find the ServiceNet IP (10.x.x.x)
-cfs list    # to get the CFS filesystem ID
+ip addr | grep -o 'inet 10.[0-9.]*'     # (or ifconfig) to find the ServiceNet IP (10.x.x.x)
+cfs list                                # to get the CFS filesystem ID
 ```
 
 # Mounting a Filesystem
@@ -158,30 +160,35 @@ cfs mount -o <options> <region>:<fsid> <mountpoint>
 ```
 Here we create a mountpoint and mount our filesystem.
 ```
-$ mkdir -p /mnt/myfs
-$ cfs mount iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/myfs &
+$ mkdir myfs
+$ cfs mount iad:df9ce453-44bf-453f-8d78-591f79ae1401 myfs &
 ```
 **Note:** The "mount" command runs in the foreground so you will need to background it with "&" or open another terminal session to use the filesystem.
 
-Be default a CFS filesystem will only allow access to the user that mounted the filesystem.
+By default a CFS filesystem will only allow access to the user that mounted the filesystem.
 To allow other users on the host to access the filesystem you must use the allow_other mount option.
 ```
-$ cfs mount -o allow_other iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/myfs &
+$ sudo mkdir -p /mnt/myfs
+$ sudo cfs mount -o allow_other iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/myfs &
 ```
 
-To persist the mount across reboots you will need to add the filesystem to the ```/etc/fstab``` file.
+To persist the mount across reboots you will need to add the filesystem to the ```/etc/fstab``` file with the following format.
 ```
-$ echo "iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/myfs cfs allow_other 0 0" >> /etc/fstab
+<region>:<fsid> <mountpoint> cfs <options> 0 0
+```
+Here we add our filesystem to ```/etc/fstab```.
+```
+$ sudo sh -c "echo 'iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/myfs cfs allow_other 0 0' >> /etc/fstab"
 ```
 
 Once your filesystem is added to ```/etc/fstab``` you can use the standard Linux mount command to mount your filesystem using only the mountpoint.
 ```
-$ mount /mnt/myfs
+$ sudo mount /mnt/myfs
 ```
 
 **Note:** You can use the debug mount option to get debug information for all filesystem operations.
 ```
-$ mount -o debug /mnt/myfs
+$ sudo mount -o debug /mnt/myfs
 ```
 
 **Note:** The "cfs mount" command does not require the CFS client to be configured and thus have access to the CFS management commands.
@@ -194,12 +201,12 @@ In addition, filesystem access can be granted to any client without providing ac
 
 The standard Linux "umount" command will unmount a CFS filesystem.
 ```
-$ umount /mnt/myfs
+$ sudo umount /mnt/myfs
 ```
 **Note:** In certain failure scenarios the Linux kernel will not cleanly unmount the filesystem.
 In this case you can force a lazy unmount with the following command.
 ```
-$ fusermount -uz /mnt/myfs
+$ sudo fusermount -uz /mnt/myfs
 ```
 
 # Revoking Access to a Filesystem
