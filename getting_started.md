@@ -41,7 +41,7 @@ The CFS client is used to manage your CFS filesystems in addition to handling cl
 
 The following command will install/update the CFS client.
 ```
-curl -fsSL https://raw.githubusercontent.com/getcfs/megacfs/master/install | sudo sh
+curl -fsSL https://raw.githubusercontent.com/getcfs/megacfs/master/install | sudo bash
 ```
 
 Try running ```cfs``` to verify the client is installed.
@@ -174,11 +174,13 @@ $ sudo cfs mount -o allow_other iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/my
 
 To persist the mount across reboots you will need to add the filesystem to the ```/etc/fstab``` file with the following format.
 ```
-<region>:<fsid> <mountpoint> cfs <options> 0 0
+<region>:<fsid> <mountpoint> cfs allow_other,_netdev 0 0
 ```
+**Note:** The _netdev option is required so the system does not attempt to mount the filesystem before the network is up.
+
 Here we add our filesystem to ```/etc/fstab```.
 ```
-$ sudo sh -c "echo 'iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/myfs cfs allow_other 0 0' >> /etc/fstab"
+$ sudo sh -c "echo 'iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/myfs cfs allow_other,_netdev 0 0' >> /etc/fstab"
 ```
 
 Once your filesystem is added to ```/etc/fstab``` you can use the standard Linux mount command to mount your filesystem using only the mountpoint.
