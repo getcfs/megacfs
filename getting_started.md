@@ -176,9 +176,9 @@ To persist the mount across reboots you will need to add the filesystem to the `
 ```
 <region>:<fsid> <mountpoint> cfs <options> 0 0
 ```
-Here we add our filesystem to ```/etc/fstab```.
+One of the options will  need to be ```_netdev``` so that the ServiceNet interface is available. Here we add our filesystem to ```/etc/fstab```.
 ```
-$ sudo sh -c "echo 'iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/myfs cfs allow_other 0 0' >> /etc/fstab"
+$ sudo sh -c "echo 'iad:df9ce453-44bf-453f-8d78-591f79ae1401 /mnt/myfs cfs _netdev,allow_other 0 0' >> /etc/fstab"
 ```
 
 Once your filesystem is added to ```/etc/fstab``` you can use the standard Linux mount command to mount your filesystem using only the mountpoint.
