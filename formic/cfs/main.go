@@ -193,13 +193,20 @@ func main() {
 		fmt.Println("go version:", goVersion)
 		os.Exit(0)
 	case "configure":
-		fmt.Println("This is an interactive session to configure the cfs client.")
-		fmt.Print("CFS Region: ")
-		fmt.Scan(&region)
-		fmt.Print("CFS Username: ")
-		fmt.Scan(&username)
-		fmt.Print("CFS APIKey: ")
-		fmt.Scan(&apikey)
+		stat, _ := os.Stdin.Stat()
+		if (stat.Mode() & os.ModeCharDevice) == 0 {
+			fmt.Scan(&region)
+			fmt.Scan(&username)
+			fmt.Scan(&apikey)
+		} else {
+			fmt.Println("This is an interactive session to configure the cfs client.")
+			fmt.Print("CFS Region: ")
+			fmt.Scan(&region)
+			fmt.Print("CFS Username: ")
+			fmt.Scan(&username)
+			fmt.Print("CFS APIKey: ")
+			fmt.Scan(&apikey)
+		}
 		config := map[string]string{
 			"region":   strings.ToLower(region),
 			"username": username,
@@ -215,8 +222,6 @@ func main() {
 			fmt.Printf("Error writing config file: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println()
-		os.Exit(0)
 	case "list":
 		if !configured {
 			fmt.Println("You must run \"cfs configure\" first.")

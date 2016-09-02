@@ -41,7 +41,7 @@ The CFS client is used to manage your CFS filesystems in addition to handling cl
 
 The following command will install/update the CFS client.
 ```
-curl -fsSL https://raw.githubusercontent.com/getcfs/megacfs/master/install | sudo bash
+curl -fsSL https://raw.githubusercontent.com/getcfs/megacfs/master/install.sh | sudo bash
 ```
 
 Try running ```cfs``` to verify the client is installed.
