@@ -222,7 +222,6 @@ func main() {
 			fmt.Printf("Error writing config file: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println()
 	case "list":
 		if !configured {
 			fmt.Println("You must run \"cfs configure\" first.")
