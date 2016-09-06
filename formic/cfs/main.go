@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/user"
 	"strings"
 	"sync"
@@ -529,7 +530,8 @@ func main() {
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 		conn, err := grpc.Dial(addr, opts...)
 		if err != nil {
-			log.Fatalf("failed to dial: %v", err)
+			fmt.Println(err)
+			os.Exit(1)
 		}
 		defer conn.Close()
 
@@ -570,7 +572,8 @@ func main() {
 		fusermountPath()
 		cfs, err := fuse.Mount(mountpoint, mountOptions...)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			os.Exit(1)
 		}
 		defer cfs.Close()
 
@@ -579,17 +582,23 @@ func main() {
 		fs := newfs(cfs, rpc, fsid)
 		err = fs.InitFs()
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			exec.Command("fusermount", "-uz", mountpoint).Run()
+			os.Exit(1)
 		}
 		srv := newserver(fs)
 
 		if err := srv.serve(); err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			exec.Command("fusermount", "-uz", mountpoint).Run()
+			os.Exit(1)
 		}
 
 		<-cfs.Ready
 		if err := cfs.MountError; err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			exec.Command("fusermount", "-uz", mountpoint).Run()
+			os.Exit(1)
 		}
 	}
 }
