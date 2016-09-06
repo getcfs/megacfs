@@ -436,20 +436,22 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	// Test if file system is empty.
 	id := formic.GetID([]byte(r.FSid), 1, 0)
 	keyA, keyB := murmur3.Sum128(id)
-	// n, _ := o.GetChunk(ctx, id)
-	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	n, _ := s.vstore.Read(context.Background(), keyA, keyB, timestampMicro)
-	if len(n) != 0 {
+	items, err := s.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	if len(items) != 0 {
 		log.Info("DELETE FAILED", zap.String("error", "FileSystemNotEmpty"), zap.String("fsid", r.FSid))
 		return nil, errf(codes.FailedPrecondition, "%v", "File System Not Empty")
 	}
 
 	// Remove the root file system entry from the value store
-	timestampMicro = brimtime.TimeToUnixMicro(time.Now())
+	id = formic.GetID([]byte(r.FSid), 1, 0)
+	keyA, keyB = murmur3.Sum128(id)
+	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	_, err = s.vstore.Delete(context.Background(), keyA, keyB, timestampMicro)
 	if err != nil {
-		log.Error("DELETE FAILED", zap.String("type", "RootRecord"), zap.String("fsid", r.FSid), zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
+		if !store.IsNotFound(err) {
+			log.Error("DELETE FAILED", zap.String("type", "RootRecord"), zap.String("fsid", r.FSid), zap.Error(err))
+			return nil, errf(codes.Internal, "%v", err)
+		}
 	}
 
 	// Delete this record set
@@ -466,7 +468,7 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	// group-lookup printf("/fs/%s/addr", FSID)
 	pKey = fmt.Sprintf("/fs/%s/addr", r.FSid)
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	items, err := s.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	items, err = s.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
 	if !store.IsNotFound(err) {
 		// No addr granted
 		for _, v := range items {
