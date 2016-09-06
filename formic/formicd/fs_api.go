@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/creiht/formic"
+	"github.com/getcfs/megacfs/formic"
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
