@@ -433,8 +433,10 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 		return nil, errf(codes.FailedPrecondition, "%v", "Account Mismatch")
 	}
 
+	uuID, err := uuid.FromString(r.FSid)
+	id := formic.GetID(uuID.Bytes(), 1, 0)
+
 	// Test if file system is empty.
-	id := formic.GetID([]byte(r.FSid), 1, 0)
 	keyA, keyB := murmur3.Sum128(id)
 	items, err := s.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
 	if len(items) != 0 {
@@ -443,7 +445,6 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	}
 
 	// Remove the root file system entry from the value store
-	id = formic.GetID([]byte(r.FSid), 1, 0)
 	keyA, keyB = murmur3.Sum128(id)
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	_, err = s.vstore.Delete(context.Background(), keyA, keyB, timestampMicro)
