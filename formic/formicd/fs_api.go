@@ -438,9 +438,9 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 
 	// Test if file system is empty.
 	keyA, keyB := murmur3.Sum128(id)
-	items, err := s.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	items, err := s.gstore.ReadGroup(context.Background(), keyA, keyB)
 	if len(items) != 0 {
-		log.Info("DELETE FAILED", zap.String("error", "FileSystemNotEmpty"), zap.String("fsid", r.FSid))
+		log.Info("DELETE FAILED", zap.String("error", "FileSystemNotEmpty"), zap.String("ItemCount", string(len(items))))
 		return nil, errf(codes.FailedPrecondition, "%v", "File System Not Empty")
 	}
 
