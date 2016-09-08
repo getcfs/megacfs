@@ -450,7 +450,7 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	_, err = s.vstore.Delete(context.Background(), keyA, keyB, timestampMicro)
 	if err != nil {
 		if !store.IsNotFound(err) {
-			log.Error("DELETE FAILED", zap.String("type", "RootRecord"), zap.String("fsid", r.FSid), zap.Error(err))
+			log.Error("DELETE FAILED", zap.String("type", "RootRecord"))
 			return nil, errf(codes.Internal, "%v", err)
 		}
 	}
@@ -475,19 +475,19 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 		for _, v := range items {
 			err = json.Unmarshal(v.Value, &addrData)
 			if err != nil {
-				log.Error("DELETE FAILED", zap.String("type", "UnMarshal"), zap.String("fsid", r.FSid), zap.Error(err))
+				log.Error("DELETE FAILED", zap.String("type", "UnMarshal"), zap.Error(err))
 				return nil, errf(codes.Internal, "%v", err)
 			}
 			err = s.deleteEntry(pKey, addrData.Addr)
 			if err != nil {
-				log.Error("DELETE FAILED", zap.String("type", "IPDelete"), zap.String("fsid", r.FSid), zap.Error(err))
+				log.Error("DELETE FAILED", zap.String("type", "IPDelete"), zap.Error(err))
 				return nil, errf(codes.Internal, "%v", err)
 			}
 			rowcount++
 		}
 	}
 	if err != nil {
-		log.Error("DELETE FAILED", zap.String("type", "ReadIPGroup"), zap.String("fsid", r.FSid), zap.Error(err))
+		log.Error("DELETE FAILED", zap.String("type", "ReadIPGroup"), zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	// Delete File System Attributes
@@ -495,7 +495,7 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	pKey = fmt.Sprintf("/fs/%s", r.FSid)
 	err = s.deleteEntry(pKey, "name")
 	if err != nil {
-		log.Error("DELETE FAILED", zap.String("type", "FSAttributeName"), zap.String("fsid", r.FSid), zap.Error(err))
+		log.Error("DELETE FAILED", zap.String("type", "FSAttributeName"), zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	rowcount++
@@ -504,7 +504,7 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	pKey = fmt.Sprintf("/acct/%s", acctID)
 	err = s.deleteEntry(pKey, r.FSid)
 	if err != nil {
-		log.Error("DELETE FAILED", zap.String("type", "FSAttributeName"), zap.String("fsid", r.FSid), zap.Error(err))
+		log.Error("DELETE FAILED", zap.String("type", "FSAttributeName"), zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	rowcount++
@@ -512,14 +512,14 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	//    /fs 								FSID						FileSysRef
 	err = s.deleteEntry("/fs", r.FSid)
 	if err != nil {
-		log.Error("DELETE FAILED", zap.String("type", "FSAttributeName"), zap.String("fsid", r.FSid), zap.Error(err))
+		log.Error("DELETE FAILED", zap.String("type", "FSAttributeName"), zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	rowcount++
 
 	// Prep things to return
 	// Log Operation
-	log.Info("DELETE", zap.String("acct", acctID), zap.String("fsid", r.FSid), zap.String("items", string(rowcount)))
+	log.Info("DELETE", zap.String("ItemsDeleted", fmt.Sprintf("%d", rowcount)))
 	return &pb.DeleteFSResponse{Data: r.FSid}, nil
 }
 
