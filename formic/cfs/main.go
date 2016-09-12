@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -58,7 +59,7 @@ func debuglog(msg interface{}) {
 }
 
 type rpc struct {
-	api pb.ApiClient
+	apiClients []pb.ApiClient
 }
 
 func newrpc(addr string) *rpc {
@@ -67,16 +68,24 @@ func newrpc(addr string) *rpc {
 		InsecureSkipVerify: true,
 	})
 	opts = append(opts, grpc.WithTransportCredentials(creds))
-	conn, err := grpc.Dial(addr, opts...)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	clients := []pb.ApiClient{}
+	for i := 0; i < 10; i++ {
+		conn, err := grpc.Dial(addr, opts...)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		clients = append(clients, pb.NewApiClient(conn))
 	}
 	r := &rpc{
-		api: pb.NewApiClient(conn),
+		apiClients: clients,
 	}
 
 	return r
+}
+
+func (r *rpc) api() pb.ApiClient {
+	return r.apiClients[rand.Intn(len(r.apiClients))]
 }
 
 // NullWriter ...
