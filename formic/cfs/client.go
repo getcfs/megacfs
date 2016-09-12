@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -64,7 +63,7 @@ func list(region, username, apikey string) error {
 	}
 	addr, ok := regions[region]
 	if !ok {
-		return errors.New(fmt.Sprintf("Invalid region: %s", region))
+		return fmt.Errorf("Invalid region: %s", region)
 	}
 	c := setupWS(addr)
 	defer c.Close()
@@ -72,11 +71,11 @@ func list(region, username, apikey string) error {
 	token := auth(username, apikey)
 	res, err := ws.ListFS(context.Background(), &pb.ListFSRequest{Token: token})
 	if err != nil {
-		return errors.New(fmt.Sprintln("Request Error: %v", err))
+		return fmt.Errorf("Request Error: %v", err)
 	}
 	var data []map[string]interface{}
 	if err := json.Unmarshal([]byte(res.Data), &data); err != nil {
-		return errors.New(fmt.Sprintf("Error unmarshalling response: &v", err))
+		return fmt.Errorf("Error unmarshalling response: %v", err)
 	}
 	fmt.Printf("%-36s    %s\n", "ID", "Name")
 	for _, fs := range data {
@@ -102,7 +101,7 @@ func show(region, username, apikey string) error {
 	fsid := f.Args()[0]
 	addr, ok := regions[region]
 	if !ok {
-		return errors.New(fmt.Sprintf("Invalid region: %s", region))
+		return fmt.Errorf("Invalid region: %s", region)
 	}
 	c := setupWS(addr)
 	defer c.Close()
@@ -110,12 +109,12 @@ func show(region, username, apikey string) error {
 	token := auth(username, apikey)
 	res, err := ws.ShowFS(context.Background(), &pb.ShowFSRequest{Token: token, FSid: fsid})
 	if err != nil {
-		return errors.New(fmt.Sprintln("Request Error: %v", err))
+		return fmt.Errorf("Request Error: %v", err)
 	}
 	c.Close()
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(res.Data), &data); err != nil {
-		return errors.New(fmt.Sprintf("Error unmarshalling response: &v", err))
+		return fmt.Errorf("Error unmarshalling response: %v", err)
 	}
 	fmt.Println("ID:", data["id"])
 	fmt.Println("Name:", data["name"])
@@ -144,7 +143,7 @@ func create(region, username, apikey string) error {
 	name := f.Args()[0]
 	addr, ok := regions[region]
 	if !ok {
-		return errors.New(fmt.Sprintf("Invalid region: %s", region))
+		return fmt.Errorf("Invalid region: %s", region)
 	}
 	c := setupWS(addr)
 	defer c.Close()
@@ -152,7 +151,7 @@ func create(region, username, apikey string) error {
 	token := auth(username, apikey)
 	res, err := ws.CreateFS(context.Background(), &pb.CreateFSRequest{Token: token, FSName: name})
 	if err != nil {
-		return errors.New(fmt.Sprintln("Request Error: %v", err))
+		return fmt.Errorf("Request Error: %v", err)
 	}
 	fmt.Println("ID:", res.Data)
 
@@ -175,7 +174,7 @@ func del(region, username, apikey string) error {
 	fsid := f.Args()[0]
 	addr, ok := regions[region]
 	if !ok {
-		return errors.New(fmt.Sprintf("Invalid region: %s", region))
+		return fmt.Errorf("Invalid region: %s", region)
 	}
 	c := setupWS(addr)
 	defer c.Close()
@@ -183,7 +182,7 @@ func del(region, username, apikey string) error {
 	token := auth(username, apikey)
 	res, err := ws.DeleteFS(context.Background(), &pb.DeleteFSRequest{Token: token, FSid: fsid})
 	if err != nil {
-		return errors.New(fmt.Sprintln("Request Error: %v", err))
+		return fmt.Errorf("Request Error: %v", err)
 	}
 	fmt.Println(res.Data)
 
@@ -209,7 +208,7 @@ func update(region, username, apikey string) error {
 	fsid := f.Args()[1]
 	addr, ok := regions[region]
 	if !ok {
-		return errors.New(fmt.Sprintf("Invalid region: %s", region))
+		return fmt.Errorf("Invalid region: %s", region)
 	}
 	c := setupWS(addr)
 	defer c.Close()
@@ -217,7 +216,7 @@ func update(region, username, apikey string) error {
 	token := auth(username, apikey)
 	res, err := ws.UpdateFS(context.Background(), &pb.UpdateFSRequest{Token: token, FSid: fsid, Filesys: newFS})
 	if err != nil {
-		return errors.New(fmt.Sprintln("Request Error: %v", err))
+		return fmt.Errorf("Request Error: %v", err)
 	}
 	fmt.Println(res.Data)
 
@@ -241,7 +240,7 @@ func grant(region, username, apikey string) error {
 	fsid := f.Args()[1]
 	addr, ok := regions[region]
 	if !ok {
-		return errors.New(fmt.Sprintf("Invalid region: %s", region))
+		return fmt.Errorf("Invalid region: %s", region)
 	}
 	c := setupWS(addr)
 	defer c.Close()
@@ -249,7 +248,7 @@ func grant(region, username, apikey string) error {
 	token := auth(username, apikey)
 	_, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 	if err != nil {
-		return errors.New(fmt.Sprintln("Request Error: %v", err))
+		return fmt.Errorf("Request Error: %v", err)
 	}
 
 	return nil
@@ -272,7 +271,7 @@ func revoke(region, username, apikey string) error {
 	fsid := f.Args()[1]
 	addr, ok := regions[region]
 	if !ok {
-		return errors.New(fmt.Sprintf("Invalid region: %s", region))
+		return fmt.Errorf("Invalid region: %s", region)
 	}
 	c := setupWS(addr)
 	defer c.Close()
@@ -280,7 +279,7 @@ func revoke(region, username, apikey string) error {
 	token := auth(username, apikey)
 	_, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 	if err != nil {
-		return errors.New(fmt.Sprintln("Request Error: %v", err))
+		return fmt.Errorf("Request Error: %v", err)
 	}
 
 	return nil
