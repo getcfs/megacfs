@@ -556,6 +556,10 @@ func (f *fs) handleGetxattr(r *fuse.GetxattrRequest) {
 		r.RespondError(fuse.ENOSYS)
 		return
 	}
+	if r.Name == "system.posix_acl_access" || r.Name == "system.posix_acl_default" {
+		r.RespondError(fuse.ENOSYS)
+		return
+	}
 	req := &pb.GetxattrRequest{
 		Inode:    uint64(r.Node),
 		Name:     r.Name,
@@ -595,6 +599,10 @@ func (f *fs) handleListxattr(r *fuse.ListxattrRequest) {
 func (f *fs) handleSetxattr(r *fuse.SetxattrRequest) {
 	log.Println("Inside handleSetxattr")
 	log.Println(r)
+	if r.Name == "system.posix_acl_access" || r.Name == "system.posix_acl_default" {
+		r.RespondError(fuse.ENOSYS)
+		return
+	}
 	req := &pb.SetxattrRequest{
 		Inode:    uint64(r.Node),
 		Name:     r.Name,
