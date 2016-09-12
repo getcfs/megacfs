@@ -183,7 +183,7 @@ func mount() error {
 		fuse.MaxReadahead(128 * 1024),
 		fuse.AsyncRead(),
 		//fuse.WritebackCache(),
-		//fuse.AutoInvalData(),
+		fuse.AutoInvalData(),
 	}
 
 	// parse mount options string
