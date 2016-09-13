@@ -14,7 +14,7 @@ type config struct {
 	oortGroupSyndicate         string
 	insecureSkipVerify         bool
 	skipMutualTLS              bool
-	nodeId                     int
+	nodeID                     int
 	metricsAddr                string
 	metricsCollectors          string
 	poolSize                   int
@@ -60,7 +60,7 @@ func resolveConfig(c *config) *config {
 	}
 	if env := os.Getenv("FORMICD_NODE_ID"); env != "" {
 		if val, err := strconv.Atoi(env); err == nil {
-			cfg.nodeId = val
+			cfg.nodeID = val
 		}
 	}
 	cfg.metricsAddr = ":9100"

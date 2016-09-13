@@ -23,6 +23,7 @@ import (
 	"golang.org/x/net/context"
 )
 
+// ErrUnauthorized ...
 var ErrUnauthorized = errors.New("Unknown or unauthorized filesystem")
 
 type apiServer struct {
@@ -32,17 +33,18 @@ type apiServer struct {
 	blocksize  int64
 	updateChan chan *UpdateItem
 	comms      *StoreComms
-	validIPs   map[string]map[string]bool
+	validIPs   map[string]map[string]time.Time
 	log        zap.Logger
 }
 
-func NewApiServer(fs FileService, nodeId int, comms *StoreComms, logger zap.Logger) *apiServer {
+// NewApiServer ...
+func NewApiServer(fs FileService, nodeID int, comms *StoreComms, logger zap.Logger) *apiServer {
 	s := new(apiServer)
 	s.fs = fs
 	s.comms = comms
-	s.validIPs = make(map[string]map[string]bool)
-	logger.Debug("NodeID", zap.Int("nodeid", nodeId))
-	s.fl = flother.NewFlother(time.Time{}, uint64(nodeId))
+	s.validIPs = make(map[string]map[string]time.Time)
+	logger.Debug("NodeID", zap.Int("nodeID", nodeID))
+	s.fl = flother.NewFlother(time.Time{}, uint64(nodeID))
 	s.blocksize = int64(1024 * 64) // Default Block Size (64K)
 	s.updateChan = make(chan *UpdateItem, 1000)
 	s.log = logger
@@ -51,6 +53,7 @@ func NewApiServer(fs FileService, nodeId int, comms *StoreComms, logger zap.Logg
 	return s
 }
 
+// GenerateBlockID ...
 func GenerateBlockID(inodeID []byte, block uint64) []byte {
 	h := murmur3.New128()
 	h.Write(inodeID)
@@ -62,6 +65,7 @@ func GenerateBlockID(inodeID []byte, block uint64) []byte {
 	return b.Bytes()
 }
 
+// GetFsId ...
 func GetFsId(ctx context.Context) (uuid.UUID, error) {
 	md, ok := metadata.FromContext(ctx)
 	if !ok {
@@ -80,6 +84,9 @@ func GetFsId(ctx context.Context) (uuid.UUID, error) {
 }
 
 func (s *apiServer) validateIP(ctx context.Context) error {
+
+	// TTL in seconds
+	ttl := 15
 	if s.comms == nil {
 		// TODO: Fix abstraction so that we don't have to do this for tests
 		// Assume that it is a unit test
@@ -101,11 +108,11 @@ func (s *apiServer) validateIP(ctx context.Context) error {
 	// First check the cache
 	ips, ok := s.validIPs[fsid]
 	if !ok {
-		ips = make(map[string]bool)
+		ips = make(map[string]time.Time)
 		s.validIPs[fsid] = ips
 	}
-	valid, ok := ips[ip]
-	if ok && valid {
+	cacheTime, ok := ips[ip]
+	if ok && cacheTime.After(time.Now()) {
 		return nil
 	}
 	_, err = s.comms.ReadGroupItem(ctx, []byte(fmt.Sprintf("/fs/%s/addr", fsid)), []byte(ip))
@@ -118,7 +125,8 @@ func (s *apiServer) validateIP(ctx context.Context) error {
 		return err
 	}
 	// Cache the valid ip
-	s.validIPs[fsid][ip] = true
+
+	s.validIPs[fsid][ip] = time.Now().Add(time.Second * time.Duration(ttl))
 	return nil
 }
 
@@ -234,7 +242,7 @@ func (s *apiServer) Read(ctx context.Context, r *pb.ReadRequest) (*pb.ReadRespon
 		}
 		count := copy(data[cur:], chunk[firstOffset:])
 		firstOffset = 0
-		block += 1
+		block++
 		cur += int64(count)
 		if int64(len(chunk)) < s.blocksize {
 			break
@@ -247,9 +255,8 @@ func (s *apiServer) Read(ctx context.Context, r *pb.ReadRequest) (*pb.ReadRespon
 func min(a, b int64) int64 {
 	if a < b {
 		return a
-	} else {
-		return b
 	}
+	return b
 }
 
 func (s *apiServer) Write(ctx context.Context, r *pb.WriteRequest) (*pb.WriteResponse, error) {
@@ -320,7 +327,7 @@ func (s *apiServer) Write(ctx context.Context, r *pb.WriteRequest) (*pb.WriteRes
 		//	mtime:     time.Now().Unix(),
 		//}
 		cur += sendSize
-		block += 1
+		block++
 	}
 	return &pb.WriteResponse{Status: 0}, nil
 }

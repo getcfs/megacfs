@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/context"
 )
 
+// UpdateItem ...
 type UpdateItem struct {
 	id        []byte
 	block     uint64
@@ -21,11 +22,13 @@ type UpdateItem struct {
 	mtime     int64
 }
 
+// Updatinator ...
 type Updatinator struct {
 	in chan *UpdateItem
 	fs FileService
 }
 
+// newUpdatinator ...
 func newUpdatinator(in chan *UpdateItem, fs FileService) *Updatinator {
 	return &Updatinator{
 		in: in,
@@ -48,12 +51,14 @@ func (u *Updatinator) run() {
 	}
 }
 
+// DirtyItem ...
 type DirtyItem struct {
 	dirty *pb.Dirty
 }
 
 // TODO: Crawl the dirty folders to look for dirty objects to cleanup
 
+// Cleaninator ...
 type Cleaninator struct {
 	in    chan *DirtyItem
 	fs    FileService
@@ -106,6 +111,7 @@ func (c *Cleaninator) run() {
 	}
 }
 
+// DeleteItem ...
 type DeleteItem struct {
 	ts *pb.Tombstone
 }
@@ -113,6 +119,7 @@ type DeleteItem struct {
 // TODO: Crawl the deleted folders to look for deletes to cleanup
 // TODO: We should have sort of backoff in case of failures, so it isn't trying a delete over and over again if there are failures
 
+// Deletinator ...
 type Deletinator struct {
 	in    chan *DeleteItem
 	fs    FileService

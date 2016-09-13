@@ -737,6 +737,7 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	return &pb.RevokeAddrFSResponse{Data: r.FSid}, nil
 }
 
+// ValidateResponse ...
 type ValidateResponse struct {
 	Access struct {
 		Token struct {
@@ -784,7 +785,6 @@ func (s *FileSystemAPIServer) deleteEntry(pKey string, cKey string) error {
 	_, err := s.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
 	if store.IsNotFound(err) || err == nil {
 		return nil
-	} else {
-		return err
 	}
+	return err
 }
