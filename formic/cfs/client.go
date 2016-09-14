@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -11,6 +10,7 @@ import (
 	"strings"
 
 	pb "github.com/getcfs/megacfs/formic/proto"
+	"golang.org/x/net/context"
 )
 
 var regions = map[string]string{
