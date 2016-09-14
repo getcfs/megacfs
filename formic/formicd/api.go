@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"sync"
@@ -85,8 +86,6 @@ func GetFsId(ctx context.Context) (uuid.UUID, error) {
 
 func (s *apiServer) validateIP(ctx context.Context) error {
 
-	// TTL in seconds
-	ttl := 15
 	if s.comms == nil {
 		// TODO: Fix abstraction so that we don't have to do this for tests
 		// Assume that it is a unit test
@@ -125,8 +124,9 @@ func (s *apiServer) validateIP(ctx context.Context) error {
 		return err
 	}
 	// Cache the valid ip
-
-	s.validIPs[fsid][ip] = time.Now().Add(time.Second * time.Duration(ttl))
+	// ttl is a float64 number of seconds
+	ttl := 180.0
+	s.validIPs[fsid][ip] = time.Now().Add(time.Second * time.Duration(ttl+ttl*rand.NormFloat64()*0.1))
 	return nil
 }
 
