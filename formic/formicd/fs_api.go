@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"reflect"
 	"time"
 
@@ -171,6 +172,54 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
+	if err != nil {
+		log.Error("CREATE FAILED", zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	uuID, err := uuid.FromString(fsID)
+	id := formic.GetID(uuID.Bytes(), 1, 0)
+	vKeyA, vKeyB := murmur3.Sum128(id)
+
+	// Create the Root entry
+	log.Debug("Creating new root", zap.Base64("root", id))
+	// Prepare the root node
+	nr := &pb.InodeEntry{
+		Version: InodeEntryVersion,
+		Inode:   1,
+		IsDir:   true,
+		FsId:    uuID.Bytes(),
+	}
+	ts := time.Now().Unix()
+	nr.Attr = &pb.Attr{
+		Inode:  1,
+		Atime:  ts,
+		Mtime:  ts,
+		Ctime:  ts,
+		Crtime: ts,
+		Mode:   uint32(os.ModeDir | 0775),
+		Uid:    1001, // TODO: need to config default user/group id
+		Gid:    1001,
+	}
+	b, err := formic.Marshal(nr)
+	if err != nil {
+		log.Error("CREATE FAILED", zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	// Check if root entry already exits
+	value, _, err := s.vstore.Read(context.Background(), vKeyA, vKeyB, nil)
+	if !store.IsNotFound(err) {
+		if value != 0 {
+			log.Error("CREATE FAILED", zap.String("msg", "Root Entry Already Exists"))
+			return nil, errf(codes.FailedPrecondition, "%v", "Root Entry Already Exists")
+		}
+		log.Error("CREATE FAILED", zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	// Write root entry
+	_, err = s.vstore.Write(context.Background(), vKeyA, vKeyB, timestampMicro, b)
 	if err != nil {
 		log.Error("CREATE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
