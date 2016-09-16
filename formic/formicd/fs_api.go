@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -173,7 +174,7 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 	}
 	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
 	if err != nil {
-		log.Error("CREATE FAILED", zap.Error(err))
+		log.Error("CREATE FAILED", zap.String("type", "GroupStoreWrite"), zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 
@@ -181,7 +182,18 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 	id := formic.GetID(uuID.Bytes(), 1, 0)
 	vKeyA, vKeyB := murmur3.Sum128(id)
 
-	// Create the Root entry
+	// Check if root entry already exits
+	_, value, err := s.vstore.Read(context.Background(), vKeyA, vKeyB, nil)
+	if !store.IsNotFound(err) {
+		if len(value) != 0 {
+			log.Error("CREATE FAILED", zap.String("msg", "Root Entry Already Exists"))
+			return nil, errf(codes.FailedPrecondition, "%v", "Root Entry Already Exists")
+		}
+		log.Error("CREATE FAILED", zap.String("type", "ValueStoreRead"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	// Create the Root entry data
 	log.Debug("Creating new root", zap.Base64("root", id))
 	// Prepare the root node
 	nr := &pb.InodeEntry{
@@ -201,25 +213,28 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 		Uid:    1001, // TODO: need to config default user/group id
 		Gid:    1001,
 	}
-	b, err := formic.Marshal(nr)
+	data, err := formic.Marshal(nr)
 	if err != nil {
-		log.Error("CREATE FAILED", zap.Error(err))
+		log.Error("CREATE FAILED", zap.String("type", "Marshal Data"), zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 
-	// Check if root entry already exits
-	value, _, err := s.vstore.Read(context.Background(), vKeyA, vKeyB, nil)
-	if !store.IsNotFound(err) {
-		if value != 0 {
-			log.Error("CREATE FAILED", zap.String("msg", "Root Entry Already Exists"))
-			return nil, errf(codes.FailedPrecondition, "%v", "Root Entry Already Exists")
-		}
-		log.Error("CREATE FAILED", zap.Error(err))
+	// Use data to Create The First Block
+	crc := crc32.NewIEEE()
+	crc.Write(data)
+	fb := &pb.FileBlock{
+		Version:  FileBlockVersion,
+		Data:     data,
+		Checksum: crc.Sum32(),
+	}
+	blkdata, err := formic.Marshal(fb)
+	if err != nil {
+		log.Error("CREATE FAILED", zap.String("type", "Marshal First Block"), zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
 	}
 
 	// Write root entry
-	_, err = s.vstore.Write(context.Background(), vKeyA, vKeyB, timestampMicro, b)
+	_, err = s.vstore.Write(context.Background(), vKeyA, vKeyB, timestampMicro, blkdata)
 	if err != nil {
 		log.Error("CREATE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
