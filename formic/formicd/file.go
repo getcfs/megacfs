@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hash"
 	"hash/crc32"
-	"os"
 	"sort"
 	"time"
 
@@ -222,33 +221,34 @@ func (o *OortFS) InitFs(ctx context.Context, fsid []byte) error {
 	id := formic.GetID(fsid, 1, 0)
 	n, _ := o.GetChunk(ctx, id)
 	if len(n) == 0 {
-		o.log.Debug("Creating new root", zap.Base64("root", id))
-		// Need to create the root node
-		r := &pb.InodeEntry{
-			Version: InodeEntryVersion,
-			Inode:   1,
-			IsDir:   true,
-			FsId:    fsid,
-		}
-		ts := time.Now().Unix()
-		r.Attr = &pb.Attr{
-			Inode:  1,
-			Atime:  ts,
-			Mtime:  ts,
-			Ctime:  ts,
-			Crtime: ts,
-			Mode:   uint32(os.ModeDir | 0775),
-			Uid:    1001, // TODO: need to config default user/group id
-			Gid:    1001,
-		}
-		b, err := formic.Marshal(r)
-		if err != nil {
-			return err
-		}
-		err = o.WriteChunk(ctx, id, b)
-		if err != nil {
-			return err
-		}
+		//o.log.Debug("Creating new root", zap.Base64("root", id))
+		// // Need to create the root node
+		// r := &pb.InodeEntry{
+		//	 Version: InodeEntryVersion,
+		//   Inode:   1,
+		//	 IsDir:   true,
+		//	 FsId:    fsid,
+		// }
+		// ts := time.Now().Unix()
+		// r.Attr = &pb.Attr{
+		//	 Inode:  1,
+		//	 Atime:  ts,
+		//	 Mtime:  ts,
+		//	 Ctime:  ts,
+		//	 Crtime: ts,
+		// 	 Mode:   uint32(os.ModeDir | 0775),
+		//	 Uid:    1001, // TODO: need to config default user/group id
+		//	 Gid:    1001,
+		// }
+		// b, err := formic.Marshal(r)
+		// if err != nil {
+		// 	 return err
+		// }
+		// err = o.WriteChunk(ctx, id, b)
+		// if err != nil {
+		//	 return err
+		// }
+		return errors.New("Root Entry does not Exist")
 	}
 	return nil
 }
