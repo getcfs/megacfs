@@ -723,7 +723,7 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
 	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	addrData.Addr = r.Addr
+	addrData.Addr = srcAddrIP
 	addrData.FSID = r.FSid
 	addrByte, err = json.Marshal(addrData)
 	if err != nil {
