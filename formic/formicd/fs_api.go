@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/getcfs/megacfs/formic"
@@ -673,6 +674,7 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 	var addrData AddrRef
 	var addrByte []byte
 	srcAddr := ""
+	srcAddrIP := ""
 
 	// Get incomming ip
 	pr, ok := peer.FromContext(ctx)
@@ -712,9 +714,14 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 
 	// GRANT an file system entry for the addr
 	// 		write /fs/FSID/addr			addr						AddrRef
+	if r.Addr == "" {
+		srcAddrIP = strings.Split(srcAddr, ":")[0]
+	} else {
+		srcAddrIP = r.Addr
+	}
 	pKey = fmt.Sprintf("/fs/%s/addr", r.FSid)
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(r.Addr))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	addrData.Addr = r.Addr
 	addrData.FSID = r.FSid
@@ -742,6 +749,7 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	var value []byte
 	var fsRef FileSysRef
 	srcAddr := ""
+	srcAddrIP := ""
 
 	// Get incomming ip
 	pr, ok := peer.FromContext(ctx)
@@ -781,9 +789,14 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 
 	// REVOKE an file system entry for the addr
 	// 		delete /fs/FSID/addr			addr						AddrRef
+	if r.Addr == "" {
+		srcAddrIP = strings.Split(srcAddr, ":")[0]
+	} else {
+		srcAddrIP = r.Addr
+	}
 	pKey = fmt.Sprintf("/fs/%s/addr", r.FSid)
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(r.Addr))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	_, err = s.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
 	if store.IsNotFound(err) {
