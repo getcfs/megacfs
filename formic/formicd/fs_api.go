@@ -738,8 +738,8 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 
 	// return Addr was Granted
 	// Log Operation
-	log.Info("GRANT", zap.String("addr", r.Addr))
-	return &pb.GrantAddrFSResponse{Data: r.FSid}, nil
+	log.Info("GRANT", zap.String("addr", srcAddrIP))
+	return &pb.GrantAddrFSResponse{Data: srcAddrIP}, nil
 }
 
 // RevokeAddrFS ...
@@ -810,8 +810,8 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 
 	// return Addr was revoked
 	// Log Operation
-	log.Info("REVOKE", zap.String("addr", r.Addr))
-	return &pb.RevokeAddrFSResponse{Data: r.FSid}, nil
+	log.Info("REVOKE", zap.String("addr", srcAddrIP))
+	return &pb.RevokeAddrFSResponse{Data: srcAddrIP}, nil
 }
 
 // ValidateResponse ...

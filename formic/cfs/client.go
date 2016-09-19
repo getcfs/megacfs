@@ -254,11 +254,11 @@ func grant(region, username, apikey string) error {
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
 	token := auth(username, apikey)
-	_, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
+	res, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 	if err != nil {
 		return errors.New(fmt.Sprintf("Request Error: %v\n", err))
 	}
-
+	fmt.Println(res.Data)
 	return nil
 }
 
@@ -291,10 +291,10 @@ func revoke(region, username, apikey string) error {
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
 	token := auth(username, apikey)
-	_, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
+	res, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 	if err != nil {
 		return errors.New(fmt.Sprintf("Request Error: %v\n", err))
 	}
-
+	fmt.Println(res.Data)
 	return nil
 }
