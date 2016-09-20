@@ -103,7 +103,9 @@ func (store *defaultValueStore) pushReplicationPass(notifyChan chan *bgNotificat
 	}
 	begin := time.Now()
 	defer func() {
-		store.logger.Debug("pass complete", zap.String("name", store.loggerPrefix+"pushReplication"), zap.Duration("elapsed", time.Now().Sub(begin)))
+		elapsed := time.Now().Sub(begin)
+		store.logger.Debug("pass completed", zap.String("name", store.loggerPrefix+"pushReplication"), zap.Duration("elapsed", elapsed))
+		atomic.StoreInt64(&store.outPushReplicationNanoseconds, elapsed.Nanoseconds())
 	}()
 	ring := store.msgRing.Ring()
 	if ring == nil {

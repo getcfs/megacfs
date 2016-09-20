@@ -155,7 +155,7 @@ func (f *fileHandles) newFileHandle(inode fuse.NodeID) fuse.HandleID {
 	defer f.Unlock()
 	// TODO: not likely that you would use all uint64 handles, but should be better than this
 	f.handles[f.cur] = &fileHandle{inode: inode}
-	f.cur += 1
+	f.cur++
 	return f.cur - 1
 }
 
@@ -333,21 +333,21 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 		fuseutil.HandleRead(r, resp, data)
 		r.Respond(resp)
 		return
-	} else {
-		// handle file read
-		data, err := f.rpc.api.Read(f.getContext(), &pb.ReadRequest{
-			Inode:  uint64(r.Node),
-			Offset: int64(r.Offset),
-			Size:   int64(r.Size),
-		})
-		if err != nil {
-			log.Printf("Read on file failed: %s", err)
-			r.RespondError(fuse.EIO)
-			return
-		}
-		copy(resp.Data, data.Payload)
-		r.Respond(resp)
 	}
+
+	// handle file read
+	data, err := f.rpc.api.Read(f.getContext(), &pb.ReadRequest{
+		Inode:  uint64(r.Node),
+		Offset: int64(r.Offset),
+		Size:   int64(r.Size),
+	})
+	if err != nil {
+		log.Printf("Read on file failed: %s", err)
+		r.RespondError(fuse.EIO)
+		return
+	}
+	copy(resp.Data, data.Payload)
+	r.Respond(resp)
 }
 
 func (f *fs) handleWrite(r *fuse.WriteRequest) {
@@ -498,7 +498,7 @@ func (f *fs) handleStatfs(r *fuse.StatfsRequest) {
 		r.RespondError(fuse.EIO)
 		return
 	}
-	fuse_resp := &fuse.StatfsResponse{
+	fuseResp := &fuse.StatfsResponse{
 		Blocks:  resp.Blocks,
 		Bfree:   resp.Bfree,
 		Bavail:  resp.Bavail,
@@ -508,7 +508,7 @@ func (f *fs) handleStatfs(r *fuse.StatfsRequest) {
 		Namelen: resp.Namelen,
 		Frsize:  resp.Frsize,
 	}
-	r.Respond(fuse_resp)
+	r.Respond(fuseResp)
 }
 
 func (f *fs) handleSymlink(r *fuse.SymlinkRequest) {
@@ -556,6 +556,10 @@ func (f *fs) handleGetxattr(r *fuse.GetxattrRequest) {
 		r.RespondError(fuse.ENOSYS)
 		return
 	}
+	if r.Name == "system.posix_acl_access" || r.Name == "system.posix_acl_default" {
+		r.RespondError(fuse.ENOSYS)
+		return
+	}
 	req := &pb.GetxattrRequest{
 		Inode:    uint64(r.Node),
 		Name:     r.Name,
@@ -568,9 +572,9 @@ func (f *fs) handleGetxattr(r *fuse.GetxattrRequest) {
 		r.RespondError(fuse.EIO)
 		return
 	}
-	fuse_resp := &fuse.GetxattrResponse{Xattr: resp.Xattr}
-	log.Println(fuse_resp)
-	r.Respond(fuse_resp)
+	fuseResp := &fuse.GetxattrResponse{Xattr: resp.Xattr}
+	log.Println(fuseResp)
+	r.Respond(fuseResp)
 }
 
 func (f *fs) handleListxattr(r *fuse.ListxattrRequest) {
@@ -587,14 +591,18 @@ func (f *fs) handleListxattr(r *fuse.ListxattrRequest) {
 		r.RespondError(fuse.EIO)
 		return
 	}
-	fuse_resp := &fuse.ListxattrResponse{Xattr: resp.Xattr}
-	log.Println(fuse_resp)
-	r.Respond(fuse_resp)
+	fuseResp := &fuse.ListxattrResponse{Xattr: resp.Xattr}
+	log.Println(fuseResp)
+	r.Respond(fuseResp)
 }
 
 func (f *fs) handleSetxattr(r *fuse.SetxattrRequest) {
 	log.Println("Inside handleSetxattr")
 	log.Println(r)
+	if r.Name == "system.posix_acl_access" || r.Name == "system.posix_acl_default" {
+		r.RespondError(fuse.ENOSYS)
+		return
+	}
 	req := &pb.SetxattrRequest{
 		Inode:    uint64(r.Node),
 		Name:     r.Name,

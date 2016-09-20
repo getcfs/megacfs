@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-export GOVERSION=1.6
+export GOVERSION=1.7
 
 echo "Using $GIT_USER as user"
 
@@ -28,11 +28,7 @@ echo "export PATH=\$PATH:\$GOPATH/bin" >> /$USER/.bashrc
 source /$USER/.bashrc
 
 echo "Install Glide"
-mkdir -p $GOPATH/src/github.com/Masterminds
-cd $GOPATH/src/github.com/Masterminds
-git clone git@github.com:Masterminds/glide
-cd glide
-make install
+go get github.com/Masterminds/glide
 
 echo "Setting up megacfs repo"
 mkdir -p $GOPATH/src/github.com/getcfs
@@ -63,7 +59,7 @@ ln -s /etc/syndicate/cfssl/ca.pem /var/lib/formic/ca.pem
 ln -s /etc/syndicate/cfssl/localhost-key.pem /var/lib/formic/client.key
 ln -s /etc/syndicate/cfssl/localhost.pem /var/lib/formic/client.crt
 ln -s $GOPATH/bin/cfs /sbin/cfs
-echo -e '#!/bin/sh\ncfs mount $1 $2 -o $4 > /dev/null &' > /sbin/mount.cfs
+echo -e '#!/bin/sh\ncfs mount -o $4 $1 $2 &' > /sbin/mount.cfs
 chmod +x /sbin/mount.cfs
 
 echo "Installing startup scripts"

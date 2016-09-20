@@ -117,7 +117,9 @@ func (store *default{{.T}}Store) auditLauncher(notifyChan chan *bgNotification) 
 func (store *default{{.T}}Store) auditPass(speed bool, notifyChan chan *bgNotification) *bgNotification {
     begin := time.Now()
     defer func() {
-        store.logger.Debug("pass complete", zap.String("name", store.loggerPrefix + "audit"), zap.Duration("elapsed", time.Now().Sub(begin)))
+        elapsed := time.Now().Sub(begin)
+        store.logger.Debug("pass completed", zap.String("name", store.loggerPrefix + "audit"), zap.Duration("elapsed", elapsed))
+        atomic.StoreInt64(&store.auditNanoseconds, elapsed.Nanoseconds())
     }()
     names, err := store.readdirnames(store.pathtoc)
     if err != nil {

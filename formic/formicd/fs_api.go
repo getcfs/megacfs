@@ -15,11 +15,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"reflect"
+	"strings"
 	"time"
 
+	"github.com/getcfs/megacfs/formic"
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
@@ -87,6 +91,7 @@ func clear(v interface{}) {
 // FileSystemAPIServer is used to implement oohhc
 type FileSystemAPIServer struct {
 	gstore store.GroupStore
+	vstore store.ValueStore
 	log    zap.Logger
 }
 
@@ -94,9 +99,10 @@ type FileSystemAPIServer struct {
 var FSAttrList = []string{"name"}
 
 // NewFileSystemAPIServer ...
-func NewFileSystemAPIServer(store store.GroupStore, logger zap.Logger) *FileSystemAPIServer {
+func NewFileSystemAPIServer(grpstore store.GroupStore, valstore store.ValueStore, logger zap.Logger) *FileSystemAPIServer {
 	s := &FileSystemAPIServer{
-		gstore: store,
+		gstore: grpstore,
+		vstore: valstore,
 		log:    logger,
 	}
 
@@ -168,6 +174,68 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
+	if err != nil {
+		log.Error("CREATE FAILED", zap.String("type", "GroupStoreWrite"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	uuID, err := uuid.FromString(fsID)
+	id := formic.GetID(uuID.Bytes(), 1, 0)
+	vKeyA, vKeyB := murmur3.Sum128(id)
+
+	// Check if root entry already exits
+	_, value, err := s.vstore.Read(context.Background(), vKeyA, vKeyB, nil)
+	if !store.IsNotFound(err) {
+		if len(value) != 0 {
+			log.Error("CREATE FAILED", zap.String("msg", "Root Entry Already Exists"))
+			return nil, errf(codes.FailedPrecondition, "%v", "Root Entry Already Exists")
+		}
+		log.Error("CREATE FAILED", zap.String("type", "ValueStoreRead"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	// Create the Root entry data
+	log.Debug("Creating new root", zap.Base64("root", id))
+	// Prepare the root node
+	nr := &pb.InodeEntry{
+		Version: InodeEntryVersion,
+		Inode:   1,
+		IsDir:   true,
+		FsId:    uuID.Bytes(),
+	}
+	ts := time.Now().Unix()
+	nr.Attr = &pb.Attr{
+		Inode:  1,
+		Atime:  ts,
+		Mtime:  ts,
+		Ctime:  ts,
+		Crtime: ts,
+		Mode:   uint32(os.ModeDir | 0775),
+		Uid:    1001, // TODO: need to config default user/group id
+		Gid:    1001,
+	}
+	data, err := formic.Marshal(nr)
+	if err != nil {
+		log.Error("CREATE FAILED", zap.String("type", "Marshal Data"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	// Use data to Create The First Block
+	crc := crc32.NewIEEE()
+	crc.Write(data)
+	fb := &pb.FileBlock{
+		Version:  FileBlockVersion,
+		Data:     data,
+		Checksum: crc.Sum32(),
+	}
+	blkdata, err := formic.Marshal(fb)
+	if err != nil {
+		log.Error("CREATE FAILED", zap.String("type", "Marshal First Block"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	// Write root entry
+	_, err = s.vstore.Write(context.Background(), vKeyA, vKeyB, timestampMicro, blkdata)
 	if err != nil {
 		log.Error("CREATE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
@@ -388,7 +456,11 @@ func (s *FileSystemAPIServer) ListFS(ctx context.Context, r *pb.ListFSRequest) (
 // DeleteFS ...
 func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSRequest) (*pb.DeleteFSResponse, error) {
 	var err error
+	var value []byte
+	var fsRef FileSysRef
+	var addrData AddrRef
 	srcAddr := ""
+	rowcount := 0
 	// Get incomming ip
 	pr, ok := peer.FromContext(ctx)
 	if ok {
@@ -404,11 +476,116 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID), zap.String("fsid", r.FSid))
 
 	// Validate Token/Account own this file system
+	pKey := fmt.Sprintf("/fs")
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(r.FSid))
+	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
+	if store.IsNotFound(err) {
+		log.Info("DELETE FAILED", zap.String("error", "IDNotFound"))
+		return nil, errf(codes.NotFound, "%v", "File System ID Not Found")
+	}
+	if err != nil {
+		log.Error("DELETE FAILED", zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+	err = json.Unmarshal(value, &fsRef)
+	if err != nil {
+		log.Error("DELETE FAILED", zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+	if fsRef.AcctID != acctID {
+		log.Info("DELETE FAILED", zap.String("error", "AccountMismatch"), zap.String("acct", fsRef.AcctID))
+		return nil, errf(codes.FailedPrecondition, "%v", "Account Mismatch")
+	}
+
+	uuID, err := uuid.FromString(r.FSid)
+	id := formic.GetID(uuID.Bytes(), 1, 0)
+
+	// Test if file system is empty.
+	keyA, keyB := murmur3.Sum128(id)
+	items, err := s.gstore.ReadGroup(context.Background(), keyA, keyB)
+	if len(items) != 0 {
+		log.Info("DELETE FAILED", zap.String("error", "FileSystemNotEmpty"), zap.String("ItemCount", string(len(items))))
+		return nil, errf(codes.FailedPrecondition, "%v", "File System Not Empty")
+	}
+
+	// Remove the root file system entry from the value store
+	keyA, keyB = murmur3.Sum128(id)
+	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
+	_, err = s.vstore.Delete(context.Background(), keyA, keyB, timestampMicro)
+	if err != nil {
+		if !store.IsNotFound(err) {
+			log.Error("DELETE FAILED", zap.String("type", "RootRecord"))
+			return nil, errf(codes.Internal, "%v", err)
+		}
+	}
+
+	// Delete this record set
+	// IP Addresses																				(x records)
+	//    /fs/FSID/addr			  addr						AddrRef
+	// File System Attributes															(1 record)
+	//    /fs/FSID						name						FileSysAttr
+	// File System Account Reference											(1 record)
+	//    /acct/acctID				FSID						FileSysRef
+	// File System Reference 															(1 record)
+	//    /fs 								FSID						FileSysRef
+
+	// Read list of granted ip addresses
+	// group-lookup printf("/fs/%s/addr", FSID)
+	pKey = fmt.Sprintf("/fs/%s/addr", r.FSid)
+	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+	items, err = s.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	if !store.IsNotFound(err) {
+		// No addr granted
+		for _, v := range items {
+			err = json.Unmarshal(v.Value, &addrData)
+			if err != nil {
+				log.Error("DELETE FAILED", zap.String("type", "UnMarshal"), zap.Error(err))
+				return nil, errf(codes.Internal, "%v", err)
+			}
+			err = s.deleteEntry(pKey, addrData.Addr)
+			if err != nil {
+				log.Error("DELETE FAILED", zap.String("type", "IPDelete"), zap.Error(err))
+				return nil, errf(codes.Internal, "%v", err)
+			}
+			rowcount++
+		}
+	}
+	if err != nil {
+		log.Error("DELETE FAILED", zap.String("type", "ReadIPGroup"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+	// Delete File System Attributes
+	//    /fs/FSID						name						FileSysAttr
+	pKey = fmt.Sprintf("/fs/%s", r.FSid)
+	err = s.deleteEntry(pKey, "name")
+	if err != nil {
+		log.Error("DELETE FAILED", zap.String("type", "FSAttributeName"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+	rowcount++
+	// Delete File System Account Reference
+	//    /acct/acctID				FSID						FileSysRef
+	pKey = fmt.Sprintf("/acct/%s", acctID)
+	err = s.deleteEntry(pKey, r.FSid)
+	if err != nil {
+		log.Error("DELETE FAILED", zap.String("type", "FSAttributeName"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+	rowcount++
+	// File System Reference
+	//    /fs 								FSID						FileSysRef
+	err = s.deleteEntry("/fs", r.FSid)
+	if err != nil {
+		log.Error("DELETE FAILED", zap.String("type", "FSAttributeName"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+	rowcount++
 
 	// Prep things to return
 	// Log Operation
-	log.Info("DELETE NOTIMPLEMENTED")
-	return &pb.DeleteFSResponse{Data: "Delete Operation not supported at this time"}, nil
+	log.Info("DELETE", zap.String("ItemsDeleted", fmt.Sprintf("%d", rowcount)))
+	return &pb.DeleteFSResponse{Data: r.FSid}, nil
 }
 
 // UpdateFS ...
@@ -497,6 +674,7 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 	var addrData AddrRef
 	var addrByte []byte
 	srcAddr := ""
+	srcAddrIP := ""
 
 	// Get incomming ip
 	pr, ok := peer.FromContext(ctx)
@@ -536,11 +714,16 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 
 	// GRANT an file system entry for the addr
 	// 		write /fs/FSID/addr			addr						AddrRef
+	if r.Addr == "" {
+		srcAddrIP = strings.Split(srcAddr, ":")[0]
+	} else {
+		srcAddrIP = r.Addr
+	}
 	pKey = fmt.Sprintf("/fs/%s/addr", r.FSid)
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(r.Addr))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	addrData.Addr = r.Addr
+	addrData.Addr = srcAddrIP
 	addrData.FSID = r.FSid
 	addrByte, err = json.Marshal(addrData)
 	if err != nil {
@@ -555,8 +738,8 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 
 	// return Addr was Granted
 	// Log Operation
-	log.Info("GRANT", zap.String("addr", r.Addr))
-	return &pb.GrantAddrFSResponse{Data: r.FSid}, nil
+	log.Info("GRANT", zap.String("addr", srcAddrIP))
+	return &pb.GrantAddrFSResponse{Data: srcAddrIP}, nil
 }
 
 // RevokeAddrFS ...
@@ -566,6 +749,7 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	var value []byte
 	var fsRef FileSysRef
 	srcAddr := ""
+	srcAddrIP := ""
 
 	// Get incomming ip
 	pr, ok := peer.FromContext(ctx)
@@ -605,22 +789,32 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 
 	// REVOKE an file system entry for the addr
 	// 		delete /fs/FSID/addr			addr						AddrRef
+	if r.Addr == "" {
+		srcAddrIP = strings.Split(srcAddr, ":")[0]
+	} else {
+		srcAddrIP = r.Addr
+	}
 	pKey = fmt.Sprintf("/fs/%s/addr", r.FSid)
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(r.Addr))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	_, err = s.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
 	if store.IsNotFound(err) {
 		log.Info("REVOKE FAILED", zap.String("error", "IDNotFound"))
 		return nil, errf(codes.NotFound, "%v", "File System ID Not Found")
 	}
+	if err != nil {
+		log.Error("REVOKE FAILED", zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
 
 	// return Addr was revoked
 	// Log Operation
-	log.Info("REVOKE", zap.String("addr", r.Addr))
-	return &pb.RevokeAddrFSResponse{Data: r.FSid}, nil
+	log.Info("REVOKE", zap.String("addr", srcAddrIP))
+	return &pb.RevokeAddrFSResponse{Data: srcAddrIP}, nil
 }
 
+// ValidateResponse ...
 type ValidateResponse struct {
 	Access struct {
 		Token struct {
@@ -657,4 +851,17 @@ func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
 	tenant := validateResp.Access.Token.Tenant.ID
 
 	return tenant, nil
+}
+
+// deleteEntry Deletes and entry in the group store and doesn't care if
+// its not Found
+func (s *FileSystemAPIServer) deleteEntry(pKey string, cKey string) error {
+	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(cKey))
+	_, err := s.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
+	if store.IsNotFound(err) || err == nil {
+		return nil
+	}
+	return err
 }

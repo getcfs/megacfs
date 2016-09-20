@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hash"
 	"hash/crc32"
-	"os"
 	"sort"
 	"time"
 
@@ -21,12 +20,17 @@ import (
 )
 
 const (
+	// InodeEntryVersion ...
 	InodeEntryVersion = 1
-	DirEntryVersion   = 1
-	FileBlockVersion  = 1
-	MaxRetries        = 10
+	// DirEntryVersion ...
+	DirEntryVersion = 1
+	// FileBlockVersion ...
+	FileBlockVersion = 1
+	// MaxRetries ...
+	MaxRetries = 10
 )
 
+// FileService ...
 type FileService interface {
 	InitFs(ctx context.Context, fsid []byte) error
 	GetAttr(ctx context.Context, id []byte) (*pb.Attr, error)
@@ -51,15 +55,20 @@ type FileService interface {
 	GetDirent(ctx context.Context, parent []byte, name string) (*pb.DirEntry, error)
 }
 
+// ErrStoreHasNewerValue ...
 var ErrStoreHasNewerValue = errors.New("Error store already has newer value")
+
+// ErrNotFound ...
 var ErrNotFound = errors.New("Not found")
 
+// StoreComms ...
 type StoreComms struct {
 	vstore store.ValueStore
 	gstore store.GroupStore
 	log    zap.Logger
 }
 
+// NewStoreComms ...
 func NewStoreComms(vstore store.ValueStore, gstore store.GroupStore, logger zap.Logger) (*StoreComms, error) {
 	return &StoreComms{
 		vstore: vstore,
@@ -68,7 +77,7 @@ func NewStoreComms(vstore store.ValueStore, gstore store.GroupStore, logger zap.
 	}, nil
 }
 
-// Helper methods to get data from value and group store
+// ReadValue ... Helper methods to get data from value and group store
 func (o *StoreComms) ReadValue(ctx context.Context, id []byte) ([]byte, error) {
 	// TODO: You might want to make this whole area pass in reusable []byte to
 	// lessen gc pressure.
@@ -77,6 +86,7 @@ func (o *StoreComms) ReadValue(ctx context.Context, id []byte) ([]byte, error) {
 	return v, err
 }
 
+// WriteValue ...
 func (o *StoreComms) WriteValue(ctx context.Context, id, data []byte) error {
 	keyA, keyB := murmur3.Sum128(id)
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
@@ -96,11 +106,13 @@ func (o *StoreComms) WriteValue(ctx context.Context, id, data []byte) error {
 	return nil
 }
 
+// DeleteValue ...
 func (o *StoreComms) DeleteValue(ctx context.Context, id []byte) error {
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	return o.DeleteValueTS(ctx, id, timestampMicro)
 }
 
+// DeleteValueTS ...
 func (o *StoreComms) DeleteValueTS(ctx context.Context, id []byte, tsm int64) error {
 	keyA, keyB := murmur3.Sum128(id)
 	oldTimestampMicro, err := o.vstore.Delete(ctx, keyA, keyB, tsm)
@@ -110,11 +122,13 @@ func (o *StoreComms) DeleteValueTS(ctx context.Context, id []byte, tsm int64) er
 	return err
 }
 
+// WriteGroup ...
 func (o *StoreComms) WriteGroup(ctx context.Context, key, childKey, value []byte) error {
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	return o.WriteGroupTS(ctx, key, childKey, value, timestampMicro)
 }
 
+// WriteGroupTS ...
 func (o *StoreComms) WriteGroupTS(ctx context.Context, key, childKey, value []byte, tsm int64) error {
 	keyA, keyB := murmur3.Sum128(key)
 	childKeyA, childKeyB := murmur3.Sum128(childKey)
@@ -128,22 +142,26 @@ func (o *StoreComms) WriteGroupTS(ctx context.Context, key, childKey, value []by
 	return nil
 }
 
+// ReadGroupItem ...
 func (o *StoreComms) ReadGroupItem(ctx context.Context, key, childKey []byte) ([]byte, error) {
 	childKeyA, childKeyB := murmur3.Sum128(childKey)
 	return o.ReadGroupItemByKey(ctx, key, childKeyA, childKeyB)
 }
 
+// ReadGroupItemByKey ...
 func (o *StoreComms) ReadGroupItemByKey(ctx context.Context, key []byte, childKeyA, childKeyB uint64) ([]byte, error) {
 	keyA, keyB := murmur3.Sum128(key)
 	_, v, err := o.gstore.Read(ctx, keyA, keyB, childKeyA, childKeyB, nil)
 	return v, err
 }
 
+// DeleteGroupItem ...
 func (o *StoreComms) DeleteGroupItem(ctx context.Context, key, childKey []byte) error {
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	return o.DeleteGroupItemTS(ctx, key, childKey, timestampMicro)
 }
 
+// DeleteGroupItemTS ...
 func (o *StoreComms) DeleteGroupItemTS(ctx context.Context, key, childKey []byte, tsm int64) error {
 	keyA, keyB := murmur3.Sum128(key)
 	childKeyA, childKeyB := murmur3.Sum128(childKey)
@@ -157,6 +175,7 @@ func (o *StoreComms) DeleteGroupItemTS(ctx context.Context, key, childKey []byte
 	return nil
 }
 
+// LookupGroup ...
 func (o *StoreComms) LookupGroup(ctx context.Context, key []byte) ([]store.LookupGroupItem, error) {
 	keyA, keyB := murmur3.Sum128(key)
 	items, err := o.gstore.LookupGroup(ctx, keyA, keyB)
@@ -166,6 +185,7 @@ func (o *StoreComms) LookupGroup(ctx context.Context, key []byte) ([]store.Looku
 	return items, nil
 }
 
+// ReadGroup ...
 func (o *StoreComms) ReadGroup(ctx context.Context, key []byte) ([]store.ReadGroupItem, error) {
 	keyA, keyB := murmur3.Sum128(key)
 	items, err := o.gstore.ReadGroup(ctx, keyA, keyB)
@@ -175,6 +195,7 @@ func (o *StoreComms) ReadGroup(ctx context.Context, key []byte) ([]store.ReadGro
 	return items, nil
 }
 
+// OortFS ...
 type OortFS struct {
 	hasher     func() hash.Hash32
 	comms      *StoreComms
@@ -183,6 +204,7 @@ type OortFS struct {
 	log        zap.Logger
 }
 
+// NewOortFS ...
 func NewOortFS(comms *StoreComms, logger zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem) *OortFS {
 	o := &OortFS{
 		hasher:     crc32.NewIEEE,
@@ -194,41 +216,44 @@ func NewOortFS(comms *StoreComms, logger zap.Logger, deleteChan chan *DeleteItem
 	return o
 }
 
+// InitFs ...
 func (o *OortFS) InitFs(ctx context.Context, fsid []byte) error {
 	id := formic.GetID(fsid, 1, 0)
 	n, _ := o.GetChunk(ctx, id)
 	if len(n) == 0 {
-		o.log.Debug("Creating new root", zap.Base64("root", id))
-		// Need to create the root node
-		r := &pb.InodeEntry{
-			Version: InodeEntryVersion,
-			Inode:   1,
-			IsDir:   true,
-			FsId:    fsid,
-		}
-		ts := time.Now().Unix()
-		r.Attr = &pb.Attr{
-			Inode:  1,
-			Atime:  ts,
-			Mtime:  ts,
-			Ctime:  ts,
-			Crtime: ts,
-			Mode:   uint32(os.ModeDir | 0775),
-			Uid:    1001, // TODO: need to config default user/group id
-			Gid:    1001,
-		}
-		b, err := formic.Marshal(r)
-		if err != nil {
-			return err
-		}
-		err = o.WriteChunk(ctx, id, b)
-		if err != nil {
-			return err
-		}
+		//o.log.Debug("Creating new root", zap.Base64("root", id))
+		// // Need to create the root node
+		// r := &pb.InodeEntry{
+		//	 Version: InodeEntryVersion,
+		//   Inode:   1,
+		//	 IsDir:   true,
+		//	 FsId:    fsid,
+		// }
+		// ts := time.Now().Unix()
+		// r.Attr = &pb.Attr{
+		//	 Inode:  1,
+		//	 Atime:  ts,
+		//	 Mtime:  ts,
+		//	 Ctime:  ts,
+		//	 Crtime: ts,
+		// 	 Mode:   uint32(os.ModeDir | 0775),
+		//	 Uid:    1001, // TODO: need to config default user/group id
+		//	 Gid:    1001,
+		// }
+		// b, err := formic.Marshal(r)
+		// if err != nil {
+		// 	 return err
+		// }
+		// err = o.WriteChunk(ctx, id, b)
+		// if err != nil {
+		//	 return err
+		// }
+		return errors.New("Root Entry does not Exist")
 	}
 	return nil
 }
 
+// GetAttr ...
 func (o *OortFS) GetAttr(ctx context.Context, id []byte) (*pb.Attr, error) {
 	b, err := o.GetChunk(ctx, id)
 	if err != nil {
@@ -242,6 +267,7 @@ func (o *OortFS) GetAttr(ctx context.Context, id []byte) (*pb.Attr, error) {
 	return n.Attr, nil
 }
 
+// SetAttr ...
 func (o *OortFS) SetAttr(ctx context.Context, id []byte, attr *pb.Attr, v uint32) (*pb.Attr, error) {
 	valid := fuse.SetattrValid(v)
 	n, err := o.GetInode(ctx, id)
@@ -308,6 +334,7 @@ func (o *OortFS) SetAttr(ctx context.Context, id []byte, attr *pb.Attr, v uint32
 	return n.Attr, nil
 }
 
+// Create ...
 func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *pb.Attr, isdir bool) (string, *pb.Attr, error) {
 	// Check to see if the name already exists
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
@@ -362,6 +389,7 @@ func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, na
 	return name, attr, nil
 }
 
+// Lookup ...
 func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error) {
 	// Get the id
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
@@ -389,6 +417,8 @@ func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string
 }
 
 // Needed to be able to sort the dirents
+
+// ByDirent ...
 type ByDirent []*pb.DirEnt
 
 func (d ByDirent) Len() int {
@@ -403,6 +433,7 @@ func (d ByDirent) Less(i, j int) bool {
 	return d[i].Name < d[j].Name
 }
 
+// ReadDirAll ...
 func (o *OortFS) ReadDirAll(ctx context.Context, id []byte) (*pb.ReadDirAllResponse, error) {
 	// Get the keys from the group
 	items, err := o.comms.ReadGroup(ctx, id)
@@ -425,6 +456,7 @@ func (o *OortFS) ReadDirAll(ctx context.Context, id []byte) (*pb.ReadDirAllRespo
 	return e, nil
 }
 
+// Remove ...
 func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32, error) {
 	// Get the ID from the group list
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
@@ -492,11 +524,11 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 	err = o.comms.DeleteGroupItemTS(ctx, parent, []byte(name), tsm)
 	if err != nil {
 		return 1, err
-	} else {
-		return 0, nil
 	}
+	return 0, nil
 }
 
+// Update ...
 func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size uint64, mtime int64) error {
 	b, err := o.GetChunk(ctx, id)
 	if err != nil {
@@ -528,6 +560,7 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 	return nil
 }
 
+// Symlink ...
 func (o *OortFS) Symlink(ctx context.Context, parent, id []byte, name string, target string, attr *pb.Attr, inode uint64) (*pb.SymlinkResponse, error) {
 	// Check to see if the name exists
 	val, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
@@ -572,6 +605,7 @@ func (o *OortFS) Symlink(ctx context.Context, parent, id []byte, name string, ta
 	return &pb.SymlinkResponse{Name: name, Attr: attr}, nil
 }
 
+// Readlink ...
 func (o *OortFS) Readlink(ctx context.Context, id []byte) (*pb.ReadlinkResponse, error) {
 	b, err := o.GetChunk(ctx, id)
 	if err != nil {
@@ -585,6 +619,7 @@ func (o *OortFS) Readlink(ctx context.Context, id []byte) (*pb.ReadlinkResponse,
 	return &pb.ReadlinkResponse{Target: n.Target}, nil
 }
 
+// Getxattr ...
 func (o *OortFS) Getxattr(ctx context.Context, id []byte, name string) (*pb.GetxattrResponse, error) {
 	b, err := o.GetChunk(ctx, id)
 	if err != nil {
@@ -601,6 +636,7 @@ func (o *OortFS) Getxattr(ctx context.Context, id []byte, name string) (*pb.Getx
 	return &pb.GetxattrResponse{}, nil
 }
 
+// Setxattr ...
 func (o *OortFS) Setxattr(ctx context.Context, id []byte, name string, value []byte) (*pb.SetxattrResponse, error) {
 	b, err := o.GetChunk(ctx, id)
 	if err != nil {
@@ -626,6 +662,7 @@ func (o *OortFS) Setxattr(ctx context.Context, id []byte, name string, value []b
 	return &pb.SetxattrResponse{}, nil
 }
 
+// Listxattr ...
 func (o *OortFS) Listxattr(ctx context.Context, id []byte) (*pb.ListxattrResponse, error) {
 	resp := &pb.ListxattrResponse{}
 	b, err := o.GetChunk(ctx, id)
@@ -646,6 +683,7 @@ func (o *OortFS) Listxattr(ctx context.Context, id []byte) (*pb.ListxattrRespons
 	return resp, nil
 }
 
+// Removexattr ...
 func (o *OortFS) Removexattr(ctx context.Context, id []byte, name string) (*pb.RemovexattrResponse, error) {
 	b, err := o.GetChunk(ctx, id)
 	if err != nil {
@@ -668,6 +706,7 @@ func (o *OortFS) Removexattr(ctx context.Context, id []byte, name string) (*pb.R
 	return &pb.RemovexattrResponse{}, nil
 }
 
+// Rename ...
 func (o *OortFS) Rename(ctx context.Context, oldParent, newParent []byte, oldName, newName string) (*pb.RenameResponse, error) {
 	// Get the ID from the group list
 	b, err := o.comms.ReadGroupItem(ctx, oldParent, []byte(oldName))
@@ -705,6 +744,7 @@ func (o *OortFS) Rename(ctx context.Context, oldParent, newParent []byte, oldNam
 	return &pb.RenameResponse{}, nil
 }
 
+// GetChunk ...
 func (o *OortFS) GetChunk(ctx context.Context, id []byte) ([]byte, error) {
 	b, err := o.comms.ReadValue(ctx, id)
 	if store.IsNotFound(err) {
@@ -722,6 +762,7 @@ func (o *OortFS) GetChunk(ctx context.Context, id []byte) ([]byte, error) {
 	return fb.Data, nil
 }
 
+// WriteChunk ...
 func (o *OortFS) WriteChunk(ctx context.Context, id, data []byte) error {
 	crc := o.hasher()
 	crc.Write(data)
@@ -737,14 +778,17 @@ func (o *OortFS) WriteChunk(ctx context.Context, id, data []byte) error {
 	return o.comms.WriteValue(ctx, id, b)
 }
 
+// DeleteChunk ...
 func (o *OortFS) DeleteChunk(ctx context.Context, id []byte, tsm int64) error {
 	return o.comms.DeleteValueTS(ctx, id, tsm)
 }
 
+// DeleteListing ...
 func (o *OortFS) DeleteListing(ctx context.Context, parent []byte, name string, tsm int64) error {
 	return o.comms.DeleteGroupItemTS(ctx, parent, []byte(name), tsm)
 }
 
+// GetInode ...
 func (o *OortFS) GetInode(ctx context.Context, id []byte) (*pb.InodeEntry, error) {
 	// Get the Inode entry
 	b, err := o.GetChunk(ctx, id)
@@ -759,6 +803,7 @@ func (o *OortFS) GetInode(ctx context.Context, id []byte) (*pb.InodeEntry, error
 	return n, nil
 }
 
+// GetDirent ...
 func (o *OortFS) GetDirent(ctx context.Context, parent []byte, name string) (*pb.DirEntry, error) {
 	// Get the Dir Entry
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))

@@ -14,12 +14,13 @@ type config struct {
 	oortGroupSyndicate         string
 	insecureSkipVerify         bool
 	skipMutualTLS              bool
-	nodeId                     int
+	nodeID                     int
 	metricsAddr                string
 	metricsCollectors          string
 	poolSize                   int
 	concurrentRequestsPerStore int
 	debug                      bool
+	grpcMetrics                bool
 }
 
 func resolveConfig(c *config) *config {
@@ -59,7 +60,7 @@ func resolveConfig(c *config) *config {
 	}
 	if env := os.Getenv("FORMICD_NODE_ID"); env != "" {
 		if val, err := strconv.Atoi(env); err == nil {
-			cfg.nodeId = val
+			cfg.nodeID = val
 		}
 	}
 	cfg.metricsAddr = ":9100"
@@ -82,6 +83,10 @@ func resolveConfig(c *config) *config {
 	cfg.debug = false
 	if env := os.Getenv("FORMICD_DEBUG"); env == "true" {
 		cfg.debug = true
+	}
+	cfg.grpcMetrics = true
+	if env := os.Getenv("FORMICD_GRPC_METRICS"); env == "false" {
+		cfg.grpcMetrics = false
 	}
 
 	return cfg
