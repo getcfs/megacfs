@@ -15,6 +15,7 @@ import (
 var regions = map[string]string{
 	"aio": "127.0.0.1:8445",
 	"iad": "api.ea.iad.rackfs.com:8445",
+	"rpc": "rpc.ea.iad.rackfs.com:8445", // public dns for rpc ea testing
 	"dev": "api.dev.iad.rackfs.com:8445",
 }
 
