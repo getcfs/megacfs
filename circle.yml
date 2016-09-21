@@ -41,4 +41,4 @@ deployment:
   production:
     branch: prod
     commands:
-        - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && utils/ghr -t $GITHUB_TOKEN -u getcfs `cat VERSION` $BUILDPATH && http $THEHOOK_HOST key=$THEHOOK_KEY version=`cat VERSION`
+        - cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME && utils/ghr -t $GITHUB_TOKEN -u getcfs --replace `cat VERSION` $BUILDPATH && http $THEHOOK_HOST key=$THEHOOK_KEY version=`cat VERSION`
