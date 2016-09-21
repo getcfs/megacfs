@@ -69,7 +69,9 @@ func newrpc(addr string) *rpc {
 	})
 	opts = append(opts, grpc.WithTransportCredentials(creds))
 	clients := []pb.ApiClient{}
-	for i := 0; i < 10; i++ {
+
+	// TODO: Rework this simplistic connection pooling
+	for i := 0; i < 1; i++ { // hardcoded to 1 connection for now
 		conn, err := grpc.Dial(addr, opts...)
 		if err != nil {
 			fmt.Println(err)
