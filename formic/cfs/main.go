@@ -383,7 +383,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := grant(region, username, apikey)
+		err := revoke(region, username, apikey)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

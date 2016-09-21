@@ -15,9 +15,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/getcfs/megacfs/formic"
@@ -171,6 +174,68 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 		return nil, errf(codes.Internal, "%v", err)
 	}
 	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
+	if err != nil {
+		log.Error("CREATE FAILED", zap.String("type", "GroupStoreWrite"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	uuID, err := uuid.FromString(fsID)
+	id := formic.GetID(uuID.Bytes(), 1, 0)
+	vKeyA, vKeyB := murmur3.Sum128(id)
+
+	// Check if root entry already exits
+	_, value, err := s.vstore.Read(context.Background(), vKeyA, vKeyB, nil)
+	if !store.IsNotFound(err) {
+		if len(value) != 0 {
+			log.Error("CREATE FAILED", zap.String("msg", "Root Entry Already Exists"))
+			return nil, errf(codes.FailedPrecondition, "%v", "Root Entry Already Exists")
+		}
+		log.Error("CREATE FAILED", zap.String("type", "ValueStoreRead"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	// Create the Root entry data
+	log.Debug("Creating new root", zap.Base64("root", id))
+	// Prepare the root node
+	nr := &pb.InodeEntry{
+		Version: InodeEntryVersion,
+		Inode:   1,
+		IsDir:   true,
+		FsId:    uuID.Bytes(),
+	}
+	ts := time.Now().Unix()
+	nr.Attr = &pb.Attr{
+		Inode:  1,
+		Atime:  ts,
+		Mtime:  ts,
+		Ctime:  ts,
+		Crtime: ts,
+		Mode:   uint32(os.ModeDir | 0775),
+		Uid:    1001, // TODO: need to config default user/group id
+		Gid:    1001,
+	}
+	data, err := formic.Marshal(nr)
+	if err != nil {
+		log.Error("CREATE FAILED", zap.String("type", "Marshal Data"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	// Use data to Create The First Block
+	crc := crc32.NewIEEE()
+	crc.Write(data)
+	fb := &pb.FileBlock{
+		Version:  FileBlockVersion,
+		Data:     data,
+		Checksum: crc.Sum32(),
+	}
+	blkdata, err := formic.Marshal(fb)
+	if err != nil {
+		log.Error("CREATE FAILED", zap.String("type", "Marshal First Block"), zap.Error(err))
+		return nil, errf(codes.Internal, "%v", err)
+	}
+
+	// Write root entry
+	_, err = s.vstore.Write(context.Background(), vKeyA, vKeyB, timestampMicro, blkdata)
 	if err != nil {
 		log.Error("CREATE FAILED", zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
@@ -609,6 +674,7 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 	var addrData AddrRef
 	var addrByte []byte
 	srcAddr := ""
+	srcAddrIP := ""
 
 	// Get incomming ip
 	pr, ok := peer.FromContext(ctx)
@@ -648,11 +714,16 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 
 	// GRANT an file system entry for the addr
 	// 		write /fs/FSID/addr			addr						AddrRef
+	if r.Addr == "" {
+		srcAddrIP = strings.Split(srcAddr, ":")[0]
+	} else {
+		srcAddrIP = r.Addr
+	}
 	pKey = fmt.Sprintf("/fs/%s/addr", r.FSid)
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(r.Addr))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	addrData.Addr = r.Addr
+	addrData.Addr = srcAddrIP
 	addrData.FSID = r.FSid
 	addrByte, err = json.Marshal(addrData)
 	if err != nil {
@@ -667,8 +738,8 @@ func (s *FileSystemAPIServer) GrantAddrFS(ctx context.Context, r *pb.GrantAddrFS
 
 	// return Addr was Granted
 	// Log Operation
-	log.Info("GRANT", zap.String("addr", r.Addr))
-	return &pb.GrantAddrFSResponse{Data: r.FSid}, nil
+	log.Info("GRANT", zap.String("addr", srcAddrIP))
+	return &pb.GrantAddrFSResponse{Data: srcAddrIP}, nil
 }
 
 // RevokeAddrFS ...
@@ -678,6 +749,7 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 	var value []byte
 	var fsRef FileSysRef
 	srcAddr := ""
+	srcAddrIP := ""
 
 	// Get incomming ip
 	pr, ok := peer.FromContext(ctx)
@@ -717,9 +789,14 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 
 	// REVOKE an file system entry for the addr
 	// 		delete /fs/FSID/addr			addr						AddrRef
+	if r.Addr == "" {
+		srcAddrIP = strings.Split(srcAddr, ":")[0]
+	} else {
+		srcAddrIP = r.Addr
+	}
 	pKey = fmt.Sprintf("/fs/%s/addr", r.FSid)
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(r.Addr))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	_, err = s.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
 	if store.IsNotFound(err) {
@@ -733,10 +810,11 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 
 	// return Addr was revoked
 	// Log Operation
-	log.Info("REVOKE", zap.String("addr", r.Addr))
-	return &pb.RevokeAddrFSResponse{Data: r.FSid}, nil
+	log.Info("REVOKE", zap.String("addr", srcAddrIP))
+	return &pb.RevokeAddrFSResponse{Data: srcAddrIP}, nil
 }
 
+// ValidateResponse ...
 type ValidateResponse struct {
 	Access struct {
 		Token struct {
@@ -784,7 +862,6 @@ func (s *FileSystemAPIServer) deleteEntry(pKey string, cKey string) error {
 	_, err := s.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
 	if store.IsNotFound(err) || err == nil {
 		return nil
-	} else {
-		return err
 	}
+	return err
 }

@@ -178,7 +178,7 @@ func main() {
 		logger.Fatal("Failed to bind formicd to port", zap.Error(err))
 	}
 	pb.RegisterFileSystemAPIServer(s, NewFileSystemAPIServer(gstore, vstore, baseLogger.With(zap.String("name", "formicd.fs"))))
-	pb.RegisterApiServer(s, NewApiServer(fs, cfg.nodeId, comms, logger))
+	pb.RegisterApiServer(s, NewApiServer(fs, cfg.nodeID, comms, logger))
 	logger.Info("Starting formic and the filesystem API", zap.Int("port", cfg.port))
 	s.Serve(l)
 }

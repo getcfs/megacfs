@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"strings"
 
 	pb "github.com/getcfs/megacfs/formic/proto"
+	"golang.org/x/net/context"
 )
 
 var regions = map[string]string{
@@ -224,20 +224,27 @@ func update(region, username, apikey string) error {
 }
 
 func grant(region, username, apikey string) error {
+	var ip, fsid string
 	f := flag.NewFlagSet("grant", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
-		fmt.Println("    cfs grant <ip> <fsid>")
+		fmt.Println("    cfs grant [ip] <fsid>")
 		fmt.Println("Example:")
+		fmt.Println("    cfs grant 11111111-1111-1111-1111-111111111111")
 		fmt.Println("    cfs grant 1.1.1.1 11111111-1111-1111-1111-111111111111")
 		os.Exit(1)
 	}
 	f.Parse(flag.Args()[1:])
-	if f.NArg() != 2 {
+	if f.NArg() == 1 {
+		ip = ""
+		fsid = f.Args()[0]
+	} else if f.NArg() == 2 {
+		ip = f.Args()[0]
+		fsid = f.Args()[1]
+	} else {
+
 		f.Usage()
 	}
-	ip := f.Args()[0]
-	fsid := f.Args()[1]
 	addr, ok := regions[region]
 	if !ok {
 		return fmt.Errorf("Invalid region: %s", region)
@@ -246,29 +253,35 @@ func grant(region, username, apikey string) error {
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
 	token := auth(username, apikey)
-	_, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
+	res, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 	if err != nil {
 		return fmt.Errorf("Request Error: %v", err)
 	}
-
+	fmt.Println(res.Data)
 	return nil
 }
 
 func revoke(region, username, apikey string) error {
+	var ip, fsid string
 	f := flag.NewFlagSet("revoke", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
-		fmt.Println("    cfs revoke <ip> <fsid>")
+		fmt.Println("    cfs revoke [ip] <fsid>")
 		fmt.Println("Example:")
+		fmt.Println("    cfs revoke 11111111-1111-1111-1111-111111111111")
 		fmt.Println("    cfs revoke 1.1.1.1 11111111-1111-1111-1111-111111111111")
 		os.Exit(1)
 	}
 	f.Parse(flag.Args()[1:])
-	if f.NArg() != 2 {
+	if f.NArg() == 1 {
+		ip = ""
+		fsid = f.Args()[0]
+	} else if f.NArg() == 2 {
+		ip = f.Args()[0]
+		fsid = f.Args()[1]
+	} else {
 		f.Usage()
 	}
-	ip := f.Args()[0]
-	fsid := f.Args()[1]
 	addr, ok := regions[region]
 	if !ok {
 		return fmt.Errorf("Invalid region: %s", region)
@@ -277,10 +290,10 @@ func revoke(region, username, apikey string) error {
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
 	token := auth(username, apikey)
-	_, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
+	res, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 	if err != nil {
 		return fmt.Errorf("Request Error: %v", err)
 	}
-
+	fmt.Println(res.Data)
 	return nil
 }
