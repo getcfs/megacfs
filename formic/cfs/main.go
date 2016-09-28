@@ -399,7 +399,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "cp":
-		if err := cpcp.CPCP(os.Args[2:]); err != nil {
+		if err := cpcp.CPCP(flag.Args()[1:]); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
