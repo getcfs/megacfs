@@ -22,7 +22,7 @@ darwin:
 
 clean:
 	rm -rf packaging/output
-	rm -f packaging/root/usr/local/bin
+	rm -rf packaging/root/usr/local/bin
 
 install: build
 	cp -av packaging/root/usr/local/bin/* $(GOPATH)/bin
