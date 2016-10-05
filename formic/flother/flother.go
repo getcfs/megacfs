@@ -36,7 +36,7 @@ func (f *Flother) GetID() uint64 {
 	ms := uint64(time.Now().UnixNano()-f.epoch.UnixNano()) / 1000000 // miliseconds
 	id := ms << (64 - f.timeBits)
 	id |= f.node << (64 - f.timeBits - f.nodeBits)
-	atomic.AddUint64(&f.counter, 1)
-	id |= f.counter % (1 << f.seqBits)
+	c := atomic.AddUint64(&f.counter, 1)
+	id |= c % (1 << f.seqBits)
 	return id
 }

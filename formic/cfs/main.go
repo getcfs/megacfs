@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/getcfs/fuse"
 	pb "github.com/getcfs/megacfs/formic/proto"
+	"github.com/gholt/cpcp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -58,17 +60,35 @@ func debuglog(msg interface{}) {
 }
 
 type rpc struct {
-	conn *grpc.ClientConn
-	api  pb.ApiClient
+	apiClients []pb.ApiClient
 }
 
-func newrpc(conn *grpc.ClientConn) *rpc {
+func newrpc(addr string) *rpc {
+	var opts []grpc.DialOption
+	creds := credentials.NewTLS(&tls.Config{
+		InsecureSkipVerify: true,
+	})
+	opts = append(opts, grpc.WithTransportCredentials(creds))
+	clients := []pb.ApiClient{}
+
+	// TODO: Rework this simplistic connection pooling
+	for i := 0; i < 1; i++ { // hardcoded to 1 connection for now
+		conn, err := grpc.Dial(addr, opts...)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		clients = append(clients, pb.NewApiClient(conn))
+	}
 	r := &rpc{
-		conn: conn,
-		api:  pb.NewApiClient(conn),
+		apiClients: clients,
 	}
 
 	return r
+}
+
+func (r *rpc) api() pb.ApiClient {
+	return r.apiClients[rand.Intn(len(r.apiClients))]
 }
 
 // NullWriter ...
@@ -162,19 +182,6 @@ func mount() error {
 		os.Exit(1)
 	}
 
-	// Setup grpc
-	var opts []grpc.DialOption
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
-	opts = append(opts, grpc.WithTransportCredentials(creds))
-	conn, err := grpc.Dial(addr, opts...)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	defer conn.Close()
-
 	// handle fuse mount options
 	mountOptions := []fuse.MountOption{
 		fuse.FSName("cfs"),
@@ -218,7 +225,7 @@ func mount() error {
 	defer cfs.Close()
 
 	// setup rpc client
-	rpc := newrpc(conn)
+	rpc := newrpc(addr)
 	fs := newfs(cfs, rpc, fsid)
 	err = fs.InitFs()
 	if err != nil {
@@ -282,6 +289,7 @@ func main() {
 		fmt.Println("    revoke       revoke access to a filesystem")
 		fmt.Println("    mount        mount an existing filesystem")
 		fmt.Println("    version      show client version")
+		fmt.Println("    cp           parallel cp command; cfs cp --help")
 		fmt.Println("    help         show usage for cfs")
 		fmt.Println("Examples:")
 		fmt.Println("    cfs configure")
@@ -387,6 +395,11 @@ func main() {
 	case "mount":
 		err := mount()
 		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	case "cp":
+		if err := cpcp.CPCP(flag.Args()[1:]); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}

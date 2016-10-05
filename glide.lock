@@ -41,6 +41,8 @@ imports:
   version: 76710fe6ae3884c59dbd0b33623eb47ed6e27c98
 - name: github.com/gholt/brimtime
   version: 19b9fd546f7797616687d3d53e413cbfd6458dcd
+- name: github.com/gholt/cpcp
+  version: fb0d052395726a94e5933c7e8381460e4db051c7
 - name: github.com/gholt/locmap
   version: 53865c9745c7d5088813b716985b52c328960a8e
 - name: github.com/gholt/ring
