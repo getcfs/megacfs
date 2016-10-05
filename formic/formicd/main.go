@@ -133,9 +133,12 @@ func main() {
 		PoolSize:                   cfg.poolSize,
 		ConcurrentRequestsPerStore: cfg.concurrentRequestsPerStore,
 	})
-	if verr := vstore.Startup(context.Background()); verr != nil {
-		logger.Fatal("Cannot start valuestore connector:", zap.Error(err))
-	}
+
+	vstore.SetRing(vstore.Ring(context.Background()))
+
+	// if verr := vstore.Startup(context.Background()); verr != nil {
+	//	logger.Fatal("Cannot start valuestore connector:", zap.Error(err))
+	//}
 
 	gstore := api.NewReplGroupStore(&api.GroupStoreConfig{
 		Logger:                     oortLogger,
@@ -149,9 +152,12 @@ func main() {
 		PoolSize:                   cfg.poolSize,
 		ConcurrentRequestsPerStore: cfg.concurrentRequestsPerStore,
 	})
-	if gerr := gstore.Startup(context.Background()); gerr != nil {
-		logger.Fatal("Cannot start groupstore connector:", zap.Error(err))
-	}
+
+	gstore.SetRing(gstore.Ring(context.Background()))
+
+	// if gerr := gstore.Startup(context.Background()); gerr != nil {
+	// 	logger.Fatal("Cannot start groupstore connector:", zap.Error(err))
+	// }
 
 	// starting up formicd
 	comms, err := NewStoreComms(vstore, gstore, logger)
