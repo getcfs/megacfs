@@ -18,6 +18,7 @@ import (
 
 	"github.com/getcfs/fuse"
 	pb "github.com/getcfs/megacfs/formic/proto"
+	"github.com/gholt/cpcp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -288,6 +289,7 @@ func main() {
 		fmt.Println("    revoke       revoke access to a filesystem")
 		fmt.Println("    mount        mount an existing filesystem")
 		fmt.Println("    version      show client version")
+		fmt.Println("    cp           parallel cp command; cfs cp --help")
 		fmt.Println("    help         show usage for cfs")
 		fmt.Println("Examples:")
 		fmt.Println("    cfs configure")
@@ -393,6 +395,11 @@ func main() {
 	case "mount":
 		err := mount()
 		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	case "cp":
+		if err := cpcp.CPCP(flag.Args()[1:]); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
