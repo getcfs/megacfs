@@ -317,16 +317,17 @@ func (c *Client) getValueClient() error {
 		KeyFile:            *keyfile,
 		CAFile:             *cafile,
 	}
-	rOpts, err := ftls.NewGRPCClientDialOpt(&ftls.Config{
-		MutualTLS: false,
-		CAFile:    *cafile,
-	})
-	if err != nil {
-		return err
-	}
+
 	if c.vdirect != "" {
 		c.vstore = api.NewValueStore(c.vdirect, 10, tlsConfig, opts...)
 	} else {
+		rOpts, err := ftls.NewGRPCClientDialOpt(&ftls.Config{
+			MutualTLS: false,
+			CAFile:    *cafile,
+		})
+		if err != nil {
+			return err
+		}
 		c.vstore = api.NewReplValueStore(&api.ValueStoreConfig{
 			AddressIndex:       2,
 			StoreFTLSConfig:    tlsConfig,
@@ -353,16 +354,17 @@ func (c *Client) getGroupClient() error {
 		KeyFile:            *keyfile,
 		CAFile:             *cafile,
 	}
-	rOpts, err := ftls.NewGRPCClientDialOpt(&ftls.Config{
-		MutualTLS: false,
-		CAFile:    *cafile,
-	})
-	if err != nil {
-		return err
-	}
+
 	if c.gdirect != "" {
 		c.gstore = api.NewGroupStore(c.gdirect, 10, tlsConfig, opts...)
 	} else {
+		rOpts, err := ftls.NewGRPCClientDialOpt(&ftls.Config{
+			MutualTLS: false,
+			CAFile:    *cafile,
+		})
+		if err != nil {
+			return err
+		}
 		c.gstore = api.NewReplGroupStore(&api.GroupStoreConfig{
 			AddressIndex:       2,
 			StoreFTLSConfig:    tlsConfig,
