@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -76,6 +77,9 @@ func NewValueStore(oort *oort.Server, logger zap.Logger, loggerName string) (*Oo
 	if s.Config.Debug {
 		// Sets for localLogger too
 		s.logger.SetLevel(zap.DebugLevel)
+	}
+	if env := os.Getenv("TCP_MSG_RING_SKIP_VERIFY"); env == "true" {
+		s.TCPMsgRingConfig.SkipVerify = true
 	}
 	if s.TCPMsgRingConfig.AddressIndex == 0 {
 		s.TCPMsgRingConfig.AddressIndex = 1
