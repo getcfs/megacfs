@@ -1,0 +1,8 @@
+[Unit]
+Description=oort-valued
+After=network.target
+[Service]
+EnvironmentFile=/etc/default/cfsd
+ExecStart=/usr/local/bin/oort-valued
+[Install]
+WantedBy=multi-user.target
