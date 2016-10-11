@@ -1,0 +1,8 @@
+[Unit]
+Description=oort-groupd
+After=network.target
+[Service]
+EnvironmentFile=/etc/default/cfsd
+ExecStart=/usr/local/bin/oort-groupd
+[Install]
+WantedBy=multi-user.target

@@ -13,6 +13,7 @@ build:
 	mkdir -p $(BUILDPATH)
 	go build -i -v --ldflags "$(LD_FLAGS)" -o build/oort-cli github.com/getcfs/megacfs/oort/oort-cli
 	go build -i -v --ldflags "$(LD_FLAGS)" -o build/oort-bench github.com/getcfs/megacfs/oort/oort-bench
+	go build -i -v --ldflags "$(LD_FLAGS)" -o build/ring github.com/getcfs/megacfs/ring
 	go build -i -v -o build/oort-valued --ldflags " $(LD_FLAGS) \
 			-X main.commitVersion=$(SHA) \
 			-X main.oortVersion=$(VERSION) \

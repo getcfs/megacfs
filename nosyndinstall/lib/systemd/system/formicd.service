@@ -1,0 +1,8 @@
+[Unit]
+Description=formicd
+After=network.target
+[Service]
+EnvironmentFile=/etc/default/cfsd
+ExecStart=/usr/local/bin/formicd
+[Install]
+WantedBy=multi-user.target
