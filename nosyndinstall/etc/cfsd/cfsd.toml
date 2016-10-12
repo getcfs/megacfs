@@ -1,0 +1,26 @@
+[OortValueStoreConfig]
+InsecureSkipVerify = true
+CertFile = "/etc/cfsd/server.crt"
+KeyFile = "/etc/cfsd/server.key"
+
+[ValueStoreConfig]
+Scale = 0.1
+CompactionInterval = 42
+ValueCap = 4194302
+Path = "/var/lib/cfsd"
+
+[OortGroupStoreConfig]
+InsecureSkipVerify = true
+CertFile = "/etc/cfsd/server.crt"
+KeyFile = "/etc/cfsd/server.key"
+
+[GroupStoreConfig]
+Scale = 0.1
+CompactionInterval = 42
+ValueCap = 4194302
+Path = "/var/lib/cfsd"
+
+[TCPMsgRingConfig]
+UseTLS = true
+CertFile = "/etc/cfsd/server.crt"
+KeyFile = "/etc/cfsd/server.key"
