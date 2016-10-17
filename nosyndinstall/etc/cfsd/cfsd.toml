@@ -2,9 +2,10 @@
 InsecureSkipVerify = true
 CertFile = "/etc/cfsd/server.crt"
 KeyFile = "/etc/cfsd/server.key"
+MetricsAddr = ":9300"
 
 [ValueStoreConfig]
-Scale = 0.1
+Scale = 0.5
 CompactionInterval = 42
 ValueCap = 4194302
 Path = "/var/lib/cfsd"
@@ -13,9 +14,10 @@ Path = "/var/lib/cfsd"
 InsecureSkipVerify = true
 CertFile = "/etc/cfsd/server.crt"
 KeyFile = "/etc/cfsd/server.key"
+MetricsAddr = ":9200"
 
 [GroupStoreConfig]
-Scale = 0.1
+Scale = 0.5
 CompactionInterval = 42
 ValueCap = 4194302
 Path = "/var/lib/cfsd"
