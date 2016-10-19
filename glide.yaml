@@ -49,3 +49,4 @@ import:
 - package: github.com/uber-go/zap
 - package: github.com/grpc-ecosystem/go-grpc-prometheus
 - package: github.com/gholt/cpcp
+- package: github.com/gholt/dudu
