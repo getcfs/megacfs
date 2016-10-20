@@ -202,7 +202,7 @@ type config struct {
 func parseArgs(args []string) (*config, []string, error) {
 	cfg := &config{
 		verbosity:     0,
-		blockSize:     512,
+		blockSize:     1024,
 		apparentSize:  false,
 		summarize:     false,
 		humanReadable: false,
@@ -210,6 +210,18 @@ func parseArgs(args []string) (*config, []string, error) {
 		readdirBuffer: 1000,
 		messageBuffer: 1000,
 		errBuffer:     1000,
+	}
+	if os.Getenv("POSIXLY_CORRECT") != "" {
+		cfg.blockSize = 512
+	}
+	if bs, err := strconv.Atoi(os.Getenv("BLOCKSIZE")); err == nil && bs > 0 {
+		cfg.blockSize = int64(bs)
+	}
+	if bs, err := strconv.Atoi(os.Getenv("BLOCK_SIZE")); err == nil && bs > 0 {
+		cfg.blockSize = int64(bs)
+	}
+	if bs, err := strconv.Atoi(os.Getenv("DU_BLOCK_SIZE")); err == nil && bs > 0 {
+		cfg.blockSize = int64(bs)
 	}
 	var items []string
 	mapitems := make(map[string]bool)
