@@ -20,6 +20,7 @@ import (
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/cpcp"
 	"github.com/gholt/dudu"
+	"github.com/gholt/findfind"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -406,6 +407,11 @@ func main() {
 		}
 	case "du":
 		if err := dudu.DUDU(flag.Args()[1:]); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	case "find":
+		if err := findfind.FindFind(flag.Args()[1:]); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}

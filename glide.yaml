@@ -50,3 +50,5 @@ import:
 - package: github.com/grpc-ecosystem/go-grpc-prometheus
 - package: github.com/gholt/cpcp
 - package: github.com/gholt/dudu
+- package: github.com/gholt/findfind
+- package: github.com/danwakefield/fnmatch
