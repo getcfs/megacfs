@@ -25,6 +25,11 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+// FORMIC PORT
+const (
+	PORT = "8445"
+)
+
 type server struct {
 	fs *fs
 	wg sync.WaitGroup
@@ -146,14 +151,14 @@ func mount() error {
 	f := flag.NewFlagSet("mount", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
-		fmt.Println("    cfs mount [-o option,...] <region>:<fsid> <mountpoint>")
+		fmt.Println("    cfs mount [-o option,...] <server addr>:<fsid> <mountpoint>")
 		fmt.Println("Options:")
 		fmt.Println("    -o debug          enables debug output")
 		fmt.Println("    -o ro             mount the filesystem read only")
 		fmt.Println("    -o allow_other    allow access to other users")
 		fmt.Println("Examples:")
-		fmt.Println("    cfs mount iad:11111111-1111-1111-1111-111111111111 /mnt/test")
-		fmt.Println("    cfs mount -o debug,ro iad:11111111-1111-1111-1111-111111111111 /mnt/test")
+		fmt.Println("    cfs mount 127.0.0.1:11111111-1111-1111-1111-111111111111 /mnt/test")
+		fmt.Println("    cfs mount -o debug,ro 127.0.0.1:11111111-1111-1111-1111-111111111111 /mnt/test")
 		os.Exit(1)
 	}
 	var options string
@@ -162,13 +167,13 @@ func mount() error {
 	if f.NArg() != 2 {
 		f.Usage()
 	}
-	regionFsid := f.Args()[0]
-	parts := strings.Split(regionFsid, ":")
+	addrFsid := f.Args()[0]
+	parts := strings.Split(addrFsid, ":")
 	if len(parts) != 2 {
-		fmt.Println("Invalid filesystem:", regionFsid)
+		fmt.Println("Invalid filesystem:", addrFsid)
 		f.Usage()
 	}
-	region := strings.ToLower(parts[0])
+	addr := fmt.Sprintf("%s:%s", strings.ToLower(parts[0]), PORT)
 	fsid := parts[1]
 	mountpoint := f.Args()[1]
 	// Verify mountpoint exists
@@ -177,12 +182,7 @@ func mount() error {
 		fmt.Printf("Mount point %s does not exist\n", mountpoint)
 		os.Exit(1)
 	}
-	// Verify region
-	addr, ok := regions[region]
-	if !ok {
-		fmt.Println("Invalid region:", region)
-		os.Exit(1)
-	}
+	// Verify addr
 
 	// handle fuse mount options
 	mountOptions := []fuse.MountOption{
@@ -273,9 +273,10 @@ func main() {
 		json.Unmarshal(f, &config)
 		configured = true
 	}
-	region, _ := config["region"]
+	ip, _ := config["addr"]
 	username, _ := config["username"]
 	apikey, _ := config["apikey"]
+	addr := fmt.Sprintf("%s:%s", ip, PORT)
 
 	flag.Usage = func() {
 		fmt.Println("Usage:")
@@ -296,8 +297,8 @@ func main() {
 		fmt.Println("Examples:")
 		fmt.Println("    cfs configure")
 		fmt.Println("    cfs create <name>")
-		fmt.Println("    cfs grant <ip> <fsid>")
-		fmt.Println("    cfs mount <region>:<fsid> <mountpoint>")
+		fmt.Println("    cfs grant <client addr> <fsid>")
+		fmt.Println("    cfs mount <server addr>:<fsid> <mountpoint>")
 		os.Exit(1)
 	}
 	flag.Parse()
@@ -329,7 +330,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := list(region, username, apikey)
+		err := list(addr, username, apikey)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -339,7 +340,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := show(region, username, apikey)
+		err := show(addr, username, apikey)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -349,7 +350,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := create(region, username, apikey)
+		err := create(addr, username, apikey)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -359,7 +360,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := del(region, username, apikey)
+		err := del(addr, username, apikey)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -369,7 +370,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := update(region, username, apikey)
+		err := update(addr, username, apikey)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -379,7 +380,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := grant(region, username, apikey)
+		err := grant(addr, username, apikey)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -389,7 +390,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := revoke(region, username, apikey)
+		err := revoke(addr, username, apikey)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
