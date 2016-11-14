@@ -12,31 +12,25 @@ import (
 	"golang.org/x/net/context"
 )
 
-var regions = map[string]string{
-	"aio": "127.0.0.1:8445",
-	"iad": "api.ea.iad.rackfs.com:8445",
-	"rpc": "rpc.ea.iad.rackfs.com:8445", // public dns for rpc ea testing
-	"dev": "api.dev.iad.rackfs.com:8445",
-}
-
+// configuration ...
 func configure(configfile string) error {
 	stat, _ := os.Stdin.Stat()
-	var region, username, apikey string
+	var addr, username, apikey string
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		fmt.Scan(&region)
+		fmt.Scan(&addr)
 		fmt.Scan(&username)
 		fmt.Scan(&apikey)
 	} else {
 		fmt.Println("This is an interactive session to configure the cfs client.")
-		fmt.Print("CFS Region: ")
-		fmt.Scan(&region)
+		fmt.Print("CFS Server Addr: ")
+		fmt.Scan(&addr)
 		fmt.Print("CFS Username: ")
 		fmt.Scan(&username)
 		fmt.Print("CFS APIKey: ")
 		fmt.Scan(&apikey)
 	}
 	config := map[string]string{
-		"region":   strings.ToLower(region),
+		"addr":     strings.ToLower(addr),
 		"username": username,
 		"apikey":   apikey,
 	}
@@ -51,7 +45,7 @@ func configure(configfile string) error {
 	return nil
 }
 
-func list(region, username, apikey string) error {
+func list(addr, username, apikey string) error {
 	f := flag.NewFlagSet("list", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -61,10 +55,6 @@ func list(region, username, apikey string) error {
 	f.Parse(flag.Args()[1:])
 	if f.NArg() != 0 {
 		f.Usage()
-	}
-	addr, ok := regions[region]
-	if !ok {
-		return fmt.Errorf("Invalid region: %s", region)
 	}
 	c := setupWS(addr)
 	defer c.Close()
@@ -86,7 +76,7 @@ func list(region, username, apikey string) error {
 	return nil
 }
 
-func show(region, username, apikey string) error {
+func show(addr, username, apikey string) error {
 	f := flag.NewFlagSet("show", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -100,10 +90,6 @@ func show(region, username, apikey string) error {
 		f.Usage()
 	}
 	fsid := f.Args()[0]
-	addr, ok := regions[region]
-	if !ok {
-		return fmt.Errorf("Invalid region: %s", region)
-	}
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
@@ -127,7 +113,7 @@ func show(region, username, apikey string) error {
 	return nil
 }
 
-func create(region, username, apikey string) error {
+func create(addr, username, apikey string) error {
 	f := flag.NewFlagSet("create", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -142,10 +128,6 @@ func create(region, username, apikey string) error {
 		f.Usage()
 	}
 	name := f.Args()[0]
-	addr, ok := regions[region]
-	if !ok {
-		return fmt.Errorf("Invalid region: %s", region)
-	}
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
@@ -159,7 +141,7 @@ func create(region, username, apikey string) error {
 	return nil
 }
 
-func del(region, username, apikey string) error {
+func del(addr, username, apikey string) error {
 	f := flag.NewFlagSet("delete", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -173,10 +155,6 @@ func del(region, username, apikey string) error {
 		f.Usage()
 	}
 	fsid := f.Args()[0]
-	addr, ok := regions[region]
-	if !ok {
-		return fmt.Errorf("Invalid region: %s", region)
-	}
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
@@ -190,7 +168,7 @@ func del(region, username, apikey string) error {
 	return nil
 }
 
-func update(region, username, apikey string) error {
+func update(addr, username, apikey string) error {
 	f := flag.NewFlagSet("update", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -207,10 +185,6 @@ func update(region, username, apikey string) error {
 		Name: f.Args()[0],
 	}
 	fsid := f.Args()[1]
-	addr, ok := regions[region]
-	if !ok {
-		return fmt.Errorf("Invalid region: %s", region)
-	}
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
@@ -224,12 +198,12 @@ func update(region, username, apikey string) error {
 	return nil
 }
 
-func grant(region, username, apikey string) error {
+func grant(addr, username, apikey string) error {
 	var ip, fsid string
 	f := flag.NewFlagSet("grant", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
-		fmt.Println("    cfs grant [ip] <fsid>")
+		fmt.Println("    cfs grant [client ip] <fsid>")
 		fmt.Println("Example:")
 		fmt.Println("    cfs grant 11111111-1111-1111-1111-111111111111")
 		fmt.Println("    cfs grant 1.1.1.1 11111111-1111-1111-1111-111111111111")
@@ -246,10 +220,6 @@ func grant(region, username, apikey string) error {
 
 		f.Usage()
 	}
-	addr, ok := regions[region]
-	if !ok {
-		return fmt.Errorf("Invalid region: %s", region)
-	}
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
@@ -262,12 +232,12 @@ func grant(region, username, apikey string) error {
 	return nil
 }
 
-func revoke(region, username, apikey string) error {
+func revoke(addr, username, apikey string) error {
 	var ip, fsid string
 	f := flag.NewFlagSet("revoke", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
-		fmt.Println("    cfs revoke [ip] <fsid>")
+		fmt.Println("    cfs revoke [client ip] <fsid>")
 		fmt.Println("Example:")
 		fmt.Println("    cfs revoke 11111111-1111-1111-1111-111111111111")
 		fmt.Println("    cfs revoke 1.1.1.1 11111111-1111-1111-1111-111111111111")
@@ -282,10 +252,6 @@ func revoke(region, username, apikey string) error {
 		fsid = f.Args()[1]
 	} else {
 		f.Usage()
-	}
-	addr, ok := regions[region]
-	if !ok {
-		return fmt.Errorf("Invalid region: %s", region)
 	}
 	c := setupWS(addr)
 	defer c.Close()

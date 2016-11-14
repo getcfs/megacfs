@@ -22,7 +22,6 @@ rack servers instance create --name=$NODE --flavor-id=general1-8 --image-name="D
 # ###########
 
 export REL=0.1.6
-export NODENUM=1
 
 apt-get update && apt-get install -y vim screen
 update-alternatives --set editor /usr/bin/vim.basic
@@ -60,7 +59,7 @@ ln -s /etc/cfsd/groupstore.ring /etc/cfsd/ring/groupstore.ring
 
 # GET the systemd service and toml files
 wget -q https://raw.githubusercontent.com/getcfs/megacfs/master/nosyndinstall/etc/cfsd/cfsd.toml
-chmod 777 cfsd.tomal
+chmod 777 cfsd.toml
 mv cfsd.toml /etc/cfsd/
 wget -q https://raw.githubusercontent.com/getcfs/megacfs/master/nosyndinstall/lib/systemd/system/formicd.service
 wget -q https://raw.githubusercontent.com/getcfs/megacfs/master/nosyndinstall/lib/systemd/system/oort-groupd.service
@@ -74,7 +73,7 @@ chmod 777 cfsd
 mv cfsd /etc/default/
 
 # Set local variables in /etc/default/cfsd
-sed -i -e "s/NODENUM/$NODENUM/g" /etc/default/cfsd
+sed -i -e "s/NODENUM/1/g" /etc/default/cfsd
 export IDFROMVALUERING=$(ring /etc/cfsd/valuestore.ring node | grep ID | awk '{ print $2 }')
 sed -i -e "s/IDFROMVALUERING/$IDFROMVALUERING/g" /etc/default/cfsd
 export IDFROMGROUPRING=$(ring /etc/cfsd/groupstore.ring node | grep ID | awk '{ print $2 }')

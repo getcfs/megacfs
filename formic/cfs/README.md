@@ -1,6 +1,16 @@
 Getting Started Guide
 =====================
 
+Default formic port is 8445
+
+environment | address | comment
+----------- | ------- | -------
+aio | 127.0.0.1 | All in One
+iad | api.ea.iad.rackfs.com | Original EA syndicate based
+rpc | rpc.ea.iad.rackfs.com:8445 | public dns for rpc ea testing
+dev | api.dev.iad.rackfs.com | Development syndicate based
+
+
 Quick Start
 -----------
 
