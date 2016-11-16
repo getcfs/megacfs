@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/getcfs/megacfs/ftls"
-	"github.com/getcfs/megacfs/oort/api/{{.t}}proto"
+	"github.com/getcfs/megacfs/oort/api/groupproto"
 	"github.com/getcfs/megacfs/oort/api/proto"
 	"github.com/gholt/ring"
 	"github.com/gholt/store"
@@ -19,13 +19,13 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-type {{.T}}Store struct {
+type GroupStore struct {
 	sync.RWMutex
-	wait{{.T}}         *sync.WaitGroup
+	waitGroup         *sync.WaitGroup
 	shutdownChan      chan struct{}
 	started           bool
-	{{.t}}Store        store.{{.T}}Store
-	{{.t}}StoreMsgRing *ring.TCPMsgRing
+	groupStore        store.GroupStore
+	groupStoreMsgRing *ring.TCPMsgRing
 	grpcServer        *grpc.Server
 	grpcAddressIndex  int
 	certFile          string
@@ -33,7 +33,7 @@ type {{.T}}Store struct {
 	caFile            string
 }
 
-type {{.T}}StoreConfig struct {
+type GroupStoreConfig struct {
 	GRPCAddressIndex int
 	ReplAddressIndex int
 	CertFile         string
@@ -44,16 +44,16 @@ type {{.T}}StoreConfig struct {
 	Ring             ring.Ring
 }
 
-func New{{.T}}Store(cfg *{{.T}}StoreConfig) (*{{.T}}Store, chan error, error) {
-	s := &{{.T}}Store{
-		wait{{.T}}:        &sync.WaitGroup{},
+func NewGroupStore(cfg *GroupStoreConfig) (*GroupStore, chan error, error) {
+	s := &GroupStore{
+		waitGroup:        &sync.WaitGroup{},
 		grpcAddressIndex: cfg.GRPCAddressIndex,
 		certFile:         cfg.CertFile,
 		keyFile:          cfg.KeyFile,
 		caFile:           cfg.CAFile,
 	}
 	var err error
-	s.{{.t}}StoreMsgRing, err = ring.NewTCPMsgRing(&ring.TCPMsgRingConfig{
+	s.groupStoreMsgRing, err = ring.NewTCPMsgRing(&ring.TCPMsgRingConfig{
 		AddressIndex: cfg.ReplAddressIndex,
 		UseTLS:       true,
 		MutualTLS:    true,
@@ -64,24 +64,24 @@ func New{{.T}}Store(cfg *{{.T}}StoreConfig) (*{{.T}}Store, chan error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	s.{{.t}}StoreMsgRing.SetRing(cfg.Ring)
-	var {{.t}}StoreRestartChan chan error
-	s.{{.t}}Store, {{.t}}StoreRestartChan = store.New{{.T}}Store(&store.{{.T}}StoreConfig{
+	s.groupStoreMsgRing.SetRing(cfg.Ring)
+	var groupStoreRestartChan chan error
+	s.groupStore, groupStoreRestartChan = store.NewGroupStore(&store.GroupStoreConfig{
 		Scale:   cfg.Scale,
 		Path:    cfg.Path,
-		MsgRing: s.{{.t}}StoreMsgRing,
+		MsgRing: s.groupStoreMsgRing,
 	})
-	return s, {{.t}}StoreRestartChan, nil
+	return s, groupStoreRestartChan, nil
 }
 
-func (s *{{.T}}Store) Startup(ctx context.Context) error {
+func (s *GroupStore) Startup(ctx context.Context) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.started {
 		return nil
 	}
 	s.shutdownChan = make(chan struct{})
-	err := s.{{.t}}Store.Startup(ctx)
+	err := s.groupStore.Startup(ctx)
 	if err != nil {
 		return err
 	}
@@ -211,20 +211,20 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 			Name:      "LookupErrors",
 			Help:      "Count of lookup requests executed resulting in errors.",
 		})
-		mLookup{{.T}}s := prometheus.NewCounter(prometheus.CounterOpts{
+		mLookupGroups := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "Store",
-			Name:      "Lookup{{.T}}s",
-			Help:      "Count of lookup-{{.t}} requests executed.",
+			Name:      "LookupGroups",
+			Help:      "Count of lookup-group requests executed.",
 		})
-		mLookup{{.T}}Items := prometheus.NewCounter(prometheus.CounterOpts{
+		mLookupGroupItems := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "Store",
-			Name:      "Lookup{{.T}}Items",
-			Help:      "Count of items lookup-{{.t}} requests have returned.",
+			Name:      "LookupGroupItems",
+			Help:      "Count of items lookup-group requests have returned.",
 		})
-		mLookup{{.T}}Errors := prometheus.NewCounter(prometheus.CounterOpts{
+		mLookupGroupErrors := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "Store",
-			Name:      "Lookup{{.T}}Errors",
-			Help:      "Count of errors lookup-{{.t}} requests have returned.",
+			Name:      "LookupGroupErrors",
+			Help:      "Count of errors lookup-group requests have returned.",
 		})
 		mReads := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "Store",
@@ -236,20 +236,20 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 			Name:      "ReadErrors",
 			Help:      "Count of read requests executed resulting in errors.",
 		})
-		mRead{{.T}}s := prometheus.NewCounter(prometheus.CounterOpts{
+		mReadGroups := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "Store",
-			Name:      "Read{{.T}}s",
-			Help:      "Count of read-{{.t}} requests executed.",
+			Name:      "ReadGroups",
+			Help:      "Count of read-group requests executed.",
 		})
-		mRead{{.T}}Items := prometheus.NewCounter(prometheus.CounterOpts{
+		mReadGroupItems := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "Store",
-			Name:      "Read{{.T}}Items",
-			Help:      "Count of items read-{{.t}} requests have returned.",
+			Name:      "ReadGroupItems",
+			Help:      "Count of items read-group requests have returned.",
 		})
-		mRead{{.T}}Errors := prometheus.NewCounter(prometheus.CounterOpts{
+		mReadGroupErrors := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "Store",
-			Name:      "Read{{.T}}Errors",
-			Help:      "Count of errors read-{{.t}} requests have returned.",
+			Name:      "ReadGroupErrors",
+			Help:      "Count of errors read-group requests have returned.",
 		})
 		mWrites := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "Store",
@@ -456,14 +456,14 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 		prometheus.Register(mValueBytes)
 		prometheus.Register(mLookups)
 		prometheus.Register(mLookupErrors)
-		prometheus.Register(mLookup{{.T}}s)
-		prometheus.Register(mLookup{{.T}}Items)
-		prometheus.Register(mLookup{{.T}}Errors)
+		prometheus.Register(mLookupGroups)
+		prometheus.Register(mLookupGroupItems)
+		prometheus.Register(mLookupGroupErrors)
 		prometheus.Register(mReads)
 		prometheus.Register(mReadErrors)
-		prometheus.Register(mRead{{.T}}s)
-		prometheus.Register(mRead{{.T}}Items)
-		prometheus.Register(mRead{{.T}}Errors)
+		prometheus.Register(mReadGroups)
+		prometheus.Register(mReadGroupItems)
+		prometheus.Register(mReadGroupErrors)
 		prometheus.Register(mWrites)
 		prometheus.Register(mWriteErrors)
 		prometheus.Register(mWritesOverridden)
@@ -500,12 +500,12 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 		prometheus.Register(mTombstoneDiscardSeconds)
 		prometheus.Register(mAuditSeconds)
 		prometheus.Register(mReadOnly)
-		tcpMsgRingStats := s.{{.t}}StoreMsgRing.Stats(false)
+		tcpMsgRingStats := s.groupStoreMsgRing.Stats(false)
 		select {
 		case <-s.shutdownChan:
 			return
 		case <-time.After(time.Minute):
-			tcpMsgRingStats = s.{{.t}}StoreMsgRing.Stats(false)
+			tcpMsgRingStats = s.groupStoreMsgRing.Stats(false)
 			mRingChanges.Add(float64(tcpMsgRingStats.RingChanges))
 			mRingChangeCloses.Add(float64(tcpMsgRingStats.RingChangeCloses))
 			mMsgToNodes.Add(float64(tcpMsgRingStats.MsgToNodes))
@@ -527,26 +527,26 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 			mMsgReadErrors.Add(float64(tcpMsgRingStats.MsgReadErrors))
 			mMsgWrites.Add(float64(tcpMsgRingStats.MsgWrites))
 			mMsgWriteErrors.Add(float64(tcpMsgRingStats.MsgWriteErrors))
-			stats, err := s.{{.t}}Store.Stats(context.Background(), false)
+			stats, err := s.groupStore.Stats(context.Background(), false)
 			if err != nil {
 				fmt.Println("stats error", err)
-			} else if gstats, ok := stats.(*store.{{.T}}StoreStats); ok {
+			} else if gstats, ok := stats.(*store.GroupStoreStats); ok {
 				mValues.Set(float64(gstats.Values))
 				mValueBytes.Set(float64(gstats.ValueBytes))
 				mLookups.Add(float64(gstats.Lookups))
 				mLookupErrors.Add(float64(gstats.LookupErrors))
-                {{if eq .t "group"}}
+
 				mLookupGroups.Add(float64(gstats.LookupGroups))
 				mLookupGroupItems.Add(float64(gstats.LookupGroupItems))
 				mLookupGroupErrors.Add(float64(gstats.LookupGroupErrors))
-                {{end}}
+
 				mReads.Add(float64(gstats.Reads))
 				mReadErrors.Add(float64(gstats.ReadErrors))
-                {{if eq .t "group"}}
+
 				mReadGroups.Add(float64(gstats.ReadGroups))
 				mReadGroupItems.Add(float64(gstats.ReadGroupItems))
 				mReadGroupErrors.Add(float64(gstats.ReadGroupErrors))
-                {{end}}
+
 				mWrites.Add(float64(gstats.Writes))
 				mWriteErrors.Add(float64(gstats.WriteErrors))
 				mWritesOverridden.Add(float64(gstats.WritesOverridden))
@@ -592,18 +592,18 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 			}
 		}
 	}()
-	s.wait{{.T}}.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
-		s.{{.t}}StoreMsgRing.Listen()
-		s.wait{{.T}}.Done()
+		s.groupStoreMsgRing.Listen()
+		s.waitGroup.Done()
 	}()
-	s.wait{{.T}}.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		<-s.shutdownChan
-		s.{{.t}}StoreMsgRing.Shutdown()
-		s.wait{{.T}}.Done()
+		s.groupStoreMsgRing.Shutdown()
+		s.waitGroup.Done()
 	}()
-	ln := s.{{.t}}StoreMsgRing.Ring().LocalNode()
+	ln := s.groupStoreMsgRing.Ring().LocalNode()
 	if ln == nil {
 		return errors.New("no local node set")
 	}
@@ -626,50 +626,50 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 		return err
 	}
 	s.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsCfg)))
-	{{.t}}proto.Register{{.T}}StoreServer(s.grpcServer, s)
+	groupproto.RegisterGroupStoreServer(s.grpcServer, s)
 
-	s.wait{{.T}}.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		err := s.grpcServer.Serve(lis)
 		if err != nil {
 			fmt.Println(err)
 		}
 		lis.Close()
-		s.wait{{.T}}.Done()
+		s.waitGroup.Done()
 	}()
-	s.wait{{.T}}.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		<-s.shutdownChan
 		s.grpcServer.Stop()
 		lis.Close()
-		s.wait{{.T}}.Done()
+		s.waitGroup.Done()
 	}()
 	return nil
 }
 
-func (s *{{.T}}Store) Shutdown(ctx context.Context) error {
+func (s *GroupStore) Shutdown(ctx context.Context) error {
 	s.Lock()
 	defer s.Unlock()
 	if !s.started {
 		return nil
 	}
 	close(s.shutdownChan)
-	s.wait{{.T}}.Wait()
-	return s.{{.t}}Store.Shutdown(ctx)
+	s.waitGroup.Wait()
+	return s.groupStore.Shutdown(ctx)
 }
 
-func (s *{{.T}}Store) Write(ctx context.Context, req *{{.t}}proto.WriteRequest) (*{{.t}}proto.WriteResponse, error) {
-	resp := {{.t}}proto.WriteResponse{Rpcid: req.Rpcid}
+func (s *GroupStore) Write(ctx context.Context, req *groupproto.WriteRequest) (*groupproto.WriteResponse, error) {
+	resp := groupproto.WriteResponse{Rpcid: req.Rpcid}
 	var err error
-	resp.TimestampMicro, err = s.{{.t}}Store.Write(ctx, req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, req.TimestampMicro, req.Value)
+	resp.TimestampMicro, err = s.groupStore.Write(ctx, req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, req.TimestampMicro, req.Value)
 	if err != nil {
 		resp.Err = proto.TranslateError(err)
 	}
 	return &resp, nil
 }
 
-func (s *{{.T}}Store) StreamWrite(stream {{.t}}proto.{{.T}}Store_StreamWriteServer) error {
-	var resp {{.t}}proto.WriteResponse
+func (s *GroupStore) StreamWrite(stream groupproto.GroupStore_StreamWriteServer) error {
+	var resp groupproto.WriteResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -680,7 +680,7 @@ func (s *{{.T}}Store) StreamWrite(stream {{.t}}proto.{{.T}}Store_StreamWriteServ
 		}
 		resp.Reset()
 		resp.Rpcid = req.Rpcid
-		resp.TimestampMicro, err = s.{{.t}}Store.Write(stream.Context(), req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, req.TimestampMicro, req.Value)
+		resp.TimestampMicro, err = s.groupStore.Write(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, req.TimestampMicro, req.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
 		}
@@ -690,18 +690,18 @@ func (s *{{.T}}Store) StreamWrite(stream {{.t}}proto.{{.T}}Store_StreamWriteServ
 	}
 }
 
-func (s *{{.T}}Store) Read(ctx context.Context, req *{{.t}}proto.ReadRequest) (*{{.t}}proto.ReadResponse, error) {
-	resp := {{.t}}proto.ReadResponse{Rpcid: req.Rpcid}
+func (s *GroupStore) Read(ctx context.Context, req *groupproto.ReadRequest) (*groupproto.ReadResponse, error) {
+	resp := groupproto.ReadResponse{Rpcid: req.Rpcid}
 	var err error
-	resp.TimestampMicro, resp.Value, err = s.{{.t}}Store.Read(ctx, req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, resp.Value)
+	resp.TimestampMicro, resp.Value, err = s.groupStore.Read(ctx, req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, resp.Value)
 	if err != nil {
 		resp.Err = proto.TranslateError(err)
 	}
 	return &resp, nil
 }
 
-func (s *{{.T}}Store) StreamRead(stream {{.t}}proto.{{.T}}Store_StreamReadServer) error {
-	var resp {{.t}}proto.ReadResponse
+func (s *GroupStore) StreamRead(stream groupproto.GroupStore_StreamReadServer) error {
+	var resp groupproto.ReadResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -712,7 +712,7 @@ func (s *{{.T}}Store) StreamRead(stream {{.t}}proto.{{.T}}Store_StreamReadServer
 		}
 		resp.Reset()
 		resp.Rpcid = req.Rpcid
-		resp.TimestampMicro, resp.Value, err = s.{{.t}}Store.Read(stream.Context(), req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, resp.Value)
+		resp.TimestampMicro, resp.Value, err = s.groupStore.Read(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, resp.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
 		}
@@ -722,18 +722,18 @@ func (s *{{.T}}Store) StreamRead(stream {{.t}}proto.{{.T}}Store_StreamReadServer
 	}
 }
 
-func (s *{{.T}}Store) Lookup(ctx context.Context, req *{{.t}}proto.LookupRequest) (*{{.t}}proto.LookupResponse, error) {
-	resp := {{.t}}proto.LookupResponse{Rpcid: req.Rpcid}
+func (s *GroupStore) Lookup(ctx context.Context, req *groupproto.LookupRequest) (*groupproto.LookupResponse, error) {
+	resp := groupproto.LookupResponse{Rpcid: req.Rpcid}
 	var err error
-	resp.TimestampMicro, resp.Length, err = s.{{.t}}Store.Lookup(ctx, req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}})
+	resp.TimestampMicro, resp.Length, err = s.groupStore.Lookup(ctx, req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB)
 	if err != nil {
 		resp.Err = proto.TranslateError(err)
 	}
 	return &resp, nil
 }
 
-func (s *{{.T}}Store) StreamLookup(stream {{.t}}proto.{{.T}}Store_StreamLookupServer) error {
-	var resp {{.t}}proto.LookupResponse
+func (s *GroupStore) StreamLookup(stream groupproto.GroupStore_StreamLookupServer) error {
+	var resp groupproto.LookupResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -744,7 +744,7 @@ func (s *{{.T}}Store) StreamLookup(stream {{.t}}proto.{{.T}}Store_StreamLookupSe
 		}
 		resp.Reset()
 		resp.Rpcid = req.Rpcid
-		resp.TimestampMicro, resp.Length, err = s.{{.t}}Store.Lookup(stream.Context(), req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}})
+		resp.TimestampMicro, resp.Length, err = s.groupStore.Lookup(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
 		}
@@ -754,7 +754,6 @@ func (s *{{.T}}Store) StreamLookup(stream {{.t}}proto.{{.T}}Store_StreamLookupSe
 	}
 }
 
-{{if eq .t "group"}}
 func (s *GroupStore) LookupGroup(ctx context.Context, req *groupproto.LookupGroupRequest) (*groupproto.LookupGroupResponse, error) {
 	resp := &groupproto.LookupGroupResponse{Rpcid: req.Rpcid}
 	items, err := s.groupStore.LookupGroup(ctx, req.KeyA, req.KeyB)
@@ -865,20 +864,19 @@ func (s *GroupStore) StreamReadGroup(stream groupproto.GroupStore_StreamReadGrou
 		}
 	}
 }
-{{end}}
 
-func (s *{{.T}}Store) Delete(ctx context.Context, req *{{.t}}proto.DeleteRequest) (*{{.t}}proto.DeleteResponse, error) {
-	resp := {{.t}}proto.DeleteResponse{Rpcid: req.Rpcid}
+func (s *GroupStore) Delete(ctx context.Context, req *groupproto.DeleteRequest) (*groupproto.DeleteResponse, error) {
+	resp := groupproto.DeleteResponse{Rpcid: req.Rpcid}
 	var err error
-	resp.TimestampMicro, err = s.{{.t}}Store.Delete(ctx, req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, req.TimestampMicro)
+	resp.TimestampMicro, err = s.groupStore.Delete(ctx, req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, req.TimestampMicro)
 	if err != nil {
 		resp.Err = proto.TranslateError(err)
 	}
 	return &resp, nil
 }
 
-func (s *{{.T}}Store) StreamDelete(stream {{.t}}proto.{{.T}}Store_StreamDeleteServer) error {
-	var resp {{.t}}proto.DeleteResponse
+func (s *GroupStore) StreamDelete(stream groupproto.GroupStore_StreamDeleteServer) error {
+	var resp groupproto.DeleteResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -889,7 +887,7 @@ func (s *{{.T}}Store) StreamDelete(stream {{.t}}proto.{{.T}}Store_StreamDeleteSe
 		}
 		resp.Reset()
 		resp.Rpcid = req.Rpcid
-		resp.TimestampMicro, err = s.{{.t}}Store.Delete(stream.Context(), req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, req.TimestampMicro)
+		resp.TimestampMicro, err = s.groupStore.Delete(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, req.TimestampMicro)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
 		}
@@ -899,8 +897,8 @@ func (s *{{.T}}Store) StreamDelete(stream {{.t}}proto.{{.T}}Store_StreamDeleteSe
 	}
 }
 
-func (s *{{.T}}Store) Stats() []byte {
-	stats, err := s.{{.t}}Store.Stats(context.Background(), true)
+func (s *GroupStore) Stats() []byte {
+	stats, err := s.groupStore.Stats(context.Background(), true)
 	if err != nil {
 		return nil
 	}
@@ -908,4 +906,4 @@ func (s *{{.T}}Store) Stats() []byte {
 }
 
 // Wait isn't implemented yet, need graceful shutdowns in grpc
-func (s *{{.T}}Store) Wait() {}
+func (s *GroupStore) Wait() {}
