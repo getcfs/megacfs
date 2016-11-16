@@ -39,6 +39,8 @@ type Server struct {
 	ring        ring.Ring
 	localID     uint64
 	backend     OortService //the backend service
+	valueStore  OortService
+	groupStore  OortService
 	// TODO: should probably share ch with backend so a stop on one stops both.
 	ch                chan bool //os signal chan,
 	ShutdownComplete  chan bool
@@ -80,21 +82,41 @@ func New(serviceName, workingDir string, binaryUpdater *cmdctrl.GithubUpdater, l
 	return o, err
 }
 
+func (o *Server) SetValueStore(vStore OortService) {
+	o.Lock()
+	defer o.Unlock()
+	o.valueStore = vStore
+}
+
+func (o *Server) SetGroupStore(gStore OortService) {
+	o.Lock()
+	defer o.Unlock()
+	o.groupStore = gStore
+}
+
 //SetBackend sets the current backend
 func (o *Server) SetBackend(backend OortService) {
 	o.Lock()
+	defer o.Unlock()
 	o.backend = backend
-	o.Unlock()
 }
 
 func (o *Server) SetRing(r ring.Ring, ringFile string) {
 	o.Lock()
+	defer o.Unlock()
 	o.ring = r
 	o.ringFile = ringFile
 	o.ring.SetLocalNode(o.localID)
-	o.backend.UpdateRing(o.ring)
+	if o.backend != nil {
+		o.backend.UpdateRing(o.ring)
+	}
+	if o.valueStore != nil {
+		o.valueStore.UpdateRing(o.ring)
+	}
+	if o.groupStore != nil {
+		o.groupStore.UpdateRing(o.ring)
+	}
 	o.logger.Info("ring loaded", zap.Int64("ringVersion", o.ring.Version()))
-	o.Unlock()
 }
 
 // Ring returns an instance of the current Ring

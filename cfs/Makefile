@@ -9,11 +9,11 @@ deps:
 build:
 	mkdir -p packaging/output
 	mkdir -p packaging/root/usr/local/bin
-	go build -i -v -o packaging/root/usr/local/bin/cfs github.com/getcfs/megacfs/formic/cfs
+	go build -i -v -o packaging/root/usr/local/bin/cfs github.com/getcfs/megacfs/cfs
 
 darwin: export GOOS=darwin
 darwin:
-	GOOS=darwin go build -i -v -o packaging/root/usr/local/bin/cfs.osx github.com/getcfs/megacfs/formic/cfs
+	GOOS=darwin go build -i -v -o packaging/root/usr/local/bin/cfs.osx github.com/getcfs/megacfs/cfs
 
 clean:
 	rm -rf packaging/output
