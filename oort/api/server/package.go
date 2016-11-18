@@ -1,4 +1,4 @@
-package main
+package server
 
 // got is at https://github.com/gholt/got
 //go:generate got store.got groupstore_GEN_.go TT=GROUP T=Group t=group

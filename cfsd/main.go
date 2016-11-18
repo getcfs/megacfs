@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/getcfs/megacfs/oort/api/server"
 	"github.com/gholt/ring"
 	"golang.org/x/net/context"
 )
@@ -59,7 +60,7 @@ FIND_LOCAL_NODE:
 	waitGroup := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
 
-	groupStore, groupStoreRestartChan, err := NewGroupStore(&GroupStoreConfig{
+	groupStore, groupStoreRestartChan, err := server.NewGroupStore(&server.GroupStoreConfig{
 		GRPCAddressIndex: ADDR_GROUP_GRPC,
 		ReplAddressIndex: ADDR_GROUP_REPL,
 		CertFile:         "/etc/cfsd/cert.pem",
@@ -93,7 +94,7 @@ FIND_LOCAL_NODE:
 		panic(err)
 	}
 
-	valueStore, valueStoreRestartChan, err := NewValueStore(&ValueStoreConfig{
+	valueStore, valueStoreRestartChan, err := server.NewValueStore(&server.ValueStoreConfig{
 		GRPCAddressIndex: ADDR_VALUE_GRPC,
 		ReplAddressIndex: ADDR_VALUE_REPL,
 		CertFile:         "/etc/cfsd/cert.pem",

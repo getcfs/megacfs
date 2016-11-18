@@ -1,5 +1,9 @@
 package oortstore
 
+// NOTE: Much of this has moved to oort/api/server for the newer cfsd code.
+// I'll leave this so as to not break the older oort-valued code, but expect
+// code rot.
+
 import (
 	"crypto/tls"
 	"fmt"
