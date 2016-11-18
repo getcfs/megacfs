@@ -48,7 +48,7 @@ FIND_LOCAL_NODE:
 						continue
 					}
 					nodeIP := net.ParseIP(nodeAddr[:i])
-					if ipNet.Contains(nodeIP) {
+					if ipNet.IP.Equal(nodeIP) {
 						oneRing.SetLocalNode(node.ID())
 						break FIND_LOCAL_NODE
 					}
