@@ -12,8 +12,6 @@ import (
 	"github.com/cloudflare/cfssl/signer/universal"
 )
 
-// cfssl gencert -ca ca.pem -ca-key ca-key.pem ca.json | cfssljson -bare
-
 func main() {
 	for i := 1; i < len(os.Args); i++ {
 		switch os.Args[i] {
