@@ -1,8 +1,0 @@
-#!/bin/bash
-
-export PATH=${PATH}:/usr/local/bin:/home/gholt/bin
-
-cd /etc/cfsd
-
-echo '{"CN":"CA","key":{"algo":"rsa","size":2048}}' > ca.json
-cfssl gencert -initca ca.json | cfssljson -bare ca

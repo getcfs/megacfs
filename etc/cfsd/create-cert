@@ -1,7 +1,0 @@
-#!/bin/bash
-
-export PATH=${PATH}:/usr/local/bin:/home/gholt/bin
-
-cd /etc/cfsd
-
-cfssl gencert -ca ca.pem -ca-key ca-key.pem ca.json | cfssljson -bare
