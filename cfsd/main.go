@@ -10,9 +10,18 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/getcfs/megacfs/formic"
+	pb "github.com/getcfs/megacfs/formic/proto"
+	"github.com/getcfs/megacfs/ftls"
+	"github.com/getcfs/megacfs/oort/api"
 	"github.com/getcfs/megacfs/oort/api/server"
 	"github.com/gholt/ring"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/spaolacci/murmur3"
+	"github.com/uber-go/zap"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -24,9 +33,14 @@ const (
 )
 
 func main() {
-	// TODO: Completely missing all formic stuff
+	var ipAddr string
+	ringPath := "/etc/cfsd/cfs.ring"
+	caPath := "/etc/cfsd/ca.pem"
+	var certPath string
+	var keyPath string
+	dataPath := "/var/lib/cfsd"
 
-	fp, err := os.Open("/etc/cfsd/cfs.ring")
+	fp, err := os.Open(ringPath)
 	if err != nil {
 		panic(err)
 	}
@@ -50,12 +64,15 @@ FIND_LOCAL_NODE:
 					nodeIP := net.ParseIP(nodeAddr[:i])
 					if ipNet.IP.Equal(nodeIP) {
 						oneRing.SetLocalNode(node.ID())
+						ipAddr = nodeIP.String()
 						break FIND_LOCAL_NODE
 					}
 				}
 			}
 		}
 	}
+	certPath = "/etc/cfsd/" + ipAddr + ".pem"
+	keyPath = "/etc/cfsd/" + ipAddr + "-key.pem"
 
 	waitGroup := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
@@ -63,11 +80,11 @@ FIND_LOCAL_NODE:
 	groupStore, groupStoreRestartChan, err := server.NewGroupStore(&server.GroupStoreConfig{
 		GRPCAddressIndex: ADDR_GROUP_GRPC,
 		ReplAddressIndex: ADDR_GROUP_REPL,
-		CertFile:         "/etc/cfsd/cert.pem",
-		KeyFile:          "/etc/cfsd/cert-key.pem",
-		CAFile:           "/etc/cfsd/ca.pem",
+		CertFile:         certPath,
+		KeyFile:          keyPath,
+		CAFile:           caPath,
 		Scale:            0.4,
-		Path:             "/mnt/cfsd",
+		Path:             dataPath,
 		Ring:             oneRing,
 	})
 	waitGroup.Add(1)
@@ -97,11 +114,11 @@ FIND_LOCAL_NODE:
 	valueStore, valueStoreRestartChan, err := server.NewValueStore(&server.ValueStoreConfig{
 		GRPCAddressIndex: ADDR_VALUE_GRPC,
 		ReplAddressIndex: ADDR_VALUE_REPL,
-		CertFile:         "/etc/cfsd/cert.pem",
-		KeyFile:          "/etc/cfsd/cert-key.pem",
-		CAFile:           "/etc/cfsd/ca.pem",
+		CertFile:         certPath,
+		KeyFile:          keyPath,
+		CAFile:           caPath,
 		Scale:            0.4,
-		Path:             "/mnt/cfsd",
+		Path:             dataPath,
 		Ring:             oneRing,
 	})
 	waitGroup.Add(1)
@@ -127,6 +144,69 @@ FIND_LOCAL_NODE:
 		valueStore.Shutdown(ctx)
 		panic(err)
 	}
+
+	baseLogger := zap.New(zap.NewJSONEncoder())
+	baseLogger.SetLevel(zap.InfoLevel)
+	logger := baseLogger.With(zap.String("name", "formic"))
+
+	creds, err := credentials.NewServerTLSFromFile(certPath, keyPath)
+	if err != nil {
+		logger.Fatal("Couldn't load cert from file", zap.Error(err))
+	}
+	s := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+	)
+
+	oortLogger := baseLogger.With(zap.String("name", "formic.oort"))
+	vstore := api.NewReplValueStore(&api.ValueStoreConfig{
+		Logger:       oortLogger,
+		AddressIndex: ADDR_VALUE_GRPC,
+		StoreFTLSConfig: &ftls.Config{
+			MutualTLS: true,
+			CertFile:  certPath,
+			KeyFile:   keyPath,
+			CAFile:    caPath,
+		},
+		RingCachePath: ringPath,
+		RingClientID:  ipAddr,
+	})
+
+	gstore := api.NewReplGroupStore(&api.GroupStoreConfig{
+		Logger:       oortLogger,
+		AddressIndex: ADDR_GROUP_GRPC,
+		StoreFTLSConfig: &ftls.Config{
+			MutualTLS: true,
+			CertFile:  certPath,
+			KeyFile:   keyPath,
+			CAFile:    caPath,
+		},
+		RingCachePath: ringPath,
+		RingClientID:  ipAddr,
+	})
+
+	comms, err := formic.NewStoreComms(vstore, gstore, logger)
+	if err != nil {
+		logger.Fatal("Error setting up comms", zap.Error(err))
+	}
+	deleteChan := make(chan *formic.DeleteItem, 1000)
+	dirtyChan := make(chan *formic.DirtyItem, 1000)
+	fs := formic.NewOortFS(comms, logger, deleteChan, dirtyChan)
+	deletes := formic.NewDeletinator(deleteChan, fs, comms, baseLogger.With(zap.String("name", "formic.deletinator")))
+	cleaner := formic.NewCleaninator(dirtyChan, fs, comms, baseLogger.With(zap.String("name", "formic.cleaninator")))
+	go deletes.Run()
+	go cleaner.Run()
+
+	l, err := net.Listen("tcp", oneRing.LocalNode().Address(ADDR_FORMIC))
+	if err != nil {
+		logger.Fatal("Failed to bind formic to port", zap.Error(err))
+	}
+	pb.RegisterFileSystemAPIServer(s, formic.NewFileSystemAPIServer(gstore, vstore, baseLogger.With(zap.String("name", "formic.fs"))))
+	formicNodeID := int(murmur3.Sum64([]byte(ipAddr)))
+	pb.RegisterApiServer(s, formic.NewApiServer(fs, formicNodeID, comms, logger))
+	logger.Info("Starting formic and the filesystem API", zap.Int("addr", formicNodeID))
+	go s.Serve(l)
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

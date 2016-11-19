@@ -9,7 +9,7 @@
 //                                         "createdate": <timestamp>, "deletedate": <timestamp>
 //                                       }
 
-package main
+package formic
 
 import (
 	"encoding/json"
@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/getcfs/megacfs/formic"
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
@@ -180,7 +179,7 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 	}
 
 	uuID, err := uuid.FromString(fsID)
-	id := formic.GetID(uuID.Bytes(), 1, 0)
+	id := GetID(uuID.Bytes(), 1, 0)
 	vKeyA, vKeyB := murmur3.Sum128(id)
 
 	// Check if root entry already exits
@@ -214,7 +213,7 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 		Uid:    1001, // TODO: need to config default user/group id
 		Gid:    1001,
 	}
-	data, err := formic.Marshal(nr)
+	data, err := Marshal(nr)
 	if err != nil {
 		log.Error("CREATE FAILED", zap.String("type", "Marshal Data"), zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
@@ -228,7 +227,7 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 		Data:     data,
 		Checksum: crc.Sum32(),
 	}
-	blkdata, err := formic.Marshal(fb)
+	blkdata, err := Marshal(fb)
 	if err != nil {
 		log.Error("CREATE FAILED", zap.String("type", "Marshal First Block"), zap.Error(err))
 		return nil, errf(codes.Internal, "%v", err)
@@ -499,7 +498,7 @@ func (s *FileSystemAPIServer) DeleteFS(ctx context.Context, r *pb.DeleteFSReques
 	}
 
 	uuID, err := uuid.FromString(r.FSid)
-	id := formic.GetID(uuID.Bytes(), 1, 0)
+	id := GetID(uuID.Bytes(), 1, 0)
 
 	// Test if file system is empty.
 	keyA, keyB := murmur3.Sum128(id)

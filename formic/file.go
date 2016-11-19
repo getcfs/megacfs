@@ -1,4 +1,4 @@
-package main
+package formic
 
 import (
 	"errors"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/getcfs/fuse"
 
-	"github.com/getcfs/megacfs/formic"
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
@@ -58,8 +57,8 @@ type FileService interface {
 // ErrStoreHasNewerValue ...
 var ErrStoreHasNewerValue = errors.New("Error store already has newer value")
 
-// ErrNotFound ...
-var ErrNotFound = errors.New("Not found")
+// ErrFileNotFound ...
+var ErrFileNotFound = errors.New("Not found")
 
 // StoreComms ...
 type StoreComms struct {
@@ -218,7 +217,7 @@ func NewOortFS(comms *StoreComms, logger zap.Logger, deleteChan chan *DeleteItem
 
 // InitFs ...
 func (o *OortFS) InitFs(ctx context.Context, fsid []byte) error {
-	id := formic.GetID(fsid, 1, 0)
+	id := GetID(fsid, 1, 0)
 	n, _ := o.GetChunk(ctx, id)
 	if len(n) == 0 {
 		//o.log.Debug("Creating new root", zap.Base64("root", id))
@@ -240,7 +239,7 @@ func (o *OortFS) InitFs(ctx context.Context, fsid []byte) error {
 		//	 Uid:    1001, // TODO: need to config default user/group id
 		//	 Gid:    1001,
 		// }
-		// b, err := formic.Marshal(r)
+		// b, err := Marshal(r)
 		// if err != nil {
 		// 	 return err
 		// }
@@ -260,7 +259,7 @@ func (o *OortFS) GetAttr(ctx context.Context, id []byte) (*pb.Attr, error) {
 		return &pb.Attr{}, err
 	}
 	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	err = Unmarshal(b, n)
 	if err != nil {
 		return &pb.Attr{}, err
 	}
@@ -292,11 +291,11 @@ func (o *OortFS) SetAttr(ctx context.Context, id []byte, attr *pb.Attr, v uint32
 			d.Blocks = n.Blocks
 			d.Inode = n.Inode
 			// Write the Tombstone to the dirty listing for the fsid
-			b, err := formic.Marshal(d)
+			b, err := Marshal(d)
 			if err != nil {
 				return &pb.Attr{}, err
 			}
-			err = o.comms.WriteGroupTS(ctx, formic.GetDirtyID(fsid.Bytes()), []byte(fmt.Sprintf("%d", d.Inode)), b, tsm)
+			err = o.comms.WriteGroupTS(ctx, GetDirtyID(fsid.Bytes()), []byte(fmt.Sprintf("%d", d.Inode)), b, tsm)
 			if err != nil {
 				return &pb.Attr{}, err
 			}
@@ -322,7 +321,7 @@ func (o *OortFS) SetAttr(ctx context.Context, id []byte, attr *pb.Attr, v uint32
 	if valid.Gid() {
 		n.Attr.Gid = attr.Gid
 	}
-	b, err := formic.Marshal(n)
+	b, err := Marshal(n)
 	if err != nil {
 		return &pb.Attr{}, err
 	}
@@ -344,7 +343,7 @@ func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, na
 	}
 	if len(b) > 0 {
 		p := &pb.DirEntry{}
-		err = formic.Unmarshal(b, p)
+		err = Unmarshal(b, p)
 		if err != nil {
 			return "", &pb.Attr{}, err
 		}
@@ -362,7 +361,7 @@ func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, na
 		Id:      id,
 		Type:    uint32(direntType),
 	}
-	b, err = formic.Marshal(d)
+	b, err = Marshal(d)
 	if err != nil {
 		return "", &pb.Attr{}, err
 	}
@@ -378,7 +377,7 @@ func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, na
 		Attr:    attr,
 		Blocks:  0,
 	}
-	b, err = formic.Marshal(n)
+	b, err = Marshal(n)
 	if err != nil {
 		return "", &pb.Attr{}, err
 	}
@@ -394,12 +393,12 @@ func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string
 	// Get the id
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
 	if store.IsNotFound(err) {
-		return "", &pb.Attr{}, formic.ErrNotFound
+		return "", &pb.Attr{}, ErrGRPCNotFound
 	} else if err != nil {
 		return "", &pb.Attr{}, err
 	}
 	d := &pb.DirEntry{}
-	err = formic.Unmarshal(b, d)
+	err = Unmarshal(b, d)
 	if err != nil {
 		return "", &pb.Attr{}, err
 	}
@@ -409,7 +408,7 @@ func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string
 		return "", &pb.Attr{}, err
 	}
 	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	err = Unmarshal(b, n)
 	if err != nil {
 		return "", &pb.Attr{}, err
 	}
@@ -446,7 +445,7 @@ func (o *OortFS) ReadDirAll(ctx context.Context, id []byte) (*pb.ReadDirAllRespo
 	e := &pb.ReadDirAllResponse{}
 	dirent := &pb.DirEntry{}
 	for _, item := range items {
-		err = formic.Unmarshal(item.Value, dirent)
+		err = Unmarshal(item.Value, dirent)
 		if err != nil {
 			return &pb.ReadDirAllResponse{}, err
 		}
@@ -466,7 +465,7 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 		return 1, err
 	}
 	d := &pb.DirEntry{}
-	err = formic.Unmarshal(b, d)
+	err = Unmarshal(b, d)
 	if err != nil {
 		return 1, err
 	}
@@ -479,13 +478,13 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 		if err != nil {
 			return 1, err
 		}
-		items, err := o.comms.ReadGroup(ctx, formic.GetID(fsid.Bytes(), uint64(inode.Inode), 0))
+		items, err := o.comms.ReadGroup(ctx, GetID(fsid.Bytes(), uint64(inode.Inode), 0))
 		if err != nil {
 			return 1, err
 		}
 		// return error if directory is not empty
 		if len(items) > 0 {
-			return 1, formic.ErrNotEmpty
+			return 1, ErrNotEmpty
 		}
 	}
 	// TODO: More error handling needed
@@ -509,11 +508,11 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 	t.Blocks = inode.Blocks
 	t.Inode = inode.Inode
 	// Write the Tombstone to the delete listing for the fsid
-	b, err = formic.Marshal(t)
+	b, err = Marshal(t)
 	if err != nil {
 		return 1, err
 	}
-	err = o.comms.WriteGroupTS(ctx, formic.GetDeletedID(fsid.Bytes()), []byte(fmt.Sprintf("%d", t.Inode)), b, tsm)
+	err = o.comms.WriteGroupTS(ctx, GetDeletedID(fsid.Bytes()), []byte(fmt.Sprintf("%d", t.Inode)), b, tsm)
 	if err != nil {
 		return 1, err
 	}
@@ -535,7 +534,7 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 		return err
 	}
 	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	err = Unmarshal(b, n)
 	if err != nil {
 		return err
 	}
@@ -549,7 +548,7 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 	if mtime > n.Attr.Mtime {
 		n.Attr.Mtime = mtime
 	}
-	b, err = formic.Marshal(n)
+	b, err = Marshal(n)
 	if err != nil {
 		return err
 	}
@@ -579,7 +578,7 @@ func (o *OortFS) Symlink(ctx context.Context, parent, id []byte, name string, ta
 		Target:  target,
 		Attr:    attr,
 	}
-	b, err := formic.Marshal(n)
+	b, err := Marshal(n)
 	if err != nil {
 		return &pb.SymlinkResponse{}, err
 	}
@@ -594,7 +593,7 @@ func (o *OortFS) Symlink(ctx context.Context, parent, id []byte, name string, ta
 		Id:      id,
 		Type:    uint32(fuse.DT_File),
 	}
-	b, err = formic.Marshal(d)
+	b, err = Marshal(d)
 	if err != nil {
 		return &pb.SymlinkResponse{}, err
 	}
@@ -612,7 +611,7 @@ func (o *OortFS) Readlink(ctx context.Context, id []byte) (*pb.ReadlinkResponse,
 		return &pb.ReadlinkResponse{}, err
 	}
 	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	err = Unmarshal(b, n)
 	if err != nil {
 		return &pb.ReadlinkResponse{}, err
 	}
@@ -626,7 +625,7 @@ func (o *OortFS) Getxattr(ctx context.Context, id []byte, name string) (*pb.Getx
 		return &pb.GetxattrResponse{}, err
 	}
 	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	err = Unmarshal(b, n)
 	if err != nil {
 		return &pb.GetxattrResponse{}, err
 	}
@@ -643,7 +642,7 @@ func (o *OortFS) Setxattr(ctx context.Context, id []byte, name string, value []b
 		return &pb.SetxattrResponse{}, err
 	}
 	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	err = Unmarshal(b, n)
 	if err != nil {
 		return &pb.SetxattrResponse{}, err
 	}
@@ -651,7 +650,7 @@ func (o *OortFS) Setxattr(ctx context.Context, id []byte, name string, value []b
 		n.Xattr = make(map[string][]byte)
 	}
 	n.Xattr[name] = value
-	b, err = formic.Marshal(n)
+	b, err = Marshal(n)
 	if err != nil {
 		return &pb.SetxattrResponse{}, err
 	}
@@ -670,7 +669,7 @@ func (o *OortFS) Listxattr(ctx context.Context, id []byte) (*pb.ListxattrRespons
 		return &pb.ListxattrResponse{}, err
 	}
 	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	err = Unmarshal(b, n)
 	if err != nil {
 		return &pb.ListxattrResponse{}, err
 	}
@@ -690,12 +689,12 @@ func (o *OortFS) Removexattr(ctx context.Context, id []byte, name string) (*pb.R
 		return &pb.RemovexattrResponse{}, err
 	}
 	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	err = Unmarshal(b, n)
 	if err != nil {
 		return &pb.RemovexattrResponse{}, err
 	}
 	delete(n.Xattr, name)
-	b, err = formic.Marshal(n)
+	b, err = Marshal(n)
 	if err != nil {
 		return &pb.RemovexattrResponse{}, err
 	}
@@ -717,7 +716,7 @@ func (o *OortFS) Rename(ctx context.Context, oldParent, newParent []byte, oldNam
 		return &pb.RenameResponse{}, err
 	}
 	d := &pb.DirEntry{}
-	err = formic.Unmarshal(b, d)
+	err = Unmarshal(b, d)
 	if err != nil {
 		return &pb.RenameResponse{}, err
 	}
@@ -729,7 +728,7 @@ func (o *OortFS) Rename(ctx context.Context, oldParent, newParent []byte, oldNam
 	}
 	// Create new entry
 	d.Name = newName
-	b, err = formic.Marshal(d)
+	b, err = Marshal(d)
 	err = o.comms.WriteGroup(ctx, newParent, []byte(newName), b)
 	if err != nil {
 		return &pb.RenameResponse{}, err
@@ -748,13 +747,13 @@ func (o *OortFS) Rename(ctx context.Context, oldParent, newParent []byte, oldNam
 func (o *OortFS) GetChunk(ctx context.Context, id []byte) ([]byte, error) {
 	b, err := o.comms.ReadValue(ctx, id)
 	if store.IsNotFound(err) {
-		return nil, ErrNotFound
+		return nil, ErrFileNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
 	fb := &pb.FileBlock{}
-	err = formic.Unmarshal(b, fb)
+	err = Unmarshal(b, fb)
 	if err != nil {
 		return nil, err
 	}
@@ -771,7 +770,7 @@ func (o *OortFS) WriteChunk(ctx context.Context, id, data []byte) error {
 		Data:     data,
 		Checksum: crc.Sum32(),
 	}
-	b, err := formic.Marshal(fb)
+	b, err := Marshal(fb)
 	if err != nil {
 		return err
 	}
@@ -796,7 +795,7 @@ func (o *OortFS) GetInode(ctx context.Context, id []byte) (*pb.InodeEntry, error
 		return nil, err
 	}
 	n := &pb.InodeEntry{}
-	err = formic.Unmarshal(b, n)
+	err = Unmarshal(b, n)
 	if err != nil {
 		return nil, err
 	}
@@ -813,7 +812,7 @@ func (o *OortFS) GetDirent(ctx context.Context, parent []byte, name string) (*pb
 		return &pb.DirEntry{}, err
 	}
 	d := &pb.DirEntry{}
-	err = formic.Unmarshal(b, d)
+	err = Unmarshal(b, d)
 	if err != nil {
 		return &pb.DirEntry{}, err
 	}
