@@ -52,3 +52,10 @@ import:
 - package: github.com/gholt/dudu
 - package: github.com/gholt/findfind
 - package: github.com/danwakefield/fnmatch
+- package: github.com/cloudflare/cfssl
+  version: 1.2.0
+  subpackages:
+  - cli/gencert
+- package: github.com/google/certificate-transparency
+  subpackages:
+  - go

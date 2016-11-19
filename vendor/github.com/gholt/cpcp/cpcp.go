@@ -32,7 +32,7 @@ Currently supports the following options:
 Also has the following options:
 
 --x-parallel-tasks=N
-    Attempts will be made to concurrently copy files and directories up the
+    Attempts will be made to concurrently copy files and directories up to the
     limit of N. Default for N is 100.
 `))
 

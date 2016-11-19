@@ -188,7 +188,7 @@ func (l *LinuxFactory) Load(id string) (Container, error) {
 		return nil, newGenericError(fmt.Errorf("invalid root"), ConfigInvalid)
 	}
 	containerRoot := filepath.Join(l.Root, id)
-	state, err := l.loadState(containerRoot)
+	state, err := l.loadState(containerRoot, id)
 	if err != nil {
 		return nil, err
 	}
@@ -223,17 +223,21 @@ func (l *LinuxFactory) Type() string {
 // This is a low level implementation detail of the reexec and should not be consumed externally
 func (l *LinuxFactory) StartInitialization() (err error) {
 	var pipefd, rootfd int
-	for k, v := range map[string]*int{
-		"_LIBCONTAINER_INITPIPE": &pipefd,
-		"_LIBCONTAINER_STATEDIR": &rootfd,
+	for _, pair := range []struct {
+		k string
+		v *int
+	}{
+		{"_LIBCONTAINER_INITPIPE", &pipefd},
+		{"_LIBCONTAINER_STATEDIR", &rootfd},
 	} {
-		s := os.Getenv(k)
+
+		s := os.Getenv(pair.k)
 
 		i, err := strconv.Atoi(s)
 		if err != nil {
-			return fmt.Errorf("unable to convert %s=%s to int", k, s)
+			return fmt.Errorf("unable to convert %s=%s to int", pair.k, s)
 		}
-		*v = i
+		*pair.v = i
 	}
 	var (
 		pipe = os.NewFile(uintptr(pipefd), "pipe")
@@ -252,11 +256,13 @@ func (l *LinuxFactory) StartInitialization() (err error) {
 		if _, ok := i.(*linuxStandardInit); ok {
 			//  Synchronisation only necessary for standard init.
 			if werr := utils.WriteJSON(pipe, syncT{procError}); werr != nil {
-				panic(err)
+				fmt.Fprintln(os.Stderr, err)
+				return
 			}
 		}
 		if werr := utils.WriteJSON(pipe, newSystemError(err)); werr != nil {
-			panic(err)
+			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 		// ensure that this pipe is always closed
 		pipe.Close()
@@ -273,11 +279,11 @@ func (l *LinuxFactory) StartInitialization() (err error) {
 	return i.Init()
 }
 
-func (l *LinuxFactory) loadState(root string) (*State, error) {
+func (l *LinuxFactory) loadState(root, id string) (*State, error) {
 	f, err := os.Open(filepath.Join(root, stateFilename))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, newGenericError(err, ContainerNotExists)
+			return nil, newGenericError(fmt.Errorf("container %q does not exist", id), ContainerNotExists)
 		}
 		return nil, newGenericError(err, SystemError)
 	}

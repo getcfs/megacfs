@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/opencontainers/runc/libcontainer"
 	"github.com/opencontainers/runc/libcontainer/utils"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/urfave/cli"
@@ -17,7 +18,7 @@ import (
 var execCommand = cli.Command{
 	Name:  "exec",
 	Usage: "execute new process inside the container",
-	ArgsUsage: `<container-id> <container command>
+	ArgsUsage: `<container-id> <container command> [command options]
 
 Where "<container-id>" is the name for the instance of the container and
 "<container command>" is the command to be executed in the container.
@@ -88,18 +89,29 @@ following will output a list of processes running in the container:
 		if os.Geteuid() != 0 {
 			return fmt.Errorf("runc should be run as root")
 		}
+		if err := revisePidFile(context); err != nil {
+			return err
+		}
 		status, err := execProcess(context)
 		if err == nil {
 			os.Exit(status)
 		}
 		return fmt.Errorf("exec failed: %v", err)
 	},
+	SkipArgReorder: true,
 }
 
 func execProcess(context *cli.Context) (int, error) {
 	container, err := getContainer(context)
 	if err != nil {
 		return -1, err
+	}
+	status, err := container.Status()
+	if err != nil {
+		return -1, err
+	}
+	if status == libcontainer.Stopped {
+		return -1, fmt.Errorf("cannot exec a container that has run and stopped")
 	}
 	path := context.String("process")
 	if path == "" && len(context.Args()) == 1 {

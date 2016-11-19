@@ -32,7 +32,7 @@ type parentProcess interface {
 	// wait waits on the process returning the process state.
 	wait() (*os.ProcessState, error)
 
-	// startTime return's the process start time.
+	// startTime returns the process start time.
 	startTime() (string, error)
 
 	signal(os.Signal) error
@@ -146,7 +146,7 @@ func (p *setnsProcess) execSetns() error {
 }
 
 // terminate sends a SIGKILL to the forked process for the setns routine then waits to
-// avoid the process becomming a zombie.
+// avoid the process becoming a zombie.
 func (p *setnsProcess) terminate() error {
 	if p.cmd.Process == nil {
 		return nil
@@ -264,7 +264,7 @@ func (p *initProcess) start() error {
 		}
 	}()
 	if err := p.createNetworkInterfaces(); err != nil {
-		return newSystemErrorWithCause(err, "creating nework interfaces")
+		return newSystemErrorWithCause(err, "creating network interfaces")
 	}
 	if err := p.sendConfig(); err != nil {
 		return newSystemErrorWithCause(err, "sending config to init process")
@@ -317,7 +317,7 @@ loop:
 			}
 			// Sync with child.
 			if err := utils.WriteJSON(p.parentPipe, syncT{procRun}); err != nil {
-				return newSystemErrorWithCause(err, "reading syncT run type")
+				return newSystemErrorWithCause(err, "writing syncT run type")
 			}
 			sentRun = true
 		case procHooks:
@@ -337,7 +337,7 @@ loop:
 			}
 			// Sync with child.
 			if err := utils.WriteJSON(p.parentPipe, syncT{procResume}); err != nil {
-				return newSystemErrorWithCause(err, "reading syncT resume type")
+				return newSystemErrorWithCause(err, "writing syncT resume type")
 			}
 			sentResume = true
 		case procError:
@@ -356,7 +356,7 @@ loop:
 		}
 	}
 	if !sentRun {
-		return newSystemErrorWithCause(ierr, "container init failed")
+		return newSystemErrorWithCause(ierr, "container init")
 	}
 	if p.config.Config.Namespaces.Contains(configs.NEWNS) && !sentResume {
 		return newSystemError(fmt.Errorf("could not synchronise after executing prestart hooks with container process"))
@@ -379,7 +379,7 @@ func (p *initProcess) wait() (*os.ProcessState, error) {
 	}
 	// we should kill all processes in cgroup when init is died if we use host PID namespace
 	if p.sharePidns {
-		killCgroupProcesses(p.manager)
+		signalAllProcesses(p.manager, syscall.SIGKILL)
 	}
 	return p.cmd.ProcessState, nil
 }

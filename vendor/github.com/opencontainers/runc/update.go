@@ -40,12 +40,14 @@ The accepted format is as follow (unchanged values can be omitted):
     "shares": 0,
     "quota": 0,
     "period": 0,
+    "realtimeRuntime": 0,
+    "realtimePeriod": 0,
     "cpus": "",
     "mems": ""
   },
   "blockIO": {
     "blkioWeight": 0
-  },
+  }
 }
 
 Note: if data is to be read from a file or the standard input, all
@@ -59,15 +61,23 @@ other options are ignored.
 		},
 		cli.StringFlag{
 			Name:  "cpu-period",
-			Usage: "CPU period to be used for hardcapping (in usecs). 0 to use system default",
+			Usage: "CPU CFS period to be used for hardcapping (in usecs). 0 to use system default",
 		},
 		cli.StringFlag{
 			Name:  "cpu-quota",
-			Usage: "CPU hardcap limit (in usecs). Allowed cpu time in a given period",
+			Usage: "CPU CFS hardcap limit (in usecs). Allowed cpu time in a given period",
 		},
 		cli.StringFlag{
 			Name:  "cpu-share",
 			Usage: "CPU shares (relative weight vs. other containers)",
+		},
+		cli.StringFlag{
+			Name:  "cpu-rt-period",
+			Usage: "CPU realtime period to be used for hardcapping (in usecs). 0 to use system default",
+		},
+		cli.StringFlag{
+			Name:  "cpu-rt-runtime",
+			Usage: "CPU realtime hardcap limit (in usecs). Allowed cpu time in a given period",
 		},
 		cli.StringFlag{
 			Name:  "cpuset-cpus",
@@ -113,11 +123,13 @@ other options are ignored.
 				KernelTCP:   u64Ptr(0),
 			},
 			CPU: &specs.CPU{
-				Shares: u64Ptr(0),
-				Quota:  u64Ptr(0),
-				Period: u64Ptr(0),
-				Cpus:   sPtr(""),
-				Mems:   sPtr(""),
+				Shares:          u64Ptr(0),
+				Quota:           u64Ptr(0),
+				Period:          u64Ptr(0),
+				RealtimeRuntime: u64Ptr(0),
+				RealtimePeriod:  u64Ptr(0),
+				Cpus:            sPtr(""),
+				Mems:            sPtr(""),
 			},
 			BlockIO: &specs.BlockIO{
 				Weight: u16Ptr(0),
@@ -155,33 +167,41 @@ other options are ignored.
 				r.CPU.Mems = &val
 			}
 
-			for opt, dest := range map[string]*uint64{
-				"cpu-period": r.CPU.Period,
-				"cpu-quota":  r.CPU.Quota,
-				"cpu-share":  r.CPU.Shares,
+			for _, pair := range []struct {
+				opt  string
+				dest *uint64
+			}{
+
+				{"cpu-period", r.CPU.Period},
+				{"cpu-quota", r.CPU.Quota},
+				{"cpu-rt-period", r.CPU.RealtimePeriod},
+				{"cpu-rt-runtime", r.CPU.RealtimeRuntime},
+				{"cpu-share", r.CPU.Shares},
 			} {
-				if val := context.String(opt); val != "" {
+				if val := context.String(pair.opt); val != "" {
 					var err error
-					*dest, err = strconv.ParseUint(val, 10, 64)
+					*pair.dest, err = strconv.ParseUint(val, 10, 64)
 					if err != nil {
-						return fmt.Errorf("invalid value for %s: %s", opt, err)
+						return fmt.Errorf("invalid value for %s: %s", pair.opt, err)
 					}
 				}
 			}
-
-			for opt, dest := range map[string]*uint64{
-				"kernel-memory":      r.Memory.Kernel,
-				"kernel-memory-tcp":  r.Memory.KernelTCP,
-				"memory":             r.Memory.Limit,
-				"memory-reservation": r.Memory.Reservation,
-				"memory-swap":        r.Memory.Swap,
+			for _, pair := range []struct {
+				opt  string
+				dest *uint64
+			}{
+				{"kernel-memory", r.Memory.Kernel},
+				{"kernel-memory-tcp", r.Memory.KernelTCP},
+				{"memory", r.Memory.Limit},
+				{"memory-reservation", r.Memory.Reservation},
+				{"memory-swap", r.Memory.Swap},
 			} {
-				if val := context.String(opt); val != "" {
+				if val := context.String(pair.opt); val != "" {
 					v, err := units.RAMInBytes(val)
 					if err != nil {
-						return fmt.Errorf("invalid value for %s: %s", opt, err)
+						return fmt.Errorf("invalid value for %s: %s", pair.opt, err)
 					}
-					*dest = uint64(v)
+					*pair.dest = uint64(v)
 				}
 			}
 		}
@@ -191,6 +211,8 @@ other options are ignored.
 		config.Cgroups.Resources.CpuPeriod = int64(*r.CPU.Period)
 		config.Cgroups.Resources.CpuQuota = int64(*r.CPU.Quota)
 		config.Cgroups.Resources.CpuShares = int64(*r.CPU.Shares)
+		config.Cgroups.Resources.CpuRtPeriod = int64(*r.CPU.RealtimePeriod)
+		config.Cgroups.Resources.CpuRtRuntime = int64(*r.CPU.RealtimeRuntime)
 		config.Cgroups.Resources.CpusetCpus = *r.CPU.Cpus
 		config.Cgroups.Resources.CpusetMems = *r.CPU.Mems
 		config.Cgroups.Resources.KernelMemory = int64(*r.Memory.Kernel)

@@ -25,6 +25,22 @@ Migrating to v2
 On gopsutil itself, `v2migration.sh <https://github.com/shirou/gopsutil/blob/v2/v2migration.sh>`_ is used for migration. It can not be commonly used, but it may help you with migration.
 
 
+Tag semantics
+^^^^^^^^^^^^^^^
+
+gopsutil tag policy is almost same as Semantic Versioning, but automatically increase like Ubuntu versioning.
+
+for example, `v2.16.10` means
+
+- v2: major version
+- 16: release year, 2016
+- 10: release month
+
+gopsutil aims to keep backwards-compatiblity until major version change.
+
+Taged at every end of month, but there are only a few commits, it can be skipped.
+
+
 Available Architectures
 ------------------------------------
 
@@ -155,28 +171,28 @@ Current Status
 - x: work
 - b: almost works, but something is broken
 
-================= ====== ======= ====== =======
-name              Linux  FreeBSD MacOSX Windows
-cpu_times            x      x      x       x
-cpu_count            x      x      x       x
-cpu_percent          x      x      x       x
-cpu_times_percent    x      x      x       x
-virtual_memory       x      x      x       x
-swap_memory          x      x      x
-disk_partitions      x      x      x       x
-disk_io_counters     x      x
-disk_usage           x      x      x       x
-net_io_counters      x      x      b       x
-boot_time            x      x      x       x
-users                x      x      x       x
-pids                 x      x      x       x
-pid_exists           x      x      x       x
-net_connections      x             x
-net_protocols        x
+=================== ====== ======= ====== =======
+name                Linux  FreeBSD MacOSX Windows
+cpu_times             x      x      x       x
+cpu_count             x      x      x       x
+cpu_percent           x      x      x       x
+cpu_times_percent     x      x      x       x
+virtual_memory        x      x      x       x
+swap_memory           x      x      x
+disk_partitions       x      x      x       x
+disk_io_counters      x      x
+disk_usage            x      x      x       x
+net_io_counters       x      x      b       x
+boot_time             x      x      x       x
+users                 x      x      x       x
+pids                  x      x      x       x
+pid_exists            x      x      x       x
+net_connections       x             x
+net_protocols         x
 net_if_addrs
 net_if_stats
-netfilter_conntrack  x
-================= ====== ======= ====== =======
+netfilter_conntrack   x
+=================== ====== ======= ====== =======
 
 Process class
 ^^^^^^^^^^^^^^^

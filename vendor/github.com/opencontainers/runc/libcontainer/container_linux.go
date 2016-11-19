@@ -85,13 +85,14 @@ type Container interface {
 	// Systemerror - System error.
 	Restore(process *Process, criuOpts *CriuOpts) error
 
-	// If the Container state is RUNNING, sets the Container state to PAUSING and pauses
+	// If the Container state is RUNNING or CREATED, sets the Container state to PAUSING and pauses
 	// the execution of any user processes. Asynchronously, when the container finished being paused the
 	// state is changed to PAUSED.
 	// If the Container state is PAUSED, do nothing.
 	//
 	// errors:
-	// ContainerDestroyed - Container no longer exists,
+	// ContainerNotExists - Container no longer exists,
+	// ContainerNotRunning - Container not running or created,
 	// Systemerror - System error.
 	Pause() error
 
@@ -100,7 +101,8 @@ type Container interface {
 	// If the Container state is RUNNING, do nothing.
 	//
 	// errors:
-	// ContainerDestroyed - Container no longer exists,
+	// ContainerNotExists - Container no longer exists,
+	// ContainerNotPaused - Container is not paused,
 	// Systemerror - System error.
 	Resume() error
 
@@ -280,7 +282,10 @@ func (c *linuxContainer) start(process *Process, isInit bool) error {
 	return nil
 }
 
-func (c *linuxContainer) Signal(s os.Signal) error {
+func (c *linuxContainer) Signal(s os.Signal, all bool) error {
+	if all {
+		return signalAllProcesses(c.cgroupManager, s)
+	}
 	if err := c.initProcess.signal(s); err != nil {
 		return newSystemErrorWithCause(err, "signaling init process")
 	}
@@ -443,7 +448,7 @@ func (c *linuxContainer) Pause() error {
 			c: c,
 		})
 	}
-	return newGenericError(fmt.Errorf("container not running: %s", status), ContainerNotRunning)
+	return newGenericError(fmt.Errorf("container not running or created: %s", status), ContainerNotRunning)
 }
 
 func (c *linuxContainer) Resume() error {
@@ -1221,16 +1226,22 @@ func (c *linuxContainer) currentState() (*State, error) {
 // can setns in order.
 func (c *linuxContainer) orderNamespacePaths(namespaces map[configs.NamespaceType]string) ([]string, error) {
 	paths := []string{}
-	nsTypes := []configs.NamespaceType{
+	order := []configs.NamespaceType{
+		// The user namespace *must* be done first.
+		configs.NEWUSER,
 		configs.NEWIPC,
 		configs.NEWUTS,
 		configs.NEWNET,
 		configs.NEWPID,
 		configs.NEWNS,
 	}
-	// join userns if the init process explicitly requires NEWUSER
-	if c.config.Namespaces.Contains(configs.NEWUSER) {
-		nsTypes = append(nsTypes, configs.NEWUSER)
+
+	// Remove namespaces that we don't need to join.
+	var nsTypes []configs.NamespaceType
+	for _, ns := range order {
+		if c.config.Namespaces.Contains(ns) {
+			nsTypes = append(nsTypes, ns)
+		}
 	}
 	for _, nsType := range nsTypes {
 		if p, ok := namespaces[nsType]; ok && p != "" {
@@ -1247,7 +1258,7 @@ func (c *linuxContainer) orderNamespacePaths(namespaces map[configs.NamespaceTyp
 			if strings.ContainsRune(p, ',') {
 				return nil, newSystemError(fmt.Errorf("invalid path %s", p))
 			}
-			paths = append(paths, p)
+			paths = append(paths, fmt.Sprintf("%s:%s", configs.NsName(nsType), p))
 		}
 	}
 	return paths, nil

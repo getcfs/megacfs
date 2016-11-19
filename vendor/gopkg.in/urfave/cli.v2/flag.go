@@ -21,10 +21,16 @@ var (
 	commaWhitespace = regexp.MustCompile("[, ]+.*")
 )
 
-// BashCompletionFlag enables bash-completion for all commands and subcommands
-var BashCompletionFlag = &BoolFlag{
-	Name:   "generate-bash-completion",
+// GenerateCompletionFlag enables completion for all commands and subcommands
+var GenerateCompletionFlag = &BoolFlag{
+	Name:   "generate-completion",
 	Hidden: true,
+}
+
+// InitCompletionFlag generates completion code
+var InitCompletionFlag = &StringFlag{
+	Name:  "init-completion",
+	Usage: "generate completion code. Value must be 'bash' or 'zsh'",
 }
 
 // VersionFlag prints the version for the application
@@ -50,6 +56,26 @@ var FlagStringer FlagStringFunc = stringifyFlag
 // Serializeder is used to circumvent the limitations of flag.FlagSet.Set
 type Serializeder interface {
 	Serialized() string
+}
+
+// FlagsByName is a slice of Flag.
+type FlagsByName []Flag
+
+func (f FlagsByName) Len() int {
+	return len(f)
+}
+
+func (f FlagsByName) Less(i, j int) bool {
+	if len(f[j].Names()) == 0 {
+		return false
+	} else if len(f[i].Names()) == 0 {
+		return true
+	}
+	return f[i].Names()[0] < f[j].Names()[0]
+}
+
+func (f FlagsByName) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
 }
 
 // Flag is a common interface related to parsing flags in cli.
@@ -730,7 +756,6 @@ func stringifyFlag(f Flag) string {
 	needsPlaceholder := false
 	defaultValueString := ""
 	val := fv.FieldByName("Value")
-
 	if val.IsValid() {
 		needsPlaceholder = val.Kind() != reflect.Bool
 		defaultValueString = fmt.Sprintf(" (default: %v)", val.Interface())
@@ -738,6 +763,12 @@ func stringifyFlag(f Flag) string {
 		if val.Kind() == reflect.String && val.String() != "" {
 			defaultValueString = fmt.Sprintf(" (default: %q)", val.String())
 		}
+	}
+
+	helpText := fv.FieldByName("DefaultText")
+	if helpText.IsValid() && helpText.String() != "" {
+		needsPlaceholder = val.Kind() != reflect.Bool
+		defaultValueString = fmt.Sprintf(" (default: %s)", helpText.String())
 	}
 
 	if defaultValueString == " (default: )" {
