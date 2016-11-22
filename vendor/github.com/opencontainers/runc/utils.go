@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -18,7 +19,7 @@ func fatal(err error) {
 	os.Exit(1)
 }
 
-// setupSpec performs inital setup based on the cli.Context for the container
+// setupSpec performs initial setup based on the cli.Context for the container
 func setupSpec(context *cli.Context) (*specs.Spec, error) {
 	bundle := context.String("bundle")
 	if bundle != "" {
@@ -38,4 +39,23 @@ func setupSpec(context *cli.Context) (*specs.Spec, error) {
 		return nil, fmt.Errorf("runc should be run as root")
 	}
 	return spec, nil
+}
+
+func revisePidFile(context *cli.Context) error {
+	pidFile := context.String("pid-file")
+	if pidFile == "" {
+		return nil
+	}
+
+	// convert pid-file to an absolute path so we can write to the right
+	// file after chdir to bundle
+	pidFile, err := filepath.Abs(pidFile)
+	if err != nil {
+		return err
+	}
+	err = context.Set("pid-file", pidFile)
+	if err != nil {
+		return err
+	}
+	return nil
 }

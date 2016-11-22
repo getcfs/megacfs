@@ -83,6 +83,7 @@ config := &configs.Config{
 	},
 	MaskPaths: []string{
 		"/proc/kcore",
+		"/sys/firmware",
 	},
 	ReadonlyPaths: []string{
 		"/proc/sys", "/proc/sysrq-trigger", "/proc/irq", "/proc/bus",
@@ -184,7 +185,7 @@ process := &libcontainer.Process{
 	Stderr: os.Stderr,
 }
 
-err := container.Start(process)
+err := container.Run(process)
 if err != nil {
 	container.Destroy()
 	logrus.Fatal(err)
@@ -222,6 +223,12 @@ container.Signal(signal)
 
 // update container resource constraints.
 container.Set(config)
+
+// get current status of the container.
+status, err := container.Status()
+
+// get current container's state information.
+state, err := container.State()
 ```
 
 

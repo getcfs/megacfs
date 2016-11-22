@@ -73,9 +73,9 @@ load helpers
   [ "$status" -eq 0 ]
   [[ ${lines[1]} =~ runc\ state+ ]]
 
-  runc delete -h
+  runc update -h
   [ "$status" -eq 0 ]
-  [[ ${lines[1]} =~ runc\ delete+ ]]
+  [[ ${lines[1]} =~ runc\ update+ ]]
 
 }
 

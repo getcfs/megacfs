@@ -12,6 +12,7 @@ go:
 - 1.4.2
 - 1.5.x
 - 1.6.x
+- 1.7.x
 - master
 
 env: pip_install="pip install --user"
@@ -23,14 +24,12 @@ matrix:
   - go: 1.6.x
     os: osx
     env: pip_install="sudo pip install"
+  - go: 1.7.x
+    os: osx
+    env: pip_install="sudo pip install"
 
 before_script:
 - $pip_install flake8
-- go get github.com/urfave/gfmrun/... || true
-- go get golang.org/x/tools/... || true
-- if [ ! -f node_modules/.bin/markdown-toc ] ; then
-    npm install markdown-toc ;
-  fi
 - mkdir -p ${GOPATH%%:*}/src/gopkg.in/urfave
 - rm -rvf ${GOPATH%%:*}/src/gopkg.in/urfave/cli.v2
 - rm -rvf ${GOPATH%%:*}/pkg/*/gopkg.in/urfave/cli.v2.a
@@ -38,10 +37,4 @@ before_script:
 
 script:
 - flake8 runtests cli-v1-to-v2 generate-flag-types
-- ./runtests gen
-- ./runtests vet
-- ./runtests test
-- ./runtests gfmrun
-- ./cli-v1-to-v2 --selftest
-- ./runtests migrations
-- ./runtests toc
+- make all

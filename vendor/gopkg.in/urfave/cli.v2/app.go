@@ -25,20 +25,22 @@ type App struct {
 	ArgsUsage string
 	// Version of the program
 	Version string
+	// Description of the program
+	Description string
 	// List of commands to execute
 	Commands []*Command
 	// List of flags to parse
 	Flags []Flag
-	// Boolean to enable bash completion commands
-	EnableBashCompletion bool
+	// Boolean to enable shell completion commands
+	EnableShellCompletion bool
 	// Boolean to hide built-in help command
 	HideHelp bool
 	// Boolean to hide built-in version flag and the VERSION section of help
 	HideVersion bool
 	// Categories contains the categorized commands and is populated on app startup
 	Categories CommandCategories
-	// An action to execute when the bash-completion flag is set
-	BashComplete BashCompleteFunc
+	// An action to execute when the shell completion flag is set
+	ShellComplete ShellCompleteFunc
 	// An action to execute before any subcommands are run, but after the context is ready
 	// If a non-nil error is returned, no subcommands are run
 	Before BeforeFunc
@@ -103,8 +105,8 @@ func (a *App) Setup() {
 		a.Version = "0.0.0"
 	}
 
-	if a.BashComplete == nil {
-		a.BashComplete = DefaultAppComplete
+	if a.ShellComplete == nil {
+		a.ShellComplete = DefaultAppComplete
 	}
 
 	if a.Action == nil {
@@ -136,8 +138,9 @@ func (a *App) Setup() {
 		}
 	}
 
-	if a.EnableBashCompletion {
-		a.appendFlag(BashCompletionFlag)
+	if a.EnableShellCompletion {
+		a.appendFlag(GenerateCompletionFlag)
+		a.appendFlag(InitCompletionFlag)
 	}
 
 	if !a.HideVersion {
@@ -176,13 +179,21 @@ func (a *App) Run(arguments []string) (err error) {
 		return nil
 	}
 
+	if done, cerr := checkInitCompletion(context); done {
+		if cerr != nil {
+			err = cerr
+		} else {
+			return nil
+		}
+	}
+
 	if err != nil {
 		if a.OnUsageError != nil {
 			err := a.OnUsageError(context, err, false)
 			HandleExitCoder(err)
 			return err
 		}
-		fmt.Fprintf(a.Writer, "Incorrect Usage: %s\n\n", err)
+		fmt.Fprintf(a.Writer, "%s %s\n\n", "Incorrect Usage.", err.Error())
 		ShowAppHelp(context)
 		return err
 	}
@@ -239,6 +250,8 @@ func (a *App) Run(arguments []string) (err error) {
 // RunAsSubcommand invokes the subcommand given the context, parses ctx.Args() to
 // generate command-specific flags
 func (a *App) RunAsSubcommand(ctx *Context) (err error) {
+	a.Setup()
+
 	// append help to commands
 	if len(a.Commands) > 0 {
 		if a.Command(helpCommand.Name) == nil && !a.HideHelp {
@@ -260,8 +273,8 @@ func (a *App) RunAsSubcommand(ctx *Context) (err error) {
 	a.Commands = newCmds
 
 	// append flags
-	if a.EnableBashCompletion {
-		a.appendFlag(BashCompletionFlag)
+	if a.EnableShellCompletion {
+		a.appendFlag(GenerateCompletionFlag)
 	}
 
 	// parse flags
@@ -292,7 +305,7 @@ func (a *App) RunAsSubcommand(ctx *Context) (err error) {
 			HandleExitCoder(err)
 			return err
 		}
-		fmt.Fprintf(a.Writer, "Incorrect Usage: %s\n\n", err)
+		fmt.Fprintf(a.Writer, "%s %s\n\n", "Incorrect Usage.", err.Error())
 		ShowSubcommandHelp(context)
 		return err
 	}
@@ -432,8 +445,8 @@ type Author struct {
 func (a *Author) String() string {
 	e := ""
 	if a.Email != "" {
-		e = "<" + a.Email + "> "
+		e = " <" + a.Email + ">"
 	}
 
-	return fmt.Sprintf("%v %v", a.Name, e)
+	return fmt.Sprintf("%v%v", a.Name, e)
 }
