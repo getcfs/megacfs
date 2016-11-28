@@ -1,3 +1,0 @@
-#!/bin/bash
-
-rm -f ca.csr ca.json ca-key.pem ca.pem cert.csr cert-key.pem cert.pem cfs.builder cfs.ring

@@ -45,6 +45,11 @@ build:
 			-X main.cfsVersion=$(VERSION) \
 			-X main.goVersion=$(GOVERSION) \
 			-X main.buildDate=$(BDATE)" github.com/getcfs/megacfs/cfsd
+	go build -i -v -o build/cfsadm --ldflags " $(LD_FLAGS) \
+			-X main.commitVersion=$(SHA) \
+			-X main.cfsVersion=$(VERSION) \
+			-X main.goVersion=$(GOVERSION) \
+			-X main.buildDate=$(BDATE)" github.com/getcfs/megacfs/cfsadm
 	go build -i -v -o build/formicd --ldflags " $(LD_FLAGS) \
 			-X main.commitVersion=$(SHA) \
 			-X main.formicdVersion=$(VERSION) \

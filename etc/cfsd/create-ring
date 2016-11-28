@@ -1,7 +1,0 @@
-#!/bin/bash
-
-export PATH=${PATH}:/usr/local/bin:/home/gholt/bin
-
-cd /etc/cfsd
-
-ring cfs.builder create
