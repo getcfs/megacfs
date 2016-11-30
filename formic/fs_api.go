@@ -815,23 +815,53 @@ func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddr
 
 // ValidateResponse ...
 type ValidateResponse struct {
-	Access struct {
-		Token struct {
-			Tenant struct {
-				ID string `json:"id"`
-			} `json:"tenant"`
-		} `json:"token"`
-	} `json:"access"`
+	Token struct {
+		Project struct {
+			ID string `json:"id"`
+		} `json:"project"`
+	} `json:"token"`
+}
+
+// get server token used to validate client tokens
+func auth(authURL string, username string, password string) (string, error) {
+	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{
+		"domain":{"id":"default"},"user":"%s","password":"%s"}}}}}`, username, password)
+	rbody := strings.NewReader(body)
+	req, err := http.NewRequest("POST", authURL+"v3/auth/tokens", rbody)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("Failed to acquire server auth token")
+	}
+
+	token := resp.Header.Get("X-Subject-Token")
+
+	return token, nil
 }
 
 // validateToken ...
 func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
-	url := "https://identity.api.rackspacecloud.com/v2.0/tokens/" + token
-	req, err := http.NewRequest("GET", url, nil)
+	// TODO: make authURL, username and password config vars for formic
+	auth_token, err := auth("https://localhost:5000/v3/auth/tokens", "cfs", "cfs")
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("X-Auth-Token", token)
+
+	req, err := http.NewRequest("GET", "https://localhost:5000/v3/auth/tokens", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("X-Auth-Token", auth_token)
+	req.Header.Set("X-Subject-Token", token)
 
 	resp, err := http.DefaultClient.Do(req) // TODO: Is this safe for formic?
 	if err != nil {
@@ -847,9 +877,9 @@ func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
 	var validateResp ValidateResponse
 	r, _ := ioutil.ReadAll(resp.Body)
 	json.Unmarshal(r, &validateResp)
-	tenant := validateResp.Access.Token.Tenant.ID
+	project := validateResp.Token.Project.ID
 
-	return tenant, nil
+	return project, nil
 }
 
 // deleteEntry Deletes and entry in the group store and doesn't care if
