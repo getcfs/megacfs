@@ -851,7 +851,7 @@ func auth(authURL string, username string, password string) (string, error) {
 // validateToken ...
 func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
 	// TODO: make authURL, username and password config vars for formic
-	auth_token, err := auth("https://localhost:5000/v3/auth/tokens", "cfs", "cfs")
+	auth_token, err := auth("https://localhost:5000/v3/auth/tokens", "admin", "admin")
 	if err != nil {
 		return "", err
 	}
