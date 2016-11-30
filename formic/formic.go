@@ -14,7 +14,7 @@ import (
 var ErrZeroValue = errors.New("Got 0 length message")
 
 var gerf = grpc.Errorf // To avoid a `go vet` quirk
-var ErrNotFound = gerf(codes.NotFound, "Not Found")
+var ErrGRPCNotFound = gerf(codes.NotFound, "Not Found")
 var ErrNotEmpty = gerf(codes.FailedPrecondition, "Not Empty")
 
 func GetID(fsid []byte, inode, block uint64) []byte {

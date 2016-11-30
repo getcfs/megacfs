@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/getcfs/megacfs/formic"
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort/api"
@@ -57,11 +58,11 @@ func main() {
 		return
 	}
 
-	cfg := resolveConfig(nil)
+	cfg := formic.ResolveConfig(nil)
 
 	// Setup logging
 	baseLogger := zap.New(zap.NewJSONEncoder())
-	if cfg.debug {
+	if cfg.Debug {
 		baseLogger.SetLevel(zap.DebugLevel)
 	} else {
 		baseLogger.SetLevel(zap.InfoLevel)
@@ -69,12 +70,12 @@ func main() {
 	logger := baseLogger.With(zap.String("name", "formicd"))
 
 	var opts []grpc.ServerOption
-	creds, err := credentials.NewServerTLSFromFile(path.Join(cfg.path, "server.crt"), path.Join(cfg.path, "server.key"))
+	creds, err := credentials.NewServerTLSFromFile(path.Join(cfg.Path, "server.crt"), path.Join(cfg.Path, "server.key"))
 	if err != nil {
 		logger.Fatal("Couldn't load cert from file", zap.Error(err))
 	}
 	opts = []grpc.ServerOption{grpc.Creds(creds)}
-	if cfg.grpcMetrics {
+	if cfg.GRPCMetrics {
 		opts = append(opts, grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
 		opts = append(opts, grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor))
 	}
@@ -83,16 +84,16 @@ func main() {
 
 	var vcOpts []grpc.DialOption
 	vtlsConfig := &ftls.Config{
-		MutualTLS:          !cfg.skipMutualTLS,
-		InsecureSkipVerify: cfg.insecureSkipVerify,
-		CertFile:           path.Join(cfg.path, "client.crt"),
-		KeyFile:            path.Join(cfg.path, "client.key"),
-		CAFile:             path.Join(cfg.path, "ca.pem"),
+		MutualTLS:          !cfg.SkipMutualTLS,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		CertFile:           path.Join(cfg.Path, "client.crt"),
+		KeyFile:            path.Join(cfg.Path, "client.key"),
+		CAFile:             path.Join(cfg.Path, "ca.pem"),
 	}
 	vrOpts, err := ftls.NewGRPCClientDialOpt(&ftls.Config{
 		MutualTLS:          false,
-		InsecureSkipVerify: cfg.insecureSkipVerify,
-		CAFile:             path.Join(cfg.path, "ca.pem"),
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		CAFile:             path.Join(cfg.Path, "ca.pem"),
 	})
 	if err != nil {
 		logger.Fatal("Cannot setup value store tls config for synd client", zap.Error(err))
@@ -100,16 +101,16 @@ func main() {
 
 	var gcOpts []grpc.DialOption
 	gtlsConfig := &ftls.Config{
-		MutualTLS:          !cfg.skipMutualTLS,
-		InsecureSkipVerify: cfg.insecureSkipVerify,
-		CertFile:           path.Join(cfg.path, "client.crt"),
-		KeyFile:            path.Join(cfg.path, "client.key"),
-		CAFile:             path.Join(cfg.path, "ca.pem"),
+		MutualTLS:          !cfg.SkipMutualTLS,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		CertFile:           path.Join(cfg.Path, "client.crt"),
+		KeyFile:            path.Join(cfg.Path, "client.key"),
+		CAFile:             path.Join(cfg.Path, "ca.pem"),
 	}
 	grOpts, err := ftls.NewGRPCClientDialOpt(&ftls.Config{
 		MutualTLS:          false,
-		InsecureSkipVerify: cfg.insecureSkipVerify,
-		CAFile:             path.Join(cfg.path, "ca.pem"),
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		CAFile:             path.Join(cfg.Path, "ca.pem"),
 	})
 	if err != nil {
 		logger.Fatal("Cannot setup group store tls config for synd client", zap.Error(err))
@@ -126,12 +127,12 @@ func main() {
 		AddressIndex:               2,
 		StoreFTLSConfig:            vtlsConfig,
 		GRPCOpts:                   vcOpts,
-		RingServer:                 cfg.oortValueSyndicate,
-		RingCachePath:              path.Join(cfg.path, "ring/valuestore.ring"),
+		RingServer:                 cfg.OortValueSyndicate,
+		RingCachePath:              path.Join(cfg.Path, "ring/valuestore.ring"),
 		RingServerGRPCOpts:         []grpc.DialOption{vrOpts},
 		RingClientID:               clientID,
-		PoolSize:                   cfg.poolSize,
-		ConcurrentRequestsPerStore: cfg.concurrentRequestsPerStore,
+		PoolSize:                   cfg.PoolSize,
+		ConcurrentRequestsPerStore: cfg.ConcurrentRequestsPerStore,
 	})
 
 	vstore.SetRing(vstore.Ring(context.Background()))
@@ -145,12 +146,12 @@ func main() {
 		AddressIndex:               2,
 		StoreFTLSConfig:            gtlsConfig,
 		GRPCOpts:                   gcOpts,
-		RingServer:                 cfg.oortGroupSyndicate,
-		RingCachePath:              path.Join(cfg.path, "ring/groupstore.ring"),
+		RingServer:                 cfg.OortGroupSyndicate,
+		RingCachePath:              path.Join(cfg.Path, "ring/groupstore.ring"),
 		RingServerGRPCOpts:         []grpc.DialOption{grOpts},
 		RingClientID:               clientID,
-		PoolSize:                   cfg.poolSize,
-		ConcurrentRequestsPerStore: cfg.concurrentRequestsPerStore,
+		PoolSize:                   cfg.PoolSize,
+		ConcurrentRequestsPerStore: cfg.ConcurrentRequestsPerStore,
 	})
 
 	gstore.SetRing(gstore.Ring(context.Background()))
@@ -160,31 +161,31 @@ func main() {
 	// }
 
 	// starting up formicd
-	comms, err := NewStoreComms(vstore, gstore, logger)
+	comms, err := formic.NewStoreComms(vstore, gstore, logger)
 	if err != nil {
 		logger.Fatal("Error setting up comms", zap.Error(err))
 	}
 	// TODO: How big should the chan be, or should we have another in memory queue that feeds the chan?
-	deleteChan := make(chan *DeleteItem, 1000)
-	dirtyChan := make(chan *DirtyItem, 1000)
-	fs := NewOortFS(comms, logger, deleteChan, dirtyChan)
-	deletes := newDeletinator(deleteChan, fs, comms, baseLogger.With(zap.String("name", "formicd.deletinator")))
-	cleaner := newCleaninator(dirtyChan, fs, comms, baseLogger.With(zap.String("name", "formicd.cleaninator")))
-	go deletes.run()
-	go cleaner.run()
+	deleteChan := make(chan *formic.DeleteItem, 1000)
+	dirtyChan := make(chan *formic.DirtyItem, 1000)
+	fs := formic.NewOortFS(comms, logger, deleteChan, dirtyChan)
+	deletes := formic.NewDeletinator(deleteChan, fs, comms, baseLogger.With(zap.String("name", "formicd.deletinator")))
+	cleaner := formic.NewCleaninator(dirtyChan, fs, comms, baseLogger.With(zap.String("name", "formicd.cleaninator")))
+	go deletes.Run()
+	go cleaner.Run()
 
 	// Setup metrics collection
-	err = setupMetrics(cfg.metricsAddr, cfg.metricsCollectors)
+	err = setupMetrics(cfg.MetricsAddr, cfg.MetricsCollectors)
 	if err != nil {
 		logger.Fatal("Couldn't load collectors", zap.Error(err))
 	}
 
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.port))
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
 	if err != nil {
 		logger.Fatal("Failed to bind formicd to port", zap.Error(err))
 	}
-	pb.RegisterFileSystemAPIServer(s, NewFileSystemAPIServer(gstore, vstore, baseLogger.With(zap.String("name", "formicd.fs"))))
-	pb.RegisterApiServer(s, NewApiServer(fs, cfg.nodeID, comms, logger))
-	logger.Info("Starting formic and the filesystem API", zap.Int("port", cfg.port))
+	pb.RegisterFileSystemAPIServer(s, formic.NewFileSystemAPIServer(gstore, vstore, baseLogger.With(zap.String("name", "formicd.fs"))))
+	pb.RegisterApiServer(s, formic.NewApiServer(fs, cfg.NodeID, comms, logger))
+	logger.Info("Starting formic and the filesystem API", zap.Int("port", cfg.Port))
 	s.Serve(l)
 }

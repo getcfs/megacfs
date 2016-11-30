@@ -1,4 +1,4 @@
-package main
+package formic
 
 import (
 	"log"
@@ -7,86 +7,86 @@ import (
 )
 
 type config struct {
-	path string
-	port int
+	Path string
+	Port int
 	//	fsPort                     int
-	oortValueSyndicate         string
-	oortGroupSyndicate         string
-	insecureSkipVerify         bool
-	skipMutualTLS              bool
-	nodeID                     int
-	metricsAddr                string
-	metricsCollectors          string
-	poolSize                   int
-	concurrentRequestsPerStore int
-	debug                      bool
-	grpcMetrics                bool
+	OortValueSyndicate         string
+	OortGroupSyndicate         string
+	InsecureSkipVerify         bool
+	SkipMutualTLS              bool
+	NodeID                     int
+	MetricsAddr                string
+	MetricsCollectors          string
+	PoolSize                   int
+	ConcurrentRequestsPerStore int
+	Debug                      bool
+	GRPCMetrics                bool
 }
 
-func resolveConfig(c *config) *config {
+func ResolveConfig(c *config) *config {
 	cfg := &config{}
 	if c != nil {
 		*cfg = *c
 	}
 	if env := os.Getenv("FORMICD_PATH"); env != "" {
-		cfg.path = env
+		cfg.Path = env
 	}
-	if cfg.path == "" {
-		cfg.path = "/var/lib/formic"
+	if cfg.Path == "" {
+		cfg.Path = "/var/lib/formic"
 	}
 	if env := os.Getenv("FORMICD_PORT"); env != "" {
 		if val, err := strconv.Atoi(env); err == nil {
-			cfg.port = val
+			cfg.Port = val
 		}
 	}
-	if cfg.port == 0 {
-		cfg.port = 8445
+	if cfg.Port == 0 {
+		cfg.Port = 8445
 	}
 	if env := os.Getenv("FORMICD_OORT_VALUE_SYNDICATE"); env != "" {
 		log.Println("Value: ", env)
-		cfg.oortValueSyndicate = env
+		cfg.OortValueSyndicate = env
 	}
 	// cfg.oortValueSyndicate == "" means default SRV resolution.
 	if env := os.Getenv("FORMICD_OORT_GROUP_SYNDICATE"); env != "" {
 		log.Println("Group: ", env)
-		cfg.oortGroupSyndicate = env
+		cfg.OortGroupSyndicate = env
 	}
 	// cfg.oortGroupSyndicate == "" means default SRV resolution.
 	if env := os.Getenv("FORMICD_INSECURE_SKIP_VERIFY"); env == "true" {
-		cfg.insecureSkipVerify = true
+		cfg.InsecureSkipVerify = true
 	}
 	if env := os.Getenv("FORMICD_SKIP_MUTUAL_TLS"); env == "true" {
-		cfg.skipMutualTLS = true
+		cfg.SkipMutualTLS = true
 	}
 	if env := os.Getenv("FORMICD_NODE_ID"); env != "" {
 		if val, err := strconv.Atoi(env); err == nil {
-			cfg.nodeID = val
+			cfg.NodeID = val
 		}
 	}
-	cfg.metricsAddr = ":9100"
+	cfg.MetricsAddr = ":9100"
 	if env := os.Getenv("FORMICD_METRICS_ADDR"); env != "" {
-		cfg.metricsAddr = env
+		cfg.MetricsAddr = env
 	}
 	if env := os.Getenv("FORMICD_METRICS_COLLECTORS"); env != "" {
-		cfg.metricsCollectors = env
+		cfg.MetricsCollectors = env
 	}
 	if env := os.Getenv("FORMICD_POOL_SIZE"); env != "" {
 		if val, err := strconv.Atoi(env); err == nil {
-			cfg.poolSize = val
+			cfg.PoolSize = val
 		}
 	}
 	if env := os.Getenv("FORMICD_CONCURRENT_REQUESTS_PER_STORE"); env != "" {
 		if val, err := strconv.Atoi(env); err == nil {
-			cfg.concurrentRequestsPerStore = val
+			cfg.ConcurrentRequestsPerStore = val
 		}
 	}
-	cfg.debug = false
+	cfg.Debug = false
 	if env := os.Getenv("FORMICD_DEBUG"); env == "true" {
-		cfg.debug = true
+		cfg.Debug = true
 	}
-	cfg.grpcMetrics = true
+	cfg.GRPCMetrics = true
 	if env := os.Getenv("FORMICD_GRPC_METRICS"); env == "false" {
-		cfg.grpcMetrics = false
+		cfg.GRPCMetrics = false
 	}
 
 	return cfg
