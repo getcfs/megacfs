@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strings"
 
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"golang.org/x/net/context"
@@ -15,24 +14,28 @@ import (
 // configuration ...
 func configure(configfile string) error {
 	stat, _ := os.Stdin.Stat()
-	var addr, username, apikey string
+	var authURL, username, password, addr string
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		fmt.Scan(&addr)
+		fmt.Scan(&authURL)
 		fmt.Scan(&username)
-		fmt.Scan(&apikey)
+		fmt.Scan(&password)
+		fmt.Scan(&addr)
 	} else {
 		fmt.Println("This is an interactive session to configure the cfs client.")
-		fmt.Print("CFS Server Addr: ")
-		fmt.Scan(&addr)
-		fmt.Print("CFS Username: ")
+		fmt.Print("Auth URL: ")
+		fmt.Scan(&authURL)
+		fmt.Print("Username: ")
 		fmt.Scan(&username)
-		fmt.Print("CFS APIKey: ")
-		fmt.Scan(&apikey)
+		fmt.Print("Password: ")
+		fmt.Scan(&password)
+		fmt.Print("CFS Server: ")
+		fmt.Scan(&addr)
 	}
 	config := map[string]string{
-		"addr":     strings.ToLower(addr),
+		"authURL":  authURL,
 		"username": username,
-		"apikey":   apikey,
+		"password": password,
+		"addr":     addr,
 	}
 	c, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
@@ -45,7 +48,7 @@ func configure(configfile string) error {
 	return nil
 }
 
-func list(addr, username, apikey string) error {
+func list(addr, authURL, username, password string) error {
 	f := flag.NewFlagSet("list", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -59,7 +62,7 @@ func list(addr, username, apikey string) error {
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
-	token := auth(username, apikey)
+	token := auth(authURL, username, password)
 	res, err := ws.ListFS(context.Background(), &pb.ListFSRequest{Token: token})
 	if err != nil {
 		return fmt.Errorf("Request Error: %v", err)
@@ -76,7 +79,7 @@ func list(addr, username, apikey string) error {
 	return nil
 }
 
-func show(addr, username, apikey string) error {
+func show(addr, authURL, username, password string) error {
 	f := flag.NewFlagSet("show", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -93,7 +96,7 @@ func show(addr, username, apikey string) error {
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
-	token := auth(username, apikey)
+	token := auth(authURL, username, password)
 	res, err := ws.ShowFS(context.Background(), &pb.ShowFSRequest{Token: token, FSid: fsid})
 	if err != nil {
 		return fmt.Errorf("Request Error: %v", err)
@@ -113,7 +116,7 @@ func show(addr, username, apikey string) error {
 	return nil
 }
 
-func create(addr, username, apikey string) error {
+func create(addr, authURL, username, password string) error {
 	f := flag.NewFlagSet("create", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -131,7 +134,7 @@ func create(addr, username, apikey string) error {
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
-	token := auth(username, apikey)
+	token := auth(authURL, username, password)
 	res, err := ws.CreateFS(context.Background(), &pb.CreateFSRequest{Token: token, FSName: name})
 	if err != nil {
 		return fmt.Errorf("Request Error: %v", err)
@@ -141,7 +144,7 @@ func create(addr, username, apikey string) error {
 	return nil
 }
 
-func del(addr, username, apikey string) error {
+func del(addr, authURL, username, password string) error {
 	f := flag.NewFlagSet("delete", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -158,7 +161,7 @@ func del(addr, username, apikey string) error {
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
-	token := auth(username, apikey)
+	token := auth(authURL, username, password)
 	res, err := ws.DeleteFS(context.Background(), &pb.DeleteFSRequest{Token: token, FSid: fsid})
 	if err != nil {
 		return fmt.Errorf("Request Error: %v", err)
@@ -168,7 +171,7 @@ func del(addr, username, apikey string) error {
 	return nil
 }
 
-func update(addr, username, apikey string) error {
+func update(addr, authURL, username, password string) error {
 	f := flag.NewFlagSet("update", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -188,7 +191,7 @@ func update(addr, username, apikey string) error {
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
-	token := auth(username, apikey)
+	token := auth(authURL, username, password)
 	res, err := ws.UpdateFS(context.Background(), &pb.UpdateFSRequest{Token: token, FSid: fsid, Filesys: newFS})
 	if err != nil {
 		return fmt.Errorf("Request Error: %v", err)
@@ -198,7 +201,7 @@ func update(addr, username, apikey string) error {
 	return nil
 }
 
-func grant(addr, username, apikey string) error {
+func grant(addr, authURL, username, password string) error {
 	var ip, fsid string
 	f := flag.NewFlagSet("grant", flag.ContinueOnError)
 	f.Usage = func() {
@@ -223,7 +226,7 @@ func grant(addr, username, apikey string) error {
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
-	token := auth(username, apikey)
+	token := auth(authURL, username, password)
 	res, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 	if err != nil {
 		return fmt.Errorf("Request Error: %v", err)
@@ -232,7 +235,7 @@ func grant(addr, username, apikey string) error {
 	return nil
 }
 
-func revoke(addr, username, apikey string) error {
+func revoke(addr, authURL, username, password string) error {
 	var ip, fsid string
 	f := flag.NewFlagSet("revoke", flag.ContinueOnError)
 	f.Usage = func() {
@@ -256,7 +259,7 @@ func revoke(addr, username, apikey string) error {
 	c := setupWS(addr)
 	defer c.Close()
 	ws := pb.NewFileSystemAPIClient(c)
-	token := auth(username, apikey)
+	token := auth(authURL, username, password)
 	res, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
 	if err != nil {
 		return fmt.Errorf("Request Error: %v", err)
