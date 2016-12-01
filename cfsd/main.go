@@ -40,17 +40,21 @@ func main() {
 	var keyPath string
 	dataPath := "/var/lib/cfsd"
 
+	baseLogger := zap.New(zap.NewJSONEncoder())
+	baseLogger.SetLevel(zap.InfoLevel)
+	logger := baseLogger.With(zap.String("name", "cfsd"))
+
 	fp, err := os.Open(ringPath)
 	if err != nil {
-		panic(err)
+		logger.Fatal("Couldn't open ring file", zap.Error(err))
 	}
 	oneRing, err := ring.LoadRing(fp)
 	if err != nil {
-		panic(err)
+		logger.Fatal("Error loading ring", zap.Error(err))
 	}
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		panic(err)
+		logger.Fatal("Couldn't find network interfaces", zap.Error(err))
 	}
 FIND_LOCAL_NODE:
 	for _, addrObj := range addrs {
@@ -87,6 +91,9 @@ FIND_LOCAL_NODE:
 		Path:             dataPath,
 		Ring:             oneRing,
 	})
+	if err != nil {
+		logger.Fatal("Error initializing group store", zap.Error(err))
+	}
 	waitGroup.Add(1)
 	go func() {
 		for {
@@ -108,7 +115,7 @@ FIND_LOCAL_NODE:
 	if err = groupStore.Startup(ctx); err != nil {
 		ctx, _ = context.WithTimeout(context.Background(), time.Minute)
 		groupStore.Shutdown(ctx)
-		panic(err)
+		logger.Fatal("Error starting group store", zap.Error(err))
 	}
 
 	valueStore, valueStoreRestartChan, err := server.NewValueStore(&server.ValueStoreConfig{
@@ -121,6 +128,9 @@ FIND_LOCAL_NODE:
 		Path:             dataPath,
 		Ring:             oneRing,
 	})
+	if err != nil {
+		logger.Fatal("Error initializing value store", zap.Error(err))
+	}
 	waitGroup.Add(1)
 	go func() {
 		for {
@@ -142,12 +152,8 @@ FIND_LOCAL_NODE:
 	if err = valueStore.Startup(ctx); err != nil {
 		ctx, _ = context.WithTimeout(context.Background(), time.Minute)
 		valueStore.Shutdown(ctx)
-		panic(err)
+		logger.Fatal("Error starting value store", zap.Error(err))
 	}
-
-	baseLogger := zap.New(zap.NewJSONEncoder())
-	baseLogger.SetLevel(zap.InfoLevel)
-	logger := baseLogger.With(zap.String("name", "formic"))
 
 	creds, err := credentials.NewServerTLSFromFile(certPath, keyPath)
 	if err != nil {
@@ -159,7 +165,7 @@ FIND_LOCAL_NODE:
 		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
 	)
 
-	oortLogger := baseLogger.With(zap.String("name", "formic.oort"))
+	oortLogger := baseLogger.With(zap.String("name", "cfsd.formic.oort"))
 	vstore := api.NewReplValueStore(&api.ValueStoreConfig{
 		Logger:       oortLogger,
 		AddressIndex: ADDR_VALUE_GRPC,
