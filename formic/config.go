@@ -1,17 +1,15 @@
 package formic
 
 import (
-	"log"
 	"os"
 	"strconv"
+
+	"github.com/gholt/ring"
 )
 
-type config struct {
-	Path string
-	Port int
-	//	fsPort                     int
-	OortValueSyndicate         string
-	OortGroupSyndicate         string
+type Config struct {
+	Path                       string
+	Port                       int
 	InsecureSkipVerify         bool
 	SkipMutualTLS              bool
 	NodeID                     int
@@ -21,12 +19,35 @@ type config struct {
 	ConcurrentRequestsPerStore int
 	Debug                      bool
 	GRPCMetrics                bool
+
+	FormicAddressIndex int
+	GroupAddressIndex  int
+	ValueAddressIndex  int
+	CertFile           string
+	KeyFile            string
+	CAFile             string
+	Ring               ring.Ring
+	RingPath           string
+	IpAddr             string
+
+	AuthUrl      string
+	AuthUser     string
+	AuthPassword string
 }
 
-func ResolveConfig(c *config) *config {
-	cfg := &config{}
+func ResolveConfig(c *Config) *Config {
+	cfg := &Config{}
 	if c != nil {
 		*cfg = *c
+	}
+	if env := os.Getenv("AUTH_URL"); env != "" {
+		cfg.AuthUrl = env
+	}
+	if env := os.Getenv("AUTH_USER"); env != "" {
+		cfg.AuthUser = env
+	}
+	if env := os.Getenv("AUTH_PASSWORD"); env != "" {
+		cfg.AuthPassword = env
 	}
 	if env := os.Getenv("FORMICD_PATH"); env != "" {
 		cfg.Path = env
@@ -42,16 +63,6 @@ func ResolveConfig(c *config) *config {
 	if cfg.Port == 0 {
 		cfg.Port = 8445
 	}
-	if env := os.Getenv("FORMICD_OORT_VALUE_SYNDICATE"); env != "" {
-		log.Println("Value: ", env)
-		cfg.OortValueSyndicate = env
-	}
-	// cfg.oortValueSyndicate == "" means default SRV resolution.
-	if env := os.Getenv("FORMICD_OORT_GROUP_SYNDICATE"); env != "" {
-		log.Println("Group: ", env)
-		cfg.OortGroupSyndicate = env
-	}
-	// cfg.oortGroupSyndicate == "" means default SRV resolution.
 	if env := os.Getenv("FORMICD_INSECURE_SKIP_VERIFY"); env == "true" {
 		cfg.InsecureSkipVerify = true
 	}
