@@ -163,11 +163,20 @@ func (rs *Repl{{.T}}Store) storesFor(ctx context.Context, keyA uint64) ([]store.
         return nil, noRingErr
     }
     ns := r.ResponsibleNodes(uint32(keyA >> (64 - r.PartitionBitCount())))
-    as := make([]string, len(ns))
-    for i, n := range ns {
-        as[i] = n.Address(rs.addressIndex)
+    as := make([]string, 0, len(ns))
+    for _, n := range ns {
+        a := n.Address(rs.addressIndex)
+        for _, b := range as {
+            if a == b {
+                a = ""
+                break
+            }
+        }
+        if a != "" {
+            as = append(as, a)
+        }
     }
-    ss := make([]store.{{.T}}Store, len(ns))
+    ss := make([]store.{{.T}}Store, len(as))
     var someNil bool
     rs.storesLock.RLock()
     for i := len(ss) - 1; i >= 0; i-- {
