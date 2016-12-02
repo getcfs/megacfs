@@ -283,6 +283,8 @@ func main() {
 		fmt.Println("    mount        mount an existing filesystem")
 		fmt.Println("    version      show client version")
 		fmt.Println("    cp           parallel cp command; cfs cp --help")
+		fmt.Println("    du           parallel du command; cfs du --help")
+		fmt.Println("    find         parallel find command; cfs find --help")
 		fmt.Println("    help         show usage for cfs")
 		fmt.Println("Examples:")
 		fmt.Println("    cfs configure")
