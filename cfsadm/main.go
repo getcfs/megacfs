@@ -21,7 +21,7 @@ func main() {
 	}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
-		case "help":
+		default:
 			fmt.Println("init       Creates a new CA, conf file, and initial ring builder file")
 			fmt.Println("add <ip>   Adds the IP to the ring and creates a new certificate for it")
 			os.Exit(1)
@@ -121,8 +121,6 @@ func main() {
 			if err = ring.CLI([]string{"cfsadm add", "/etc/cfsd/cfs.builder", "ring"}, os.Stdout, false); err != nil {
 				panic(err)
 			}
-		default:
-			panic(args[i])
 		}
 	}
 }
