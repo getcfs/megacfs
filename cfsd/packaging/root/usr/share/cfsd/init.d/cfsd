@@ -1,0 +1,75 @@
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides:          cfsd
+# Required-Start:    $local_fs $remote_fs $network $syslog
+# Required-Stop:     $local_fs $remote_fs $network $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: cfsd
+### END INIT INFO
+
+DAEMON_OPTS="-s map"
+
+pid() {
+  if [ -f /usr/local/bin/cfsd ]; then
+    pidof /usr/local/bin/cfsd
+  fi
+}
+
+stop() {
+  if pidof /usr/local/bin/cfsd >/dev/null; then
+    kill "$(pid)"
+  else
+    echo "cfsd not running"
+    exit 1
+  fi
+}
+
+start() {
+  if pidof /usr/local/bin/cfsd >/dev/null; then
+    echo "cfsd already running"
+    exit 1
+  else
+    nohup cfsd $DAEMON_OPTS > /var/log/cfsd.log  2>&1 &
+  fi
+}
+
+restart() {
+  if pidof /usr/local/bin/cfsd >/dev/null; then
+    kill  "$(pid)"
+    nohup cfsd $DAEMON_OPTS > /var/log/cfsd.log  2>&1 &
+    exit 0
+  else
+    nohup cfsd $DAEMON_OPTS > /var/log/cfsd.log  2>&1 &
+    exit 0
+  fi
+}
+
+status() {
+  if pidof /usr/local/bin/cfsd >/dev/null; then
+    echo "cfsd with pid $(pid) is running"
+  else
+    echo "cfsd is not running"
+  fi
+  exit 0
+}
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  restart)
+        restart
+        ;;
+  status)
+        status
+        ;;
+  *)
+        echo "Usage: service cfsd {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
