@@ -851,12 +851,12 @@ func auth(authURL string, username string, password string) (string, error) {
 // validateToken ...
 func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
 	// TODO: make authURL, username and password config vars for formic
-	auth_token, err := auth("https://localhost:5000/v3/auth/tokens", "admin", "admin")
+	auth_token, err := auth("http://localhost:5000/v3/auth/tokens", "admin", "admin")
 	if err != nil {
 		return "", err
 	}
 
-	req, err := http.NewRequest("GET", "https://localhost:5000/v3/auth/tokens", nil)
+	req, err := http.NewRequest("GET", "http://localhost:5000/v3/auth/tokens", nil)
 	if err != nil {
 		return "", err
 	}
