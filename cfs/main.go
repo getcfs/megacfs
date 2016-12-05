@@ -110,7 +110,7 @@ var goVersion string
 
 func auth(authURL string, username string, password string) string {
 	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{
-		"domain":{"id":"default"},"user":"%s","password":"%s"}}}}}`, username, password)
+		"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, username, password)
 	rbody := strings.NewReader(body)
 	req, err := http.NewRequest("POST", authURL+"v3/auth/tokens", rbody)
 	if err != nil {
@@ -126,7 +126,7 @@ func auth(authURL string, username string, password string) string {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 201 {
 		fmt.Println(resp.Status)
 		os.Exit(1)
 	}
