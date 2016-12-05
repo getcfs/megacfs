@@ -825,7 +825,7 @@ type ValidateResponse struct {
 // get server token used to validate client tokens
 func auth(authURL string, username string, password string) (string, error) {
 	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{
-		"domain":{"id":"default"},"user":"%s","password":"%s"}}}}}`, username, password)
+		"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, username, password)
 	rbody := strings.NewReader(body)
 	req, err := http.NewRequest("POST", authURL+"v3/auth/tokens", rbody)
 	if err != nil {
