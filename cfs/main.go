@@ -27,7 +27,7 @@ import (
 
 // FORMIC PORT
 const (
-	PORT = "8445"
+	PORT = "12300"
 )
 
 type server struct {
@@ -108,18 +108,11 @@ var buildDate string
 var commitVersion string
 var goVersion string
 
-type authResponse struct {
-	Access struct {
-		Token struct {
-			ID string `json:"id"`
-		} `json:"token"`
-	} `json:"access"`
-}
-
-func auth(username string, apikey string) string {
-	body := fmt.Sprintf(`{"auth":{"RAX-KSKEY:apiKeyCredentials":{"username": "%s","apiKey": "%s"}}}`, username, apikey)
+func auth(authURL string, username string, password string) string {
+	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{
+		"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, username, password)
 	rbody := strings.NewReader(body)
-	req, err := http.NewRequest("POST", "https://identity.api.rackspacecloud.com/v2.0/tokens", rbody)
+	req, err := http.NewRequest("POST", authURL+"v3/auth/tokens", rbody)
 	if err != nil {
 		fmt.Printf("%v", err)
 		os.Exit(1)
@@ -133,16 +126,12 @@ func auth(username string, apikey string) string {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 201 {
 		fmt.Println(resp.Status)
 		os.Exit(1)
 	}
 
-	// parse token from response
-	var authResp authResponse
-	r, _ := ioutil.ReadAll(resp.Body)
-	json.Unmarshal(r, &authResp)
-	token := authResp.Access.Token.ID
+	token := resp.Header.Get("X-Subject-Token")
 
 	return token
 }
@@ -274,8 +263,9 @@ func main() {
 		configured = true
 	}
 	ip, _ := config["addr"]
+	authURL, _ := config["authURL"]
 	username, _ := config["username"]
-	apikey, _ := config["apikey"]
+	password, _ := config["password"]
 	addr := fmt.Sprintf("%s:%s", ip, PORT)
 
 	flag.Usage = func() {
@@ -330,7 +320,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := list(addr, username, apikey)
+		err := list(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -340,7 +330,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := show(addr, username, apikey)
+		err := show(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -350,7 +340,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := create(addr, username, apikey)
+		err := create(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -360,7 +350,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := del(addr, username, apikey)
+		err := del(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -370,7 +360,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := update(addr, username, apikey)
+		err := update(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -380,7 +370,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := grant(addr, username, apikey)
+		err := grant(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -390,7 +380,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := revoke(addr, username, apikey)
+		err := revoke(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
