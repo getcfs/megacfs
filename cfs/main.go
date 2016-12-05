@@ -27,7 +27,7 @@ import (
 
 // FORMIC PORT
 const (
-	PORT = "8445"
+	PORT = "12300"
 )
 
 type server struct {
