@@ -94,6 +94,15 @@ func main() {
 			if err = ioutil.WriteFile("/etc/cfsd/"+ipAddr+"-key.pem", key, 0600); err != nil {
 				panic(err)
 			}
+			replicaCount := 3
+			if _, b, err := ring.RingOrBuilder("/etc/cfsd/cfs.builder"); err != nil || b == nil {
+				panic(err)
+			} else if len(b.Nodes())+1 < replicaCount {
+				replicaCount = len(b.Nodes()) + 1
+			}
+			if err = ring.CLI([]string{"cfsadm add", "/etc/cfsd/cfs.builder", "set-replicas", fmt.Sprintf("%d", replicaCount)}, os.Stdout, false); err != nil {
+				panic(err)
+			}
 			if err = ring.CLI([]string{"cfsadm add", "/etc/cfsd/cfs.builder", "add", "address0=" + ipAddr + ":12300", "address1=" + ipAddr + ":12310", "address2=" + ipAddr + ":12311", "address3=" + ipAddr + ":12320", "address4=" + ipAddr + ":12321"}, os.Stdout, false); err != nil {
 				panic(err)
 			}
