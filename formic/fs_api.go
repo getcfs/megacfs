@@ -89,20 +89,26 @@ func clear(v interface{}) {
 
 // FileSystemAPIServer is used to implement oohhc
 type FileSystemAPIServer struct {
-	gstore store.GroupStore
-	vstore store.ValueStore
-	log    zap.Logger
+	gstore       store.GroupStore
+	vstore       store.ValueStore
+	log          zap.Logger
+	authUrl      string
+	authUser     string
+	authPassword string
 }
 
 // FSAttrList ...
 var FSAttrList = []string{"name"}
 
 // NewFileSystemAPIServer ...
-func NewFileSystemAPIServer(grpstore store.GroupStore, valstore store.ValueStore, logger zap.Logger) *FileSystemAPIServer {
+func NewFileSystemAPIServer(cfg *Config, grpstore store.GroupStore, valstore store.ValueStore, logger zap.Logger) *FileSystemAPIServer {
 	s := &FileSystemAPIServer{
-		gstore: grpstore,
-		vstore: valstore,
-		log:    logger,
+		gstore:       grpstore,
+		vstore:       valstore,
+		log:          logger,
+		authUrl:      cfg.AuthUrl,
+		authUser:     cfg.AuthUser,
+		authPassword: cfg.AuthPassword,
 	}
 
 	return s
@@ -827,7 +833,7 @@ func auth(authURL string, username string, password string) (string, error) {
 	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{
 		"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, username, password)
 	rbody := strings.NewReader(body)
-	req, err := http.NewRequest("POST", authURL+"v3/auth/tokens", rbody)
+	req, err := http.NewRequest("POST", authURL+"/v3/auth/tokens", rbody)
 	if err != nil {
 		return "", err
 	}
@@ -850,13 +856,13 @@ func auth(authURL string, username string, password string) (string, error) {
 
 // validateToken ...
 func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
-	// TODO: make authURL, username and password config vars for formic
-	auth_token, err := auth("http://localhost:5000/", "admin", "admin")
+	auth_token, err := auth(s.authUrl, s.authUser, s.authPassword)
 	if err != nil {
 		return "", err
 	}
 
-	req, err := http.NewRequest("GET", "http://localhost:5000/v3/auth/tokens", nil)
+	req, err := http.NewRequest("GET", s.authUrl+"/v3/auth/tokens", nil)
+
 	if err != nil {
 		return "", err
 	}
