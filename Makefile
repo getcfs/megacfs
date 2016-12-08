@@ -50,11 +50,6 @@ build:
 			-X main.cfsVersion=$(VERSION) \
 			-X main.goVersion=$(GOVERSION) \
 			-X main.buildDate=$(BDATE)" github.com/getcfs/megacfs/cfsadm
-	go build -i -v -o build/formicd --ldflags " $(LD_FLAGS) \
-			-X main.commitVersion=$(SHA) \
-			-X main.formicdVersion=$(VERSION) \
-			-X main.goVersion=$(GOVERSION) \
-			-X main.buildDate=$(BDATE)" github.com/getcfs/megacfs/formic/formicd
 
 darwin: export GOOS=darwin
 darwin:
@@ -64,7 +59,6 @@ compact:
 	upx -q -1 build/synd
 	upx -q -1 build/oort-valued
 	upx -q -1 build/oort-groupd
-	upx -q -1 build/formicd
 
 clean:
 	rm -rf $(BUILDPATH)

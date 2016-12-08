@@ -10,10 +10,6 @@ build:
 	mkdir -p packaging/output
 	mkdir -p packaging/root/usr/local/bin
 	go build -i -v -o packaging/root/usr/local/bin/cfsdvp github.com/getcfs/megacfs/formic/cfsdvp
-	go build -i -v -o packaging/root/usr/local/bin/formicd --ldflags " \
-		-X main.formicdVersion=$(shell git rev-parse HEAD) \
-		-X main.goVersion=$(shell go version | sed -e 's/ /-/g') \
-		-X main.buildDate=$(shell date -u +%Y-%m-%d.%H:%M:%S)" github.com/getcfs/megacfs/formic/formicd
 
 clean:
 	rm -rf packaging/output
