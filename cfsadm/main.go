@@ -26,6 +26,9 @@ func main() {
 			fmt.Println("add <ip>   Adds the IP to the ring and creates a new certificate for it")
 			os.Exit(1)
 		case "init":
+			if err := os.Mkdir("/etc/cfsd", 0700); err != nil && !os.IsExist(err) {
+				panic(err)
+			}
 			for _, name := range []string{"/etc/cfsd/ca.pem", "/etc/cfsd/ca-key.pem", "/etc/cfsd/cfs.builder", "/etc/cfsd/cfs.ring"} {
 				if _, err := os.Lstat(name); err == nil {
 					panic(name + " already exists")
