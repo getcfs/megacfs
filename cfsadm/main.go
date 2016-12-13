@@ -22,12 +22,21 @@ func main() {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "help":
-			fmt.Println("init       Creates a new CA and initial ring builder file")
+			fmt.Println("init       Creates a new CA, conf file, and initial ring builder file")
 			fmt.Println("add <ip>   Adds the IP to the ring and creates a new certificate for it")
 			os.Exit(1)
 		case "init":
 			if err := os.Mkdir("/etc/cfsd", 0700); err != nil && !os.IsExist(err) {
 				panic(err)
+			}
+			fp, err := os.OpenFile("/etc/cfsd/cfsd.conf", os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+			if err != nil {
+				if !os.IsExist(err) {
+					panic(err)
+				}
+			} else {
+				fp.Write([]byte("AUTH_URL=http://localhost:5000\nAUTH_USER=admin\nAUTH_PASSWORD=admin\n"))
+				fp.Close()
 			}
 			for _, name := range []string{"/etc/cfsd/ca.pem", "/etc/cfsd/ca-key.pem", "/etc/cfsd/cfs.builder", "/etc/cfsd/cfs.ring"} {
 				if _, err := os.Lstat(name); err == nil {
