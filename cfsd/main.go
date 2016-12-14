@@ -26,12 +26,18 @@ const (
 )
 
 func main() {
-	var ipAddr string
 	ringPath := "/etc/cfsd/cfs.ring"
 	caPath := "/etc/cfsd/ca.pem"
-	var certPath string
-	var keyPath string
 	dataPath := "/var/lib/cfsd"
+	var formicIP string
+	var groupIP string
+	var valueIP string
+	var formicCertPath string
+	var formicKeyPath string
+	var groupCertPath string
+	var groupKeyPath string
+	var valueCertPath string
+	var valueKeyPath string
 
 	baseLogger := zap.New(zap.NewJSONEncoder())
 	baseLogger.SetLevel(zap.InfoLevel)
@@ -61,15 +67,33 @@ FIND_LOCAL_NODE:
 					nodeIP := net.ParseIP(nodeAddr[:i])
 					if ipNet.IP.Equal(nodeIP) {
 						oneRing.SetLocalNode(node.ID())
-						ipAddr = nodeIP.String()
+						nodeAddr = node.Address(ADDR_FORMIC)
+						i = strings.LastIndex(nodeAddr, ":")
+						if i >= 0 {
+							formicIP = nodeAddr[:i]
+						}
+						nodeAddr = node.Address(ADDR_GROUP_GRPC)
+						i = strings.LastIndex(nodeAddr, ":")
+						if i >= 0 {
+							groupIP = nodeAddr[:i]
+						}
+						nodeAddr = node.Address(ADDR_VALUE_GRPC)
+						i = strings.LastIndex(nodeAddr, ":")
+						if i >= 0 {
+							valueIP = nodeAddr[:i]
+						}
 						break FIND_LOCAL_NODE
 					}
 				}
 			}
 		}
 	}
-	certPath = "/etc/cfsd/" + ipAddr + ".pem"
-	keyPath = "/etc/cfsd/" + ipAddr + "-key.pem"
+	formicCertPath = "/etc/cfsd/" + formicIP + ".pem"
+	formicKeyPath = "/etc/cfsd/" + formicIP + "-key.pem"
+	groupCertPath = "/etc/cfsd/" + groupIP + ".pem"
+	groupKeyPath = "/etc/cfsd/" + groupIP + "-key.pem"
+	valueCertPath = "/etc/cfsd/" + valueIP + ".pem"
+	valueKeyPath = "/etc/cfsd/" + valueIP + "-key.pem"
 
 	waitGroup := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
@@ -77,8 +101,8 @@ FIND_LOCAL_NODE:
 	groupStore, groupStoreRestartChan, err := server.NewGroupStore(&server.GroupStoreConfig{
 		GRPCAddressIndex: ADDR_GROUP_GRPC,
 		ReplAddressIndex: ADDR_GROUP_REPL,
-		CertFile:         certPath,
-		KeyFile:          keyPath,
+		CertFile:         groupCertPath,
+		KeyFile:          groupKeyPath,
 		CAFile:           caPath,
 		Scale:            0.4,
 		Path:             dataPath,
@@ -114,8 +138,8 @@ FIND_LOCAL_NODE:
 	valueStore, valueStoreRestartChan, err := server.NewValueStore(&server.ValueStoreConfig{
 		GRPCAddressIndex: ADDR_VALUE_GRPC,
 		ReplAddressIndex: ADDR_VALUE_REPL,
-		CertFile:         certPath,
-		KeyFile:          keyPath,
+		CertFile:         valueCertPath,
+		KeyFile:          valueKeyPath,
 		CAFile:           caPath,
 		Scale:            0.4,
 		Path:             dataPath,
@@ -153,12 +177,12 @@ FIND_LOCAL_NODE:
 		FormicAddressIndex: ADDR_FORMIC,
 		ValueAddressIndex:  ADDR_VALUE_GRPC,
 		GroupAddressIndex:  ADDR_GROUP_GRPC,
-		CertFile:           certPath,
-		KeyFile:            keyPath,
+		CertFile:           formicCertPath,
+		KeyFile:            formicKeyPath,
 		CAFile:             caPath,
 		Ring:               oneRing,
 		RingPath:           ringPath,
-		IpAddr:             ipAddr,
+		IpAddr:             formicIP,
 		AuthUrl:            "http://localhost:5000",
 		AuthUser:           "admin",
 		AuthPassword:       "admin",
