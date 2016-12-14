@@ -83,6 +83,11 @@ func NewFormicServer(cfg *Config, logger zap.Logger) error {
 	)
 
 	cfg = ResolveConfig(cfg)
+	if cfg.Debug {
+		// NOTE: This probably should be done in the main server bit
+		logger.SetLevel(zap.DebugLevel)
+	}
+
 	oortLogger := logger.With(zap.String("name", "cfsd.formic.oort"))
 	vstore := api.NewReplValueStore(&api.ValueStoreConfig{
 		Logger:       oortLogger,
@@ -129,7 +134,10 @@ func NewFormicServer(cfg *Config, logger zap.Logger) error {
 	}
 	pb.RegisterFileSystemAPIServer(s, NewFileSystemAPIServer(cfg, gstore, vstore, logger.With(zap.String("name", "formic.fs"))))
 	// TODO: Get a better way to get the Node ID
-	formicNodeID := int(murmur3.Sum64([]byte(cfg.IpAddr)))
+	formicNodeID := cfg.NodeID
+	if formicNodeID == -1 {
+		formicNodeID = int(murmur3.Sum64([]byte(cfg.IpAddr)))
+	}
 	pb.RegisterApiServer(s, NewApiServer(fs, formicNodeID, comms, logger))
 	logger.Info("Starting formic and the filesystem API", zap.Int("addr", formicNodeID))
 	go s.Serve(l)
