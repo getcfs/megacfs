@@ -136,10 +136,11 @@ func NewFormicServer(cfg *Config, logger zap.Logger) error {
 	// TODO: Get a better way to get the Node ID
 	formicNodeID := cfg.NodeID
 	if formicNodeID == -1 {
-		formicNodeID = int(murmur3.Sum64([]byte(cfg.IpAddr)))
+		formicNodeID = int(murmur3.Sum32([]byte(cfg.IpAddr)))
 	}
-	pb.RegisterApiServer(s, NewApiServer(fs, formicNodeID, comms, logger))
-	logger.Info("Starting formic and the filesystem API", zap.Int("addr", formicNodeID))
+	nodeID, apiServer := NewApiServer(fs, formicNodeID, comms, logger)
+	pb.RegisterApiServer(s, apiServer)
+	logger.Info("Starting formic and the filesystem API", zap.Uint64("node", nodeID))
 	go s.Serve(l)
 	return nil
 }

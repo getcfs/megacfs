@@ -5,6 +5,7 @@
 package flother
 
 import (
+	"math"
 	"sync/atomic"
 	"time"
 )
@@ -28,6 +29,8 @@ func NewFlother(epoch time.Time, node uint64) *Flother {
 		counter:  0,
 		node:     node,
 	}
+	// ensure that node is only the number of bits we want
+	f.node = node & uint64(math.Pow(2, float64(f.nodeBits))-1)
 	return f
 }
 
@@ -39,4 +42,9 @@ func (f *Flother) GetID() uint64 {
 	c := atomic.AddUint64(&f.counter, 1)
 	id |= c % (1 << f.seqBits)
 	return id
+}
+
+// Get the node ID
+func (f *Flother) GetNodeID() uint64 {
+	return f.node
 }
