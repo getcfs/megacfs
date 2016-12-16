@@ -38,19 +38,18 @@ type apiServer struct {
 }
 
 // NewApiServer ...
-func NewApiServer(fs FileService, nodeID int, comms *StoreComms, logger zap.Logger) *apiServer {
+func NewApiServer(fs FileService, nodeID int, comms *StoreComms, logger zap.Logger) (uint64, *apiServer) {
 	s := new(apiServer)
 	s.fs = fs
 	s.comms = comms
 	s.validIPs = make(map[string]map[string]time.Time)
-	logger.Debug("NodeID", zap.Int("nodeID", nodeID))
 	s.fl = flother.NewFlother(time.Time{}, uint64(nodeID))
 	s.blocksize = int64(1024 * 64) // Default Block Size (64K)
 	s.updateChan = make(chan *UpdateItem, 1000)
 	s.log = logger
 	updates := newUpdatinator(s.updateChan, fs)
 	go updates.Run()
-	return s
+	return s.fl.GetNodeID(), s
 }
 
 // GenerateBlockID ...
