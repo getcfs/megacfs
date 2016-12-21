@@ -16,6 +16,7 @@ import (
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort/api"
+	"github.com/gholt/ring"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 )
 
@@ -128,9 +129,13 @@ func NewFormicServer(cfg *Config, logger zap.Logger) error {
 	go deletes.Run()
 	go cleaner.Run()
 
-	l, err := net.Listen("tcp", cfg.Ring.LocalNode().Address(cfg.FormicAddressIndex))
+	hostPort, err := ring.CanonicalHostPort(cfg.Ring.LocalNode().Address(cfg.FormicAddressIndex), 12300)
 	if err != nil {
-		logger.Fatal("Failed to bind formic to port", zap.Error(err))
+		logger.Fatal("Failed to parse formic host:port", zap.String("host:port", cfg.Ring.LocalNode().Address(cfg.FormicAddressIndex)), zap.Error(err))
+	}
+	l, err := net.Listen("tcp", hostPort)
+	if err != nil {
+		logger.Fatal("Failed to bind formic to port", zap.String("hostPort", hostPort), zap.Error(err))
 	}
 	pb.RegisterFileSystemAPIServer(s, NewFileSystemAPIServer(cfg, gstore, vstore, logger.With(zap.String("name", "formic.fs"))))
 	// TODO: Get a better way to get the Node ID
