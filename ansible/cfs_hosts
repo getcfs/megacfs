@@ -1,0 +1,19 @@
+[cfsd_backend]
+172.99.68.60        ansible_connection=ssh        ansible_user=root
+172.99.68.73        ansible_connection=ssh        ansible_user=root
+162.242.223.163     ansible_connection=ssh        ansible_user=root
+	
+
+[cfsd_primary_node]
+172.99.68.60   ansible_connection=ssh        ansible_user=root
+
+
+[cfsd_primary_node:vars]
+node1_frontend_ip=172.99.68.60
+node1_backend_ip=10.209.129.129
+
+node2_frontend_ip=172.99.68.73
+node2_backend_ip=10.209.130.143
+
+node3_frontend_ip=162.242.223.163
+node3_backend_ip=10.176.161.73
