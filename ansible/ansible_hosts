@@ -1,2 +1,0 @@
-[cfsd_backend]
-146.20.105.48   ansible_connection=ssh        ansible_user=root

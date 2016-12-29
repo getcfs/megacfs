@@ -1,0 +1,97 @@
+---
+- hosts: cfsd_backend
+  remote_user: root
+  tasks:
+    - name: Test Connection
+      ping:
+    
+    - name: Get the cfsadm binary
+      shell: curl -fsSLo /usr/local/bin/cfsadm $(curl -s https://api.github.com/repos/getcfs/megacfs/releases | grep -om1 "https://.*/cfsadm") 
+    
+    - name: Set permissions and mode for /usr/local/bin/cfsadm
+      file:
+        path: /usr/local/bin/cfsadm
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: Get the cfsd binary
+      shell: curl -fsSLo /usr/local/bin/cfsd $(curl -s https://api.github.com/repos/getcfs/megacfs/releases | grep -om1 "https://.*/cfsd")
+
+    - name: Set permissions and mode for /usr/local/bin/cfsd
+      file:
+        path: /usr/local/bin/cfsd
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: Get the oort-cli binary
+      shell: curl -fsSLo /usr/local/bin/oort-cli $(curl -s https://api.github.com/repos/getcfs/megacfs/releases | grep -om1 "https://.*/oort-cli")
+
+    - name: Set permissions and mode for /usr/local/bin/oort-cli
+      file:
+        path: /usr/local/bin/oort-cli
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: Get the ring binary and set file permissions and mode
+      shell: curl -fsSLo /usr/local/bin/ring $(curl -s https://api.github.com/repos/getcfs/megacfs/releases | grep -om1 "https://.*/ring")
+
+    - name: Set permissions and mode for /usr/local/bin/ring
+      file:
+        path: /usr/local/bin/ring
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: Copy over the service init file for cfsd 
+      template: src=../cfsd/packaging/root/usr/share/cfsd/init/cfsd.conf dest=/etc/init/cfsd.conf
+
+    - name: Set permissions and mode for /etc/init/cfsd.conf
+      file:
+        path: /etc/init/cfsd.conf
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: Creates directory /etc/cfsd
+      file: path=/etc/cfsd state=directory owner=root group=root mode=0775
+
+
+
+- hosts: cfsd_primary_node
+  remote_user: root
+  tasks:
+    - name: Initial cfs set up.  
+      shell: /usr/local/bin/cfsadm init
+
+    - name: Create Ring and add Node 1
+      shell: /usr/local/bin/cfsadm add {{ node1_frontend_ip }} {{ node1_backend_ip }}
+    
+    - name: Create Ring and add Node 2
+      shell: /usr/local/bin/cfsadm add {{ node2_frontend_ip }} {{ node2_backend_ip }}
+
+    - name: Create Ring and add Node 3
+      shell: /usr/local/bin/cfsadm add {{ node3_frontend_ip }} {{ node3_backend_ip }}
+
+    - name: Transfer ring, certs and builder files  from Node1 to Node2
+      synchronize:
+        src: /etc/cfsd/
+        dest: /etc/cfsd/
+      delegate_to: "{{ node2_frontend_ip}}"
+
+    - name: Transfer ring, certs and builder files  from Node1 to Node3
+      synchronize:
+        src: /etc/cfsd/
+        dest: /etc/cfsd/
+      delegate_to: "{{ node3_frontend_ip}}"
+    
+
+
+- hosts: cfsd_backend
+  remote_user: root
+  tasks:
+    - name: Start cfsd service
+      service: name=cfsd state=started enabled=yes
+ 
