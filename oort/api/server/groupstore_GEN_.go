@@ -28,6 +28,7 @@ type GroupStore struct {
 	groupStoreMsgRing *ring.TCPMsgRing
 	grpcServer        *grpc.Server
 	grpcAddressIndex  int
+	grpcDefaultPort   int
 	certFile          string
 	keyFile           string
 	caFile            string
@@ -60,6 +61,7 @@ func NewGroupStore(cfg *GroupStoreConfig) (*GroupStore, chan error, error) {
 		CertFile:     cfg.CertFile,
 		KeyFile:      cfg.KeyFile,
 		CAFile:       cfg.CAFile,
+		DefaultPort:  12311,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -611,7 +613,11 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 	if grpcAddr == "" {
 		return fmt.Errorf("no local node address index %d", s.grpcAddressIndex)
 	}
-	lis, err := net.Listen("tcp", grpcAddr)
+	grpcHostPort, err := ring.CanonicalHostPort(grpcAddr, 12310)
+	if err != nil {
+		return err
+	}
+	lis, err := net.Listen("tcp", grpcHostPort)
 	if err != nil {
 		return err
 	}

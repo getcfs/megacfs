@@ -60,15 +60,21 @@ FIND_LOCAL_NODE:
 		if ipNet, ok := addrObj.(*net.IPNet); ok {
 			for _, node := range oneRing.Nodes() {
 				for _, nodeAddr := range node.Addresses() {
-					i := strings.LastIndex(nodeAddr, ":")
-					if i < 0 {
+					hostPort, err := ring.CanonicalHostPort(nodeAddr, 1)
+					if err != nil {
 						continue
 					}
-					nodeIP := net.ParseIP(nodeAddr[:i])
+					host, _, err := net.SplitHostPort(hostPort)
+					if err != nil {
+						continue
+					}
+					// TODO: I guess we should update this incase they put a
+					// host name instead of a direct IP.
+					nodeIP := net.ParseIP(host)
 					if ipNet.IP.Equal(nodeIP) {
 						oneRing.SetLocalNode(node.ID())
 						nodeAddr = node.Address(ADDR_FORMIC)
-						i = strings.LastIndex(nodeAddr, ":")
+						i := strings.LastIndex(nodeAddr, ":")
 						if i >= 0 {
 							formicIP = nodeAddr[:i]
 						}

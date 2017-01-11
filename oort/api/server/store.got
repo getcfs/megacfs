@@ -28,6 +28,7 @@ type {{.T}}Store struct {
 	{{.t}}StoreMsgRing *ring.TCPMsgRing
 	grpcServer        *grpc.Server
 	grpcAddressIndex  int
+    grpcDefaultPort   int
 	certFile          string
 	keyFile           string
 	caFile            string
@@ -60,6 +61,7 @@ func New{{.T}}Store(cfg *{{.T}}StoreConfig) (*{{.T}}Store, chan error, error) {
 		CertFile:     cfg.CertFile,
 		KeyFile:      cfg.KeyFile,
 		CAFile:       cfg.CAFile,
+        DefaultPort:  {{if eq .t "group"}}12311{{else}}12321{{end}},
 	})
 	if err != nil {
 		return nil, nil, err
@@ -611,7 +613,11 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 	if grpcAddr == "" {
 		return fmt.Errorf("no local node address index %d", s.grpcAddressIndex)
 	}
-	lis, err := net.Listen("tcp", grpcAddr)
+    grpcHostPort, err := ring.CanonicalHostPort(grpcAddr, {{if eq .t "group"}}12310{{else}}12320{{end}})
+    if err != nil {
+        return err
+    }
+	lis, err := net.Listen("tcp", grpcHostPort)
 	if err != nil {
 		return err
 	}
