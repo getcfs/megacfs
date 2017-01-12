@@ -109,6 +109,13 @@ var commitVersion string
 var goVersion string
 
 func auth(authURL string, username string, password string) string {
+
+	var token string
+
+	if token = os.Getenv("OS_TOKEN"); token != "" {
+		return token
+	}
+
 	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{
 		"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, username, password)
 	rbody := strings.NewReader(body)
@@ -131,7 +138,7 @@ func auth(authURL string, username string, password string) string {
 		os.Exit(1)
 	}
 
-	token := resp.Header.Get("X-Subject-Token")
+	token = resp.Header.Get("X-Subject-Token")
 
 	return token
 }
