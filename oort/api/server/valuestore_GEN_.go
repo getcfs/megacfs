@@ -82,6 +82,7 @@ func (s *ValueStore) Startup(ctx context.Context) error {
 	if s.started {
 		return nil
 	}
+	s.started = true
 	s.shutdownChan = make(chan struct{})
 	err := s.valueStore.Startup(ctx)
 	if err != nil {
