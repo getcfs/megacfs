@@ -82,6 +82,7 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 	if s.started {
 		return nil
 	}
+	s.started = true
 	s.shutdownChan = make(chan struct{})
 	err := s.groupStore.Startup(ctx)
 	if err != nil {
