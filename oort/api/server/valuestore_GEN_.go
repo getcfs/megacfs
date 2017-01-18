@@ -29,16 +29,20 @@ type ValueStore struct {
 	grpcServer        *grpc.Server
 	grpcAddressIndex  int
 	grpcDefaultPort   int
-	certFile          string
-	keyFile           string
+	grpcCertFile      string
+	grpcKeyFile       string
+	replCertFile      string
+	replKeyFile       string
 	caFile            string
 }
 
 type ValueStoreConfig struct {
 	GRPCAddressIndex int
 	ReplAddressIndex int
-	CertFile         string
-	KeyFile          string
+	GRPCCertFile     string
+	GRPCKeyFile      string
+	ReplCertFile     string
+	ReplKeyFile      string
 	CAFile           string
 	Path             string
 	Scale            float64
@@ -49,8 +53,10 @@ func NewValueStore(cfg *ValueStoreConfig) (*ValueStore, chan error, error) {
 	s := &ValueStore{
 		waitValue:        &sync.WaitGroup{},
 		grpcAddressIndex: cfg.GRPCAddressIndex,
-		certFile:         cfg.CertFile,
-		keyFile:          cfg.KeyFile,
+		grpcCertFile:     cfg.GRPCCertFile,
+		grpcKeyFile:      cfg.GRPCKeyFile,
+		replCertFile:     cfg.ReplCertFile,
+		replKeyFile:      cfg.ReplKeyFile,
 		caFile:           cfg.CAFile,
 	}
 	var err error
@@ -58,9 +64,9 @@ func NewValueStore(cfg *ValueStoreConfig) (*ValueStore, chan error, error) {
 		AddressIndex: cfg.ReplAddressIndex,
 		UseTLS:       true,
 		MutualTLS:    true,
-		CertFile:     cfg.CertFile,
-		KeyFile:      cfg.KeyFile,
-		CAFile:       cfg.CAFile,
+		CertFile:     s.replCertFile,
+		KeyFile:      s.replKeyFile,
+		CAFile:       s.caFile,
 		DefaultPort:  12321,
 	})
 	if err != nil {
@@ -617,8 +623,8 @@ func (s *ValueStore) Startup(ctx context.Context) error {
 	tlsCfg, err := ftls.NewServerTLSConfig(&ftls.Config{
 		MutualTLS:          true,
 		InsecureSkipVerify: false,
-		CertFile:           s.certFile,
-		KeyFile:            s.keyFile,
+		CertFile:           s.grpcCertFile,
+		KeyFile:            s.grpcKeyFile,
 		CAFile:             s.caFile,
 	})
 	if err != nil {

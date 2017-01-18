@@ -30,14 +30,20 @@ func main() {
 	caPath := "/etc/cfsd/ca.pem"
 	dataPath := "/var/lib/cfsd"
 	var formicIP string
-	var groupIP string
-	var valueIP string
+	var grpcGroupIP string
+	var replGroupIP string
+	var grpcValueIP string
+	var replValueIP string
 	var formicCertPath string
 	var formicKeyPath string
-	var groupCertPath string
-	var groupKeyPath string
-	var valueCertPath string
-	var valueKeyPath string
+	var grpcGroupCertPath string
+	var grpcGroupKeyPath string
+	var replGroupCertPath string
+	var replGroupKeyPath string
+	var grpcValueCertPath string
+	var grpcValueKeyPath string
+	var replValueCertPath string
+	var replValueKeyPath string
 
 	baseLogger := zap.New(zap.NewJSONEncoder())
 	baseLogger.SetLevel(zap.InfoLevel)
@@ -81,12 +87,22 @@ FIND_LOCAL_NODE:
 						nodeAddr = node.Address(ADDR_GROUP_GRPC)
 						i = strings.LastIndex(nodeAddr, ":")
 						if i >= 0 {
-							groupIP = nodeAddr[:i]
+							grpcGroupIP = nodeAddr[:i]
+						}
+						nodeAddr = node.Address(ADDR_GROUP_REPL)
+						i = strings.LastIndex(nodeAddr, ":")
+						if i >= 0 {
+							replGroupIP = nodeAddr[:i]
 						}
 						nodeAddr = node.Address(ADDR_VALUE_GRPC)
 						i = strings.LastIndex(nodeAddr, ":")
 						if i >= 0 {
-							valueIP = nodeAddr[:i]
+							grpcValueIP = nodeAddr[:i]
+						}
+						nodeAddr = node.Address(ADDR_VALUE_REPL)
+						i = strings.LastIndex(nodeAddr, ":")
+						if i >= 0 {
+							replValueIP = nodeAddr[:i]
 						}
 						break FIND_LOCAL_NODE
 					}
@@ -96,10 +112,14 @@ FIND_LOCAL_NODE:
 	}
 	formicCertPath = "/etc/cfsd/" + formicIP + ".pem"
 	formicKeyPath = "/etc/cfsd/" + formicIP + "-key.pem"
-	groupCertPath = "/etc/cfsd/" + groupIP + ".pem"
-	groupKeyPath = "/etc/cfsd/" + groupIP + "-key.pem"
-	valueCertPath = "/etc/cfsd/" + valueIP + ".pem"
-	valueKeyPath = "/etc/cfsd/" + valueIP + "-key.pem"
+	grpcGroupCertPath = "/etc/cfsd/" + grpcGroupIP + ".pem"
+	grpcGroupKeyPath = "/etc/cfsd/" + grpcGroupIP + "-key.pem"
+	replGroupCertPath = "/etc/cfsd/" + replGroupIP + ".pem"
+	replGroupKeyPath = "/etc/cfsd/" + replGroupIP + "-key.pem"
+	grpcValueCertPath = "/etc/cfsd/" + grpcValueIP + ".pem"
+	grpcValueKeyPath = "/etc/cfsd/" + grpcValueIP + "-key.pem"
+	replValueCertPath = "/etc/cfsd/" + replValueIP + ".pem"
+	replValueKeyPath = "/etc/cfsd/" + replValueIP + "-key.pem"
 
 	waitGroup := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
@@ -107,8 +127,10 @@ FIND_LOCAL_NODE:
 	groupStore, groupStoreRestartChan, err := server.NewGroupStore(&server.GroupStoreConfig{
 		GRPCAddressIndex: ADDR_GROUP_GRPC,
 		ReplAddressIndex: ADDR_GROUP_REPL,
-		CertFile:         groupCertPath,
-		KeyFile:          groupKeyPath,
+		GRPCCertFile:     grpcGroupCertPath,
+		GRPCKeyFile:      grpcGroupKeyPath,
+		ReplCertFile:     replGroupCertPath,
+		ReplKeyFile:      replGroupKeyPath,
 		CAFile:           caPath,
 		Scale:            0.4,
 		Path:             dataPath,
@@ -144,8 +166,10 @@ FIND_LOCAL_NODE:
 	valueStore, valueStoreRestartChan, err := server.NewValueStore(&server.ValueStoreConfig{
 		GRPCAddressIndex: ADDR_VALUE_GRPC,
 		ReplAddressIndex: ADDR_VALUE_REPL,
-		CertFile:         valueCertPath,
-		KeyFile:          valueKeyPath,
+		GRPCCertFile:     grpcValueCertPath,
+		GRPCKeyFile:      grpcValueKeyPath,
+		ReplCertFile:     replValueCertPath,
+		ReplKeyFile:      replValueKeyPath,
 		CAFile:           caPath,
 		Scale:            0.4,
 		Path:             dataPath,
