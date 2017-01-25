@@ -34,7 +34,7 @@ type logRecord struct {
 	Fields  map[string]interface{} `json:"fields"`
 }
 
-func BenchmarkLogMarshalerFunc(b *testing.B) {
+func BenchmarkJSONLogMarshalerFunc(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		enc := NewJSONEncoder()
 		enc.AddMarshaler("nested", LogMarshalerFunc(func(kv KeyValue) error {
@@ -43,6 +43,30 @@ func BenchmarkLogMarshalerFunc(b *testing.B) {
 		}))
 		enc.Free()
 	}
+}
+
+func BenchmarkZapJSONInts(b *testing.B) {
+	ts := time.Unix(0, 0)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			enc := NewJSONEncoder()
+			enc.AddObject("ints", []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+			enc.WriteEntry(ioutil.Discard, "fake", DebugLevel, ts)
+			enc.Free()
+		}
+	})
+}
+
+func BenchmarkZapJSONStrings(b *testing.B) {
+	ts := time.Unix(0, 0)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			enc := NewJSONEncoder()
+			enc.AddObject("strings", []string{"bar 1", "bar 2", "bar 3", "bar 4", "bar 5", "bar 6", "bar 7", "bar 8", "bar 9", "bar 10"})
+			enc.WriteEntry(ioutil.Discard, "fake", DebugLevel, ts)
+			enc.Free()
+		}
+	})
 }
 
 func BenchmarkZapJSON(b *testing.B) {

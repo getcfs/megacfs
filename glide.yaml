@@ -1,7 +1,14 @@
 package: github.com/getcfs/megacfs
 import:
-- package: github.com/BurntSushi/toml
-- package: github.com/Sirupsen/logrus
+- package: github.com/cloudflare/cfssl
+  version: ^1.2.0
+  subpackages:
+  - cli/genkey
+  - config
+  - csr
+  - initca
+  - signer
+  - signer/universal
 - package: github.com/docker/go-plugins-helpers
   subpackages:
   - sdk
@@ -10,52 +17,41 @@ import:
   - fuseutil
 - package: github.com/gholt/brimtext
 - package: github.com/gholt/brimtime
+- package: github.com/gholt/cpcp
+- package: github.com/gholt/dudu
+- package: github.com/gholt/findfind
 - package: github.com/gholt/ring
 - package: github.com/gholt/store
 - package: github.com/gogo/protobuf
+  version: ^0.3.0
   subpackages:
   - proto
 - package: github.com/golang/protobuf
   subpackages:
   - proto
-- package: github.com/pandemicsyn/cmdctrl
-  subpackages:
-  - api
-- package: github.com/pandemicsyn/node_exporter
-  subpackages:
-  - collector
-- package: github.com/peterh/liner
-- package: github.com/pkg/profile
+- package: github.com/grpc-ecosystem/go-grpc-prometheus
+  version: ^1.1.0
 - package: github.com/prometheus/client_golang
+  version: ^0.8.0
   subpackages:
   - prometheus
-- package: github.com/satori/go.uuid
-- package: github.com/shirou/gopsutil
+- package: github.com/prometheus/common
   subpackages:
-  - disk
-  - mem
+  - log
+- package: github.com/satori/go.uuid
+  version: ^1.1.0
 - package: github.com/spaolacci/murmur3
+- package: github.com/uber-go/zap
+- package: golang.org/x/crypto
+  subpackages:
+  - ssh/terminal
 - package: golang.org/x/net
   subpackages:
   - context
 - package: google.golang.org/grpc
+  version: ^1.0.5
   subpackages:
   - codes
   - credentials
-  - grpclog
   - metadata
   - peer
-- package: gopkg.in/urfave/cli.v2
-- package: github.com/uber-go/zap
-- package: github.com/grpc-ecosystem/go-grpc-prometheus
-- package: github.com/gholt/cpcp
-- package: github.com/gholt/dudu
-- package: github.com/gholt/findfind
-- package: github.com/danwakefield/fnmatch
-- package: github.com/cloudflare/cfssl
-  version: 1.2.0
-  subpackages:
-  - cli/gencert
-- package: github.com/google/certificate-transparency
-  subpackages:
-  - go

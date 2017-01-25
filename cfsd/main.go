@@ -45,8 +45,14 @@ func main() {
 	var replValueCertPath string
 	var replValueKeyPath string
 
-	baseLogger := zap.New(zap.NewJSONEncoder())
-	baseLogger.SetLevel(zap.InfoLevel)
+	loggerLevel := zap.InfoLevel
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "debug", "--debug":
+			loggerLevel = zap.DebugLevel
+		}
+	}
+	baseLogger := zap.New(zap.NewJSONEncoder(), loggerLevel)
 	logger := baseLogger.With(zap.String("name", "cfsd"))
 
 	fp, err := os.Open(ringPath)

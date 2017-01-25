@@ -1,19 +1,15 @@
 package api
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/getcfs/megacfs/ftls"
-	"github.com/getcfs/megacfs/oort/oort"
-	synpb "github.com/getcfs/megacfs/syndicate/api/proto"
 	"github.com/gholt/ring"
 	"github.com/gholt/store"
 	"github.com/uber-go/zap"
@@ -31,13 +27,10 @@ type ReplValueStore struct {
 	ftlsConfig                 *ftls.Config
 	grpcOpts                   []grpc.DialOption
 
-	ringLock           sync.RWMutex
-	ring               ring.Ring
-	ringCachePath      string
-	ringServer         string
-	ringServerGRPCOpts []grpc.DialOption
-	ringServerExitChan chan struct{}
-	ringClientID       string
+	ringLock      sync.RWMutex
+	ring          ring.Ring
+	ringCachePath string
+	ringClientID  string
 
 	storesLock sync.RWMutex
 	stores     map[string]store.ValueStore
@@ -55,8 +48,6 @@ func NewReplValueStore(c *ValueStoreConfig) *ReplValueStore {
 		ftlsConfig:                 cfg.StoreFTLSConfig,
 		grpcOpts:                   cfg.GRPCOpts,
 		stores:                     make(map[string]store.ValueStore),
-		ringServer:                 cfg.RingServer,
-		ringServerGRPCOpts:         cfg.RingServerGRPCOpts,
 		ringCachePath:              cfg.RingCachePath,
 		ringClientID:               cfg.RingClientID,
 	}
@@ -219,137 +210,16 @@ func (rs *ReplValueStore) storesFor(ctx context.Context, keyA uint64) ([]store.V
 	return ss, nil
 }
 
-func (rs *ReplValueStore) ringServerConnector(exitChan chan struct{}) {
-	sleeperTicks := 2
-	sleeperTicker := time.NewTicker(time.Second)
-	sleeper := func() {
-		for i := sleeperTicks; i > 0; i-- {
-			select {
-			case <-exitChan:
-				break
-			case <-sleeperTicker.C:
-			}
-		}
-		if sleeperTicks < 60 {
-			sleeperTicks *= 2
-		}
-	}
-	for {
-		select {
-		case <-exitChan:
-			break
-		default:
-		}
-		ringServer := rs.ringServer
-		if ringServer == "" {
-			var err error
-
-			ringServer, err = oort.GetRingServer("value")
-			if err != nil {
-				rs.logger.Error("error resolving ring service", zap.Error(err))
-				sleeper()
-				continue
-			}
-		}
-		conn, err := grpc.Dial(ringServer, rs.ringServerGRPCOpts...)
-		if err != nil {
-			rs.logger.Error("error connecting to ring service", zap.String("ringServer", ringServer), zap.Error(err))
-			sleeper()
-			continue
-		}
-		stream, err := synpb.NewSyndicateClient(conn).GetRingStream(context.Background(), &synpb.SubscriberID{Id: rs.ringClientID})
-		if err != nil {
-			rs.logger.Error("error creating stream with ring service", zap.String("ringServer", ringServer), zap.Error(err))
-			sleeper()
-			continue
-		}
-		connDoneChan := make(chan struct{})
-		somethingICanTakeAnAddressOf := int32(0)
-		activity := &somethingICanTakeAnAddressOf
-		// This goroutine will detect when the exitChan is closed so it can
-		// close the conn so that the blocking stream.Recv will get an error
-		// and everything will unwind properly.
-		// However, if the conn errors out on its own and exitChan isn't
-		// closed, we're going to loop back around and try a new conn, but we
-		// need to clear out this goroutine, which is what the connDoneChan is
-		// for.
-		// One last thing is that if nothing happens for fifteen minutes, we
-		// can assume the conn has gone stale and close it, causing a loop
-		// around to try a new conn.
-		// It would be so much easier if Recv could use a timeout Context...
-		go func(c *grpc.ClientConn, a *int32, cdc chan struct{}) {
-			for {
-				select {
-				case <-exitChan:
-				case <-cdc:
-				case <-time.After(15 * time.Minute):
-					// I'm comfortable with time.After here since it's just
-					// once per fifteen minutes or new conn.
-					v := atomic.LoadInt32(a)
-					if v != 0 {
-						atomic.AddInt32(a, -v)
-						continue
-					}
-				}
-				break
-			}
-			c.Close()
-		}(conn, activity, connDoneChan)
-		for {
-			select {
-			case <-exitChan:
-				break
-			default:
-			}
-			res, err := stream.Recv()
-			if err != nil {
-				rs.logger.Debug("error with stream to ring service", zap.String("ringServer", ringServer), zap.Error(err))
-				break
-			}
-			atomic.AddInt32(activity, 1)
-			if res != nil {
-				if r, err := ring.LoadRing(bytes.NewBuffer(res.Ring)); err != nil {
-					rs.logger.Debug("error with ring received from stream to ring service", zap.String("ringServer", ringServer), zap.Error(err))
-				} else {
-					// This will cache the ring if ringCachePath is not empty.
-					rs.SetRing(r)
-					// Resets the exponential sleeper since we had success.
-					sleeperTicks = 2
-					rs.logger.Debug("got new ring from stream to ring service", zap.String("ringServer", ringServer), zap.Int64("version", res.Version))
-				}
-			}
-		}
-		close(connDoneChan)
-		sleeper()
-	}
-}
-
 // Startup is not required to use the ReplValueStore; it will automatically
-// connect to backend stores as needed. However, if you'd like to use the ring
-// service to receive ring updates and have the ReplValueStore automatically
-// update itself accordingly, Startup will launch a connector to that service.
-// Otherwise, you will need to call SetRing yourself to inform the
-// ReplValueStore of which backends to connect to.
+// connect to backend stores as needed.
 func (rs *ReplValueStore) Startup(ctx context.Context) error {
-	rs.ringLock.Lock()
-	if rs.ringServerExitChan == nil {
-		rs.ringServerExitChan = make(chan struct{})
-		go rs.ringServerConnector(rs.ringServerExitChan)
-	}
-	rs.ringLock.Unlock()
 	return nil
 }
 
-// Shutdown will close all connections to backend stores and shutdown any
-// running ring service connector. Note that the ReplValueStore can still be
-// used after Shutdown, it will just start reconnecting to backends again. To
-// relaunch the ring service connector, you will need to call Startup.
+// Shutdown will close all connections to backend stores. Note that the
+// ReplValueStore can still be used after Shutdown, it will just start
+// reconnecting to backends again.
 func (rs *ReplValueStore) Shutdown(ctx context.Context) error {
-	rs.ringLock.Lock()
-	if rs.ringServerExitChan != nil {
-		close(rs.ringServerExitChan)
-		rs.ringServerExitChan = nil
-	}
 	rs.storesLock.Lock()
 	for addr, s := range rs.stores {
 		if err := s.Shutdown(ctx); err != nil {
@@ -364,7 +234,6 @@ func (rs *ReplValueStore) Shutdown(ctx context.Context) error {
 		}
 	}
 	rs.storesLock.Unlock()
-	rs.ringLock.Unlock()
 	return nil
 }
 

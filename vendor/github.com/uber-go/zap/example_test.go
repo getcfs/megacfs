@@ -105,9 +105,9 @@ func ExampleNest() {
 func ExampleNew() {
 	// The default logger outputs to standard out and only writes logs that are
 	// Info level or higher.
-	logger := zap.New(
-		zap.NewJSONEncoder(zap.NoTime()), // drop timestamps in tests
-	)
+	logger := zap.New(zap.NewJSONEncoder(
+		zap.NoTime(), // drop timestamps in tests
+	))
 
 	// The default logger does not print Debug logs.
 	logger.Debug("This won't be printed.")
@@ -117,9 +117,48 @@ func ExampleNew() {
 	// {"level":"info","msg":"This is an info log."}
 }
 
+func ExampleNew_textEncoder() {
+	// For more human-readable output in the console, use a TextEncoder.
+	textLogger := zap.New(zap.NewTextEncoder(
+		zap.TextNoTime(), // drop timestamps in tests.
+	))
+
+	textLogger.Info("This is a text log.", zap.Int("foo", 42))
+
+	// Output:
+	// [I] This is a text log. foo=42
+}
+
+func ExampleTee() {
+	// Multiple loggers can be combine using Tee.
+	output := zap.Output(os.Stdout)
+	logger := zap.Tee(
+		zap.New(zap.NewTextEncoder(zap.TextNoTime()), output),
+		zap.New(zap.NewJSONEncoder(zap.NoTime()), output),
+	)
+
+	logger.Info("this log gets encoded twice, differently", zap.Int("foo", 42))
+	// Output:
+	// [I] this log gets encoded twice, differently foo=42
+	// {"level":"info","msg":"this log gets encoded twice, differently","foo":42}
+}
+
+func ExampleMultiWriteSyncer() {
+	// To send output to multiple outputs, use MultiWriteSyncer.
+	textLogger := zap.New(
+		zap.NewTextEncoder(zap.TextNoTime()),
+		zap.Output(zap.MultiWriteSyncer(os.Stdout, os.Stdout)),
+	)
+
+	textLogger.Info("One becomes two")
+	// Output:
+	// [I] One becomes two
+	// [I] One becomes two
+}
+
 func ExampleNew_options() {
-	// We can pass multiple options to the NewJSON method to configure
-	// the logging level, output location, or even the initial context.
+	// We can pass multiple options to the New method to configure the logging
+	// level, output location, or even the initial context.
 	logger := zap.New(
 		zap.NewJSONEncoder(zap.NoTime()), // drop timestamps in tests
 		zap.DebugLevel,
@@ -198,4 +237,15 @@ func ExampleNewJSONEncoder() {
 		zap.MessageKey("@message"),         // customize the message key
 		zap.LevelString("@level"),          // stringify the log level
 	)
+}
+
+func ExampleNewTextEncoder() {
+	// A text encoder with the default settings.
+	zap.NewTextEncoder()
+
+	// Dropping timestamps is often useful in tests.
+	zap.NewTextEncoder(zap.TextNoTime())
+
+	// If you don't like the default timestamp formatting, choose another.
+	zap.NewTextEncoder(zap.TextTimeFormat(time.RFC822))
 }

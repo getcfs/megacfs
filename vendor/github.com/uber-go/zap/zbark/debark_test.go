@@ -41,14 +41,14 @@ func newLogrus() (bark.Logger, *bytes.Buffer) {
 	return bark.NewLoggerFromLogrus(logger), buf
 }
 
-func newDebark() (zap.Logger, *bytes.Buffer) {
+func newDebark(lvl zap.Level) (zap.Logger, *bytes.Buffer) {
 	logrus, buf := newLogrus()
-	return Debarkify(logrus, zap.DebugLevel), buf
+	return Debarkify(logrus, lvl), buf
 }
 
 func TestLogrusOutputIsTheSame(t *testing.T) {
 	logrus, lbuf := newLogrus()
-	debark, dbuf := newDebark()
+	debark, dbuf := newDebark(zap.DebugLevel)
 
 	zfields := []zap.Field{
 		zap.Bool("a", true),
@@ -92,17 +92,8 @@ var levels = []zap.Level{
 	zap.ErrorLevel,
 }
 
-func TestDebark_Levels(t *testing.T) {
-	logger, _ := newDebark()
-	for _, l := range append(levels, zap.PanicLevel, zap.FatalLevel) {
-		logger.SetLevel(l)
-		assert.Equal(t, l, logger.Level())
-	}
-}
-
 func TestDebark_Check(t *testing.T) {
-	logger, buf := newDebark()
-	logger.SetLevel(zap.DebugLevel)
+	logger, buf := newDebark(zap.DebugLevel)
 	for _, l := range append(levels, zap.PanicLevel, zap.FatalLevel) {
 		require.Equal(t, 0, buf.Len(), "buffer must be clean for %v", l)
 		lc := logger.Check(l, "msg")
@@ -120,21 +111,20 @@ func TestDebark_Check(t *testing.T) {
 		buf.Reset()
 	}
 
-	logger.SetLevel(zap.PanicLevel)
+	logger, buf = newDebark(zap.PanicLevel)
 	for _, l := range levels {
 		assert.Nil(t, logger.Check(l, "msg"))
 	}
 
 	// We should still panic even if the level isn't enough to log.
+	logger, buf = newDebark(zap.FatalLevel)
 	assert.Panics(t, func() {
-		logger.SetLevel(zap.FatalLevel)
 		logger.Check(zap.PanicLevel, "panic!").Write()
 	})
 }
 
 func TestDebark_LeveledLogging(t *testing.T) {
-	logger, buf := newDebark()
-	logger.SetLevel(zap.DebugLevel)
+	logger, buf := newDebark(zap.DebugLevel)
 	for _, l := range levels {
 		require.Equal(t, 0, buf.Len(), "buffer not zero")
 		logger.Log(l, "ohai")
@@ -142,21 +132,20 @@ func TestDebark_LeveledLogging(t *testing.T) {
 		buf.Reset()
 	}
 
-	logger.SetLevel(zap.FatalLevel)
+	logger, buf = newDebark(zap.FatalLevel)
 	require.Equal(t, 0, buf.Len(), "buffer not zero to begin test")
 	for _, l := range append(levels) {
 		logger.Log(l, "ohai")
 		assert.Equal(t, 0, buf.Len(), "buffer not zero, we should not have logged")
 	}
 
-	logger.SetLevel(zap.DebugLevel)
+	logger, buf = newDebark(zap.DebugLevel)
 	assert.Panics(t, func() { logger.Log(zap.Level(31337), "") })
 	assert.Panics(t, func() { logger.Log(zap.PanicLevel, "") })
 }
 
 func TestDebark_Methods(t *testing.T) {
-	logger, buf := newDebark()
-	logger.SetLevel(zap.DebugLevel)
+	logger, buf := newDebark(zap.DebugLevel)
 
 	funcs := []func(string, ...zap.Field){
 		logger.Debug,
@@ -175,7 +164,7 @@ func TestDebark_Methods(t *testing.T) {
 	assert.Panics(t, func() { logger.Panic("foo") })
 	buf.Reset()
 
-	logger.SetLevel(zap.FatalLevel)
+	logger, buf = newDebark(zap.FatalLevel)
 	for i, f := range funcs {
 		f("ohai")
 		if !assert.Equal(t, 0, buf.Len(), "%+v(%d) logged, but shouldn't", f, i) {
@@ -186,12 +175,12 @@ func TestDebark_Methods(t *testing.T) {
 }
 
 func TestDebark_Stubs(t *testing.T) {
-	logger, _ := newDebark()
-	assert.NotPanics(t, func() { logger.DFatal("msg") })
+	logger, _ := newDebark(zap.DebugLevel)
+	assert.NotPanics(t, func() { logger.DPanic("msg") })
 }
 
 func TestDebark_zapToBarkFields(t *testing.T) {
-	logger, _ := newDebark()
+	logger, _ := newDebark(zap.DebugLevel)
 	fields := []zap.Field{
 		zap.Bool("a", true),
 		zap.Float64("b", float64(0.1)),
