@@ -135,10 +135,6 @@ imports:
   version: a6e649f5835b7ebf354a73ff3a80f3223e3cb5de
   subpackages:
   - libcontainer/user
-- name: github.com/pandemicsyn/cmdctrl
-  version: 62a5e223d91ec7ddf4d918d2f387c708a53c0b96
-  subpackages:
-  - api
 - name: github.com/pandemicsyn/node_exporter
   version: 0294cedb0563d9923f8a5afa893c89e21fbb272b
   subpackages:

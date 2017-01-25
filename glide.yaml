@@ -18,9 +18,6 @@ import:
 - package: github.com/golang/protobuf
   subpackages:
   - proto
-- package: github.com/pandemicsyn/cmdctrl
-  subpackages:
-  - api
 - package: github.com/pandemicsyn/node_exporter
   subpackages:
   - collector
