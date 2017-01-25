@@ -112,6 +112,10 @@ func auth(authURL string, username string, password string) string {
 
 	var token string
 
+	if authURL == "dev" {
+		return ""
+	}
+
 	if token = os.Getenv("OS_TOKEN"); token != "" {
 		return token
 	}

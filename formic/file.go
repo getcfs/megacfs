@@ -678,6 +678,7 @@ func (o *OortFS) Listxattr(ctx context.Context, id []byte) (*pb.ListxattrRespons
 		names += name
 		names += "\x00"
 	}
+	names += "cfs.fsid\x00"
 	resp.Xattr = []byte(names)
 	return resp, nil
 }
