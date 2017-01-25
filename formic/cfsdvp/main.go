@@ -187,5 +187,5 @@ func (d CFSDriver) Unmount(r Request) Response {
 func main() {
 	d := newCFSDriver()
 	h := NewHandler(d)
-	h.ServeUnix("root", SocketPath)
+	h.ServeUnix(SocketPath, 0)
 }

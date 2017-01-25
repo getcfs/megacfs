@@ -36,6 +36,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var epoch = time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+
 func newJSONEncoder(opts ...JSONOption) *jsonEncoder {
 	return NewJSONEncoder(opts...).(*jsonEncoder)
 }
@@ -122,6 +124,7 @@ func TestJSONEncoderFields(t *testing.T) {
 		{"uint", `"k\\":42`, func(e Encoder) { e.AddUint(`k\`, 42) }},
 		{"uint64", fmt.Sprintf(`"k":%d`, uint64(math.MaxUint64)), func(e Encoder) { e.AddUint64("k", math.MaxUint64) }},
 		{"uint64", fmt.Sprintf(`"k\\":%d`, uint64(math.MaxUint64)), func(e Encoder) { e.AddUint64(`k\`, math.MaxUint64) }},
+		{"uintptr", fmt.Sprintf(`"k":%d`, uint64(math.MaxUint64)), func(e Encoder) { e.AddUintptr("k", uintptr(math.MaxUint64)) }},
 		{"float64", `"k":1`, func(e Encoder) { e.AddFloat64("k", 1.0) }},
 		{"float64", `"k\\":1`, func(e Encoder) { e.AddFloat64(`k\`, 1.0) }},
 		{"float64", `"k":10000000000`, func(e Encoder) { e.AddFloat64("k", 1e10) }},
@@ -137,6 +140,11 @@ func TestJSONEncoderFields(t *testing.T) {
 		{"marshaler", `"k":{}`, func(e Encoder) {
 			assert.Error(t, e.AddMarshaler("k", loggable{false}), "Expected an error calling MarshalLog.")
 		}},
+		{"ints", `"k":[1,2,3]`, func(e Encoder) { e.AddObject("k", []int{1, 2, 3}) }},
+		{"strings", `"k":["bar 1","bar 2","bar 3"]`,
+			func(e Encoder) {
+				e.AddObject("k", []string{"bar 1", "bar 2", "bar 3"})
+			}},
 		{"arbitrary object", `"k":{"loggable":"yes"}`, func(e Encoder) {
 			assert.NoError(t, e.AddObject("k", map[string]string{"loggable": "yes"}), "Unexpected error JSON-serializing a map.")
 		}},
@@ -280,7 +288,7 @@ func TestJSONOptions(t *testing.T) {
 
 	for _, enc := range []Encoder{root, root.Clone()} {
 		buf := &bytes.Buffer{}
-		enc.WriteEntry(buf, "fake msg", DebugLevel, time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC))
+		enc.WriteEntry(buf, "fake msg", DebugLevel, epoch)
 		assert.Equal(
 			t,
 			`{"the-level":"debug","the-timestamp":"1970-01-01T00:00:00Z","the-message":"fake msg"}`+"\n",

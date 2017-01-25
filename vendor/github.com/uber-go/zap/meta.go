@@ -21,10 +21,18 @@
 package zap
 
 import (
+	"fmt"
+	"io"
 	"os"
-
-	"github.com/uber-go/atomic"
+	"sync"
+	"time"
 )
+
+var _entryPool = sync.Pool{
+	New: func() interface{} {
+		return &Entry{}
+	},
+}
 
 // Meta is implementation-agnostic state management for Loggers. Most Logger
 // implementations can reduce the required boilerplate by embedding a Meta.
@@ -32,36 +40,29 @@ import (
 // Note that while the level-related fields and methods are safe for concurrent
 // use, the remaining fields are not.
 type Meta struct {
+	LevelEnabler
+
 	Development bool
 	Encoder     Encoder
 	Hooks       []Hook
 	Output      WriteSyncer
 	ErrorOutput WriteSyncer
-
-	lvl *atomic.Int32
 }
 
 // MakeMeta returns a new meta struct with sensible defaults: logging at
 // InfoLevel, development mode off, and writing to standard error and standard
 // out.
-func MakeMeta(enc Encoder) Meta {
-	return Meta{
-		lvl:         atomic.NewInt32(int32(InfoLevel)),
-		Encoder:     enc,
-		Output:      newLockedWriteSyncer(os.Stdout),
-		ErrorOutput: newLockedWriteSyncer(os.Stderr),
+func MakeMeta(enc Encoder, options ...Option) Meta {
+	m := Meta{
+		Encoder:      enc,
+		Output:       newLockedWriteSyncer(os.Stdout),
+		ErrorOutput:  newLockedWriteSyncer(os.Stderr),
+		LevelEnabler: InfoLevel,
 	}
-}
-
-// Level returns the minimum enabled log level. It's safe to call concurrently.
-func (m Meta) Level() Level {
-	return Level(m.lvl.Load())
-}
-
-// SetLevel atomically alters the the logging level for this Meta and all its
-// clones.
-func (m Meta) SetLevel(lvl Level) {
-	m.lvl.Store(int32(lvl))
+	for _, opt := range options {
+		opt.apply(&m)
+	}
+	return m
 }
 
 // Clone creates a copy of the meta struct. It deep-copies the encoder, but not
@@ -69,4 +70,52 @@ func (m Meta) SetLevel(lvl Level) {
 func (m Meta) Clone() Meta {
 	m.Encoder = m.Encoder.Clone()
 	return m
+}
+
+// Check returns a CheckedMessage logging the given message is Enabled, nil
+// otherwise.
+func (m Meta) Check(log Logger, lvl Level, msg string) *CheckedMessage {
+	switch lvl {
+	case PanicLevel, FatalLevel:
+		// Panic and Fatal should always cause a panic/exit, even if the level
+		// is disabled.
+		break
+	default:
+		if !m.Enabled(lvl) {
+			return nil
+		}
+	}
+	return NewCheckedMessage(log, lvl, msg)
+}
+
+// InternalError prints an internal error message to the configured
+// ErrorOutput. This method should only be used to report internal logger
+// problems and should not be used to report user-caused problems.
+func (m Meta) InternalError(cause string, err error) {
+	fmt.Fprintf(m.ErrorOutput, "%v %s error: %v\n", time.Now().UTC(), cause, err)
+	m.ErrorOutput.Sync()
+}
+
+// Encode runs any Hook functions and then writes an encoded log entry to the
+// given io.Writer, returning any error.
+func (m Meta) Encode(w io.Writer, t time.Time, lvl Level, msg string, fields []Field) error {
+	enc := m.Encoder.Clone()
+	addFields(enc, fields)
+	if len(m.Hooks) >= 0 {
+		entry := _entryPool.Get().(*Entry)
+		entry.Level = lvl
+		entry.Message = msg
+		entry.Time = t
+		entry.enc = enc
+		for _, hook := range m.Hooks {
+			if err := hook(entry); err != nil {
+				m.InternalError("hook", err)
+			}
+		}
+		msg, enc = entry.Message, entry.enc
+		_entryPool.Put(entry)
+	}
+	err := enc.WriteEntry(w, msg, lvl, t)
+	enc.Free()
+	return err
 }

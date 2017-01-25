@@ -84,10 +84,6 @@ func NewFormicServer(cfg *Config, logger zap.Logger) error {
 	)
 
 	cfg = ResolveConfig(cfg)
-	if cfg.Debug {
-		// NOTE: This probably should be done in the main server bit
-		logger.SetLevel(zap.DebugLevel)
-	}
 
 	oortLogger := logger.With(zap.String("name", "cfsd.formic.oort"))
 	vstore := api.NewReplValueStore(&api.ValueStoreConfig{

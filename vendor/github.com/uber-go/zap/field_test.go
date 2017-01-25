@@ -21,6 +21,7 @@
 package zap
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
 	"strings"
@@ -45,6 +46,11 @@ func (f fakeUser) MarshalLog(kv KeyValue) error {
 func assertFieldJSON(t testing.TB, expected string, field Field) {
 	enc := newJSONEncoder()
 	defer enc.Free()
+
+	var out interface{}
+	err := json.Unmarshal([]byte("{"+expected+"}"), &out)
+	require.NoError(t, err,
+		"Expected JSON snippet %q must be valid for use in an object.", expected)
 
 	field.AddTo(enc)
 	assert.Equal(t, expected, string(enc.bytes),
@@ -126,6 +132,11 @@ func TestUint64Field(t *testing.T) {
 	assertCanBeReused(t, Uint64("foo", uint64(1)))
 }
 
+func TestUintptrField(t *testing.T) {
+	assertFieldJSON(t, `"foo":10`, Uintptr("foo", uintptr(0xa)))
+	assertCanBeReused(t, Uintptr("foo", uintptr(0xa)))
+}
+
 func TestStringField(t *testing.T) {
 	assertFieldJSON(t, `"foo":"bar"`, String("foo", "bar"))
 	assertCanBeReused(t, String("foo", "bar"))
@@ -161,6 +172,20 @@ func TestMarshalerField(t *testing.T) {
 
 	assertFieldJSON(t, `"foo":{"name":"phil"}`, Marshaler("foo", fakeUser{"phil"}))
 	assertCanBeReused(t, Marshaler("foo", fakeUser{"phil"}))
+}
+
+func TestIntsField(t *testing.T) {
+	assertFieldJSON(t, `"foo":[]`, Object("foo", []int{}))
+	assertFieldJSON(t, `"foo":[1]`, Object("foo", []int{1}))
+	assertFieldJSON(t, `"foo":[1,2,3]`, Object("foo", []int{1, 2, 3}))
+	assertCanBeReused(t, Object("foo", []int{1, 2, 3}))
+}
+
+func TestStringsField(t *testing.T) {
+	assertFieldJSON(t, `"foo":[]`, Object("foo", []string{}))
+	assertFieldJSON(t, `"foo":["bar 1"]`, Object("foo", []string{"bar 1"}))
+	assertFieldJSON(t, `"foo":["bar 1","bar 2","bar 3"]`, Object("foo", []string{"bar 1", "bar 2", "bar 3"}))
+	assertCanBeReused(t, Object("foo", []string{"bar 1", "bar 2", "bar 3"}))
 }
 
 func TestObjectField(t *testing.T) {

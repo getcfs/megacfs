@@ -33,9 +33,8 @@ func (f optionFunc) apply(m *Meta) {
 }
 
 // This allows any Level to be used as an option.
-func (l Level) apply(m *Meta) {
-	m.SetLevel(l)
-}
+func (l Level) apply(m *Meta)         { m.LevelEnabler = l }
+func (lvl AtomicLevel) apply(m *Meta) { m.LevelEnabler = lvl }
 
 // Fields sets the initial fields for the logger.
 func Fields(fields ...Field) Option {
@@ -63,7 +62,7 @@ func ErrorOutput(w WriteSyncer) Option {
 }
 
 // Development puts the logger in development mode, which alters the behavior
-// of the DFatal method.
+// of the DPanic method.
 func Development() Option {
 	return optionFunc(func(m *Meta) {
 		m.Development = true
