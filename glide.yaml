@@ -18,9 +18,6 @@ import:
 - package: github.com/golang/protobuf
   subpackages:
   - proto
-- package: github.com/pandemicsyn/node_exporter
-  subpackages:
-  - collector
 - package: github.com/peterh/liner
 - package: github.com/pkg/profile
 - package: github.com/prometheus/client_golang
