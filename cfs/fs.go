@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -560,6 +561,10 @@ func (f *fs) handleGetxattr(r *fuse.GetxattrRequest) {
 		r.RespondError(fuse.ENOSYS)
 		return
 	}
+	if r.Name == "cfs.fsid" {
+		r.Respond(&fuse.GetxattrResponse{Xattr: []byte(f.fsid)})
+		return
+	}
 	req := &pb.GetxattrRequest{
 		Inode:    uint64(r.Node),
 		Name:     r.Name,
@@ -600,6 +605,10 @@ func (f *fs) handleSetxattr(r *fuse.SetxattrRequest) {
 	log.Println("Inside handleSetxattr")
 	log.Println(r)
 	if r.Name == "system.posix_acl_access" || r.Name == "system.posix_acl_default" {
+		r.RespondError(fuse.ENOENT)
+		return
+	}
+	if strings.HasPrefix(r.Name, "cfs.") {
 		r.RespondError(fuse.ENOSYS)
 		return
 	}
@@ -622,6 +631,10 @@ func (f *fs) handleSetxattr(r *fuse.SetxattrRequest) {
 func (f *fs) handleRemovexattr(r *fuse.RemovexattrRequest) {
 	log.Println("Inside handleRemovexattr")
 	log.Println(r)
+	if strings.HasPrefix(r.Name, "cfs.") {
+		r.RespondError(fuse.ENOSYS)
+		return
+	}
 	req := &pb.RemovexattrRequest{
 		Inode: uint64(r.Node),
 		Name:  r.Name,

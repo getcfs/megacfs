@@ -95,6 +95,7 @@ type FileSystemAPIServer struct {
 	authUrl      string
 	authUser     string
 	authPassword string
+	skipAuth     bool
 }
 
 // FSAttrList ...
@@ -109,6 +110,7 @@ func NewFileSystemAPIServer(cfg *Config, grpstore store.GroupStore, valstore sto
 		authUrl:      cfg.AuthUrl,
 		authUser:     cfg.AuthUser,
 		authPassword: cfg.AuthPassword,
+		skipAuth:     cfg.SkipAuth,
 	}
 
 	return s
@@ -856,6 +858,10 @@ func auth(authURL string, username string, password string) (string, error) {
 
 // validateToken ...
 func (s *FileSystemAPIServer) validateToken(token string) (string, error) {
+	if s.skipAuth {
+		// Running in dev mode
+		return "11", nil
+	}
 	auth_token, err := auth(s.authUrl, s.authUser, s.authPassword)
 	if err != nil {
 		return "", err

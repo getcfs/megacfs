@@ -24,6 +24,7 @@ type Config struct {
 	AuthUrl      string
 	AuthUser     string
 	AuthPassword string
+	SkipAuth     bool
 }
 
 func ResolveConfig(c *Config) *Config {
@@ -49,6 +50,10 @@ func ResolveConfig(c *Config) *Config {
 	cfg.Debug = false
 	if env := os.Getenv("DEBUG"); env == "true" {
 		cfg.Debug = true
+	}
+	cfg.SkipAuth = false
+	if env := os.Getenv("SKIP_AUTH"); env == "true" {
+		cfg.SkipAuth = true
 	}
 
 	return cfg
