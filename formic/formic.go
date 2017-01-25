@@ -84,6 +84,9 @@ func NewFormicServer(cfg *Config, logger zap.Logger) error {
 	)
 
 	cfg = ResolveConfig(cfg)
+	if cfg.SkipAuth {
+		logger.Warn("Running with no AUTH!!!!!!")
+	}
 
 	oortLogger := logger.With(zap.String("name", "cfsd.formic.oort"))
 	vstore := api.NewReplValueStore(&api.ValueStoreConfig{
