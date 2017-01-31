@@ -353,10 +353,6 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 						atomic.AddUint32(&stale, 1)
 						continue
 					}
-					// REMOVEME skipping any zero-length values for now
-					if timestampBits&_TSB_DELETION == 0 && len(value) == 0 {
-						continue
-					}
 					_, err = store.write(wr.KeyA, wr.KeyB, wr.TimestampBits|_TSB_COMPACTION_REWRITE, value, true)
 					if err != nil {
 						store.logger.Error("error writing while compacting", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc), zap.Error(err))

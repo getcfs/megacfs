@@ -2,7 +2,6 @@ package store
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -237,10 +236,6 @@ func (store *defaultGroupStore) inBulkSet(wg *sync.WaitGroup) {
 			l := binary.BigEndian.Uint32(body[40:])
 
 			atomic.AddInt32(&store.inBulkSetWrites, 1)
-			// REMOVEME logging when we get zero-length values.
-			if l == 0 && timestampbits&_TSB_DELETION == 0 {
-				store.logger.Debug("REMOVEME inBulkSet got a zero-length value", zap.String("name", store.loggerPrefix+"inBulkSet"), zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Uint64("timestampBits", timestampbits))
-			}
 			// Attempt to store everything received...
 			// Note that deletions are acted upon as internal requests (work
 			// even if writes are disabled due to disk fullness) and new data
@@ -313,12 +308,6 @@ func (bsm *groupBulkSetMsg) nodeID() uint64 {
 }
 
 func (bsm *groupBulkSetMsg) add(keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, timestampbits uint64, value []byte) bool {
-	// REMOVEME double-checking
-	dctimestampbits, dcblockid, dclength, dcerr := bsm.store.lookup(keyA, keyB, childKeyA, childKeyB)
-	if int(dclength) != len(value) {
-		fmt.Printf("REMOVEME bulkset.add double-check error: ka:%x kb:%x cka:%x ckb:%x ts:%x l:%d dcts:%x dcbi:%d dcl:%d dce:%s\n", keyA, keyB, childKeyA, childKeyB, timestampbits, len(value), dctimestampbits, dcblockid, dclength, dcerr)
-		panic("REMOVEME double-check error")
-	}
 	o := len(bsm.body)
 	if o+_GROUP_BULK_SET_MSG_ENTRY_HEADER_LENGTH+len(value) >= cap(bsm.body) {
 		return false

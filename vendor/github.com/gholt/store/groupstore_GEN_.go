@@ -514,9 +514,6 @@ func (store *defaultGroupStore) read(keyA uint64, keyB uint64, childKeyA uint64,
 }
 
 func (store *defaultGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, timestampmicro int64, value []byte) (int64, error) {
-	if len(value) == 0 {
-		store.logger.Fatal("REMOVEME was asked to store a zlv", zap.String("name", store.loggerPrefix+"Write"), zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampmicro", timestampmicro))
-	}
 	atomic.AddInt32(&store.writes, 1)
 	if timestampmicro < TIMESTAMPMICRO_MIN {
 		atomic.AddInt32(&store.writeErrors, 1)
@@ -1019,7 +1016,6 @@ func (store *defaultGroupStore) recovery() error {
 		}
 	}
 	var encounteredValues int64
-	var zeroLengthValues int64 // REMOVEME
 	wg := &sync.WaitGroup{}
 	wg.Add(len(pendingBatchChans))
 	for i := 0; i < len(pendingBatchChans); i++ {
@@ -1035,13 +1031,6 @@ func (store *defaultGroupStore) recovery() error {
 						wr.BlockID = 0
 					}
 					atomic.AddInt64(&encounteredValues, 1)
-					// REMOVEME zlv check and discard, for now
-					if wr.TimestampBits&_TSB_DELETION == 0 && wr.Length == 0 {
-						if atomic.AddInt64(&zeroLengthValues, 1) < 10 {
-							store.logger.Warn("REMOVEME encountered zlv", zap.Uint64("keyA", wr.KeyA), zap.Uint64("keyB", wr.KeyB), zap.Uint64("childKeyA", wr.ChildKeyA), zap.Uint64("childKeyB", wr.ChildKeyB), zap.Uint64("timestampBits", wr.TimestampBits))
-						}
-						continue
-					}
 					if cm := store.logger.Check(zap.DebugLevel, "debug?"); cm.OK() {
 						if store.locmap.Set(wr.KeyA, wr.KeyB, wr.ChildKeyA, wr.ChildKeyB, wr.TimestampBits, wr.BlockID, wr.Offset, wr.Length, true) < wr.TimestampBits {
 							atomic.AddInt64(&causedChangeCount, 1)
@@ -1125,6 +1114,6 @@ func (store *defaultGroupStore) recovery() error {
 		}
 		store.logger.Debug("secondary recovery completed", zap.String("name", store.loggerPrefix+"recovery"))
 	}
-	store.logger.Warn("REMOVEME recovery complete", zap.Int64("encounteredValues", encounteredValues), zap.Int64("zeroLengthValues", zeroLengthValues))
+	store.logger.Debug("recovery complete", zap.Int64("encounteredValues", encounteredValues))
 	return nil
 }
