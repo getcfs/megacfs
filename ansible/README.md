@@ -103,7 +103,7 @@ chmod +x /usr/local/bin/cfsadm /usr/local/bin/cfsd /usr/local/bin/oort-cli /usr/
 
 
 wget -q https://raw.githubusercontent.com/letterj/megacfs/master/cfsd/packaging/root/usr/share/cfsd/init/cfsd.conf
-chmod 777 cfs.conf
+chmod 777 cfsd.conf
 mv cfsd.conf /etc/init/
 
 cfsadm init
