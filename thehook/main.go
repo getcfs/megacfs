@@ -93,11 +93,11 @@ func postToSlack(payload []byte) error {
 	req, _ := http.NewRequest("POST", conf.slackURL, bytes.NewBuffer(payload))
 	req.Header.Add("content-type", "application/json")
 	res, err := http.DefaultClient.Do(req)
-	defer res.Body.Close()
 	if err != nil {
 		log.Println(err.Error())
 		return fmt.Errorf("Error posting to slack")
 	}
+	defer res.Body.Close()
 	if res.StatusCode != 200 {
 		log.Printf("%s", payload)
 		log.Println(res.StatusCode)
