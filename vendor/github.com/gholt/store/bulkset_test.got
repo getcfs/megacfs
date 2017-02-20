@@ -2,11 +2,11 @@ package store
 
 import (
     "bytes"
-    //"encoding/binary"
+    "encoding/binary"
     "io"
     "testing"
 
-    //"github.com/gholt/ring"
+    "github.com/gholt/ring"
     "golang.org/x/net/context"
 )
 
@@ -115,7 +115,6 @@ func Test{{.T}}BulkSetReadLowSendCap(t *testing.T) {
     }
 }
 
-/* Temporarily disabled due to REMOVEME code in bulkset.got
 func Test{{.T}}BulkSetMsgWithoutAck(t *testing.T) {
     b := ring.NewBuilder(64)
     n, err := b.AddNode(true, 1, nil, nil, "", nil)
@@ -160,9 +159,7 @@ func Test{{.T}}BulkSetMsgWithoutAck(t *testing.T) {
         t.Fatal(v2)
     }
 }
-*/
 
-/*
 func Test{{.T}}BulkSetMsgWithAck(t *testing.T) {
     b := ring.NewBuilder(64)
     n, err := b.AddNode(true, 1, nil, nil, "", nil)
@@ -191,7 +188,7 @@ func Test{{.T}}BulkSetMsgWithAck(t *testing.T) {
     // only one of these, so if we get it back we know the previous data was
     // processed
     <-store.bulkSetState.inFreeMsgChan
-    ts, v, err := store.Read(1, 2{{if eq .t "group"}}, 3, 4{{end}}, nil)
+    ts, v, err := store.Read(context.Background(), 1, 2{{if eq .t "group"}}, 3, 4{{end}}, nil)
     if err != nil {
         t.Fatal(err)
     }
@@ -236,7 +233,7 @@ func Test{{.T}}BulkSetMsgWithoutRing(t *testing.T) {
     // only one of these, so if we get it back we know the previous data was
     // processed
     <-store.bulkSetState.inFreeMsgChan
-    ts, v, err := store.Read(1, 2{{if eq .t "group"}}, 3, 4{{end}}, nil)
+    ts, v, err := store.Read(context.Background(), 1, 2{{if eq .t "group"}}, 3, 4{{end}}, nil)
     if err != nil {
         t.Fatal(err)
     }
@@ -280,7 +277,7 @@ func Test{{.T}}BulkSetMsgOut(t *testing.T) {
     if !bytes.Equal(buf.Bytes(), []byte{0, 0, 0, 0, 0, 0, 0, 0}) {
         t.Fatal(buf.Bytes())
     }
-    bsm.Free()
+    bsm.Free(0, 0)
     bsm = store.newOutBulkSetMsg()
     binary.BigEndian.PutUint64(bsm.header, 12345)
     bsm.add(1, 2{{if eq .t "group"}}, 3, 4{{end}}, 0x500, nil)
@@ -321,7 +318,7 @@ func Test{{.T}}BulkSetMsgOut(t *testing.T) {
     }) {
         t.Fatal(buf.Bytes())
     }
-    bsm.Free()
+    bsm.Free(0, 0)
 }
 
 func Test{{.T}}BulkSetMsgOutdefaultsToFromLocalNode(t *testing.T) {
@@ -358,7 +355,7 @@ func Test{{.T}}BulkSetMsgOutWriteError(t *testing.T) {
     if err == nil {
         t.Fatal(err)
     }
-    bsm.Free()
+    bsm.Free(0, 0)
 }
 
 func Test{{.T}}BulkSetMsgOutHitCap(t *testing.T) {
@@ -378,4 +375,3 @@ func Test{{.T}}BulkSetMsgOutHitCap(t *testing.T) {
         t.Fatal("")
     }
 }
-*/
