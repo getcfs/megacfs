@@ -87,6 +87,22 @@ curl -s -i -H "Content-Type: application/json" -d '
   }
 }' http://localhost:5000/v3/auth/tokens | grep 'X-Subject-Token' | cut -d' ' -f2`
 
+export OS_TOKEN=`
+curl -s -i -H "Content-Type: application/json" -d '
+{ "auth": {
+    "identity": {
+      "methods": ["password"],
+      "password": {
+        "user": {
+          "name": "test",
+          "domain": { "id": "default" },
+          "password": "test"
+        }
+      }
+    }
+  }
+}' http://localhost:5000/v3/auth/tokens | grep 'X-Subject-Token' | cut -d' ' -f2`
+
 ## validate tokens with the super token
 curl -i \
 -H "X-Auth-Token: ADMIN" \
@@ -127,3 +143,19 @@ curl -i \
 -H "X-Auth-Token: $SERVICE_TOKEN" \
 -H "X-Subject-Token: $TEST_TOKEN" \
 http://localhost:5000/v3/auth/tokens ; echo
+
+
+curl -s -i -H "Content-Type: application/json" -d '
+{ "auth": {
+    "identity": {
+      "methods": ["password"],
+      "password": {
+        "user": {
+          "name": "admin",
+          "domain": { "id": "default" },
+          "password": "admin"
+        }
+      }
+    }
+  }
+}' http://cfsadmin.qe02.iad.rackfs.com:5000/v3/auth/tokens | grep 'X-Subject-Token' | cut -d' ' -f2
