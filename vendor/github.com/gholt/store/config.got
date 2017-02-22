@@ -11,7 +11,7 @@ import (
 
     "github.com/gholt/locmap"
     "github.com/gholt/ring"
-    "github.com/uber-go/zap"
+    "go.uber.org/zap"
 )
 
 // Absolute minimum: timestampnano:8 leader plus at least one TOC entry
@@ -29,8 +29,8 @@ type {{.T}}StoreConfig struct {
     // Logger defines where log output will go. This library has minimal log
     // output (most meta data is sent via metrics) but some errors and debug
     // logging does exist. If not set, the logger will default to
-    // zap.New(zap.NewJSONEncoder()).
-    Logger zap.Logger
+    // zap.NewProduction()
+    Logger *zap.Logger
     // LoggerName is used as a prefix when setting the "name" field with log
     // messages. For example, given a LoggerName of "mystoreapp", this library
     // would log under names such as "mystoreapp.compaction" and

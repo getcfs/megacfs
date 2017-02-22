@@ -20,7 +20,7 @@ import (
 	"github.com/gholt/locmap"
 	"github.com/gholt/ring"
 	"github.com/spaolacci/murmur3"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
@@ -30,7 +30,7 @@ type defaultValueStore struct {
 	// 0 = not running, 1 = running, 2 = can't run due to previous error
 	running int
 
-	logger                  zap.Logger
+	logger                  *zap.Logger
 	loggerPrefix            string
 	randMutex               sync.Mutex
 	rand                    *rand.Rand
@@ -214,7 +214,11 @@ func NewValueStore(c *ValueStoreConfig) (ValueStore, chan error) {
 		isNotExist:              cfg.IsNotExist,
 	}
 	if store.logger == nil {
-		store.logger = zap.New(zap.NewJSONEncoder())
+		var err error
+		store.logger, err = zap.NewProduction()
+		if err != nil {
+			panic(err)
+		}
 	}
 	if store.loggerPrefix != "" {
 		store.loggerPrefix += "."
@@ -961,7 +965,7 @@ func (store *defaultValueStore) recovery() error {
 						wr.BlockID = 0
 					}
 					atomic.AddInt64(&encounteredValues, 1)
-					if cm := store.logger.Check(zap.DebugLevel, "debug?"); cm.OK() {
+					if store.logger.Check(zap.DebugLevel, "debug?") != nil {
 						if store.locmap.Set(wr.KeyA, wr.KeyB, wr.TimestampBits, wr.BlockID, wr.Offset, wr.Length, true) < wr.TimestampBits {
 							atomic.AddInt64(&causedChangeCount, 1)
 						}
@@ -1027,7 +1031,7 @@ func (store *defaultValueStore) recovery() error {
 		closeIfCloser(fpr)
 	}
 	spindown()
-	if cm := store.logger.Check(zap.DebugLevel, "stats"); cm.OK() {
+	if cm := store.logger.Check(zap.DebugLevel, "stats"); cm != nil {
 		dur := time.Now().Sub(start)
 		stringerStats, err := store.Stats(context.Background(), false)
 		if err != nil {

@@ -13,7 +13,7 @@ import (
 	"github.com/getcfs/megacfs/formic"
 	"github.com/getcfs/megacfs/oort/api/server"
 	"github.com/gholt/ring"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
@@ -45,14 +45,23 @@ func main() {
 	var replValueCertPath string
 	var replValueKeyPath string
 
-	loggerLevel := zap.InfoLevel
+	debug := false
 	for _, arg := range os.Args[1:] {
 		switch arg {
 		case "debug", "--debug":
-			loggerLevel = zap.DebugLevel
+			debug = true
 		}
 	}
-	baseLogger := zap.New(zap.NewJSONEncoder(), loggerLevel)
+	var baseLogger *zap.Logger
+	var err error
+	if debug {
+		baseLogger, err = zap.NewDevelopmentConfig().Build()
+	} else {
+		baseLogger, err = zap.NewProduction()
+	}
+	if err != nil {
+		panic(err)
+	}
 	logger := baseLogger.With(zap.String("name", "cfsd"))
 
 	fp, err := os.Open(ringPath)

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gholt/store"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"golang.org/x/net/context"
@@ -62,10 +62,10 @@ type Cleaninator struct {
 	in    chan *DirtyItem
 	fs    FileService
 	comms *StoreComms
-	log   zap.Logger
+	log   *zap.Logger
 }
 
-func NewCleaninator(in chan *DirtyItem, fs FileService, comms *StoreComms, logger zap.Logger) *Cleaninator {
+func NewCleaninator(in chan *DirtyItem, fs FileService, comms *StoreComms, logger *zap.Logger) *Cleaninator {
 	return &Cleaninator{
 		in:    in,
 		fs:    fs,
@@ -79,7 +79,7 @@ func (c *Cleaninator) Run() {
 	for {
 		toclean := <-c.in
 		dirty := toclean.dirty
-		c.log.Debug("Cleaning", zap.Object("item", dirty))
+		c.log.Debug("Cleaning", zap.Any("item", dirty))
 		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		fails := 0
 		for b := dirty.Blocks + 1; b > 0; b-- {
@@ -100,7 +100,7 @@ func (c *Cleaninator) Run() {
 			c.in <- toclean
 		} else {
 			// All orphaned data is deleted so remove the tombstone
-			c.log.Debug("Done Cleaning", zap.Object("item", dirty))
+			c.log.Debug("Done Cleaning", zap.Any("item", dirty))
 			err := c.comms.DeleteGroupItem(ctx, GetDirtyID(dirty.FsId), []byte(fmt.Sprintf("%d", dirty.Inode)))
 			if err != nil && !store.IsNotFound(err) {
 				// Failed to remove so queue again to retry later
@@ -123,10 +123,10 @@ type Deletinator struct {
 	in    chan *DeleteItem
 	fs    FileService
 	comms *StoreComms
-	log   zap.Logger
+	log   *zap.Logger
 }
 
-func NewDeletinator(in chan *DeleteItem, fs FileService, comms *StoreComms, logger zap.Logger) *Deletinator {
+func NewDeletinator(in chan *DeleteItem, fs FileService, comms *StoreComms, logger *zap.Logger) *Deletinator {
 	return &Deletinator{
 		in:    in,
 		fs:    fs,
@@ -140,7 +140,7 @@ func (d *Deletinator) Run() {
 	for {
 		todelete := <-d.in
 		ts := todelete.ts
-		d.log.Debug("Deleting", zap.Object("tombstone", ts))
+		d.log.Debug("Deleting", zap.Any("tombstone", ts))
 		deleted := uint64(0)
 		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		for b := uint64(0); b < ts.Blocks; b++ {
@@ -165,7 +165,7 @@ func (d *Deletinator) Run() {
 			d.in <- todelete
 		}
 		// All artifacts are deleted so remove the delete tombstone
-		d.log.Debug("Done Deleting", zap.Object("tombstone", ts))
+		d.log.Debug("Done Deleting", zap.Any("tombstone", ts))
 		err := d.comms.DeleteGroupItem(ctx, GetDeletedID(ts.FsId), []byte(fmt.Sprintf("%d", ts.Inode)))
 		if err != nil && !store.IsNotFound(err) {
 			// Failed to remove so queue again to retry later

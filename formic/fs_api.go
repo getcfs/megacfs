@@ -29,7 +29,7 @@ import (
 	"github.com/prometheus/common/log"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spaolacci/murmur3"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -91,7 +91,7 @@ func clear(v interface{}) {
 type FileSystemAPIServer struct {
 	gstore       store.GroupStore
 	vstore       store.ValueStore
-	log          zap.Logger
+	log          *zap.Logger
 	authUrl      string
 	authUser     string
 	authPassword string
@@ -102,7 +102,7 @@ type FileSystemAPIServer struct {
 var FSAttrList = []string{"name"}
 
 // NewFileSystemAPIServer ...
-func NewFileSystemAPIServer(cfg *Config, grpstore store.GroupStore, valstore store.ValueStore, logger zap.Logger) *FileSystemAPIServer {
+func NewFileSystemAPIServer(cfg *Config, grpstore store.GroupStore, valstore store.ValueStore, logger *zap.Logger) *FileSystemAPIServer {
 	s := &FileSystemAPIServer{
 		gstore:       grpstore,
 		vstore:       valstore,
@@ -202,7 +202,7 @@ func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSReques
 	}
 
 	// Create the Root entry data
-	log.Debug("Creating new root", zap.Base64("root", id))
+	log.Debug("Creating new root", zap.Binary("root", id))
 	// Prepare the root node
 	nr := &pb.InodeEntry{
 		Version: InodeEntryVersion,

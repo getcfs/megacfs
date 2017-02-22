@@ -19,7 +19,7 @@ import (
 	"github.com/gholt/store"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spaolacci/murmur3"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
@@ -34,11 +34,11 @@ type apiServer struct {
 	updateChan chan *UpdateItem
 	comms      *StoreComms
 	validIPs   map[string]map[string]time.Time
-	log        zap.Logger
+	log        *zap.Logger
 }
 
 // NewApiServer ...
-func NewApiServer(fs FileService, nodeID int, comms *StoreComms, logger zap.Logger) (uint64, *apiServer) {
+func NewApiServer(fs FileService, nodeID int, comms *StoreComms, logger *zap.Logger) (uint64, *apiServer) {
 	s := new(apiServer)
 	s.fs = fs
 	s.comms = comms
@@ -287,7 +287,7 @@ func (s *apiServer) Write(ctx context.Context, r *pb.WriteRequest) (*pb.WriteRes
 			data, err := s.fs.GetChunk(ctx, id)
 			if firstOffset > 0 && err != nil {
 				// TODO: How do we differentiate a block that hasn't been created yet, and a block that is truely missing?
-				s.log.Debug("Couldn't read block for write", zap.Base64("block_id", id))
+				s.log.Debug("Couldn't read block for write", zap.Binary("block_id", id))
 			} else {
 				if len(data) > len(chunk) {
 					chunk = data

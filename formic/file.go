@@ -14,7 +14,7 @@ import (
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
 	"github.com/spaolacci/murmur3"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
@@ -64,11 +64,11 @@ var ErrFileNotFound = errors.New("Not found")
 type StoreComms struct {
 	vstore store.ValueStore
 	gstore store.GroupStore
-	log    zap.Logger
+	log    *zap.Logger
 }
 
 // NewStoreComms ...
-func NewStoreComms(vstore store.ValueStore, gstore store.GroupStore, logger zap.Logger) (*StoreComms, error) {
+func NewStoreComms(vstore store.ValueStore, gstore store.GroupStore, logger *zap.Logger) (*StoreComms, error) {
 	return &StoreComms{
 		vstore: vstore,
 		gstore: gstore,
@@ -200,11 +200,11 @@ type OortFS struct {
 	comms      *StoreComms
 	deleteChan chan *DeleteItem
 	dirtyChan  chan *DirtyItem
-	log        zap.Logger
+	log        *zap.Logger
 }
 
 // NewOortFS ...
-func NewOortFS(comms *StoreComms, logger zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem) *OortFS {
+func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem) *OortFS {
 	o := &OortFS{
 		hasher:     crc32.NewIEEE,
 		comms:      comms,
