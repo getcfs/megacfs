@@ -1,13 +1,12 @@
 SHA := $(shell git rev-parse --short HEAD)
 VERSION := $(shell cat VERSION)
-SRCPATH := "oort/"
 BUILDPATH := "build/"
 LD_FLAGS := -s -w
 GOVERSION := $(shell go version | sed -e 's/ /-/g')
 BDATE := $(shell date -u +%Y-%m-%d.%H:%M:%S)
 
 test:
-	go test $(shell glide novendor)
+	go test $(shell go list ./... | grep -v /vendor/)
 
 build:
 	mkdir -p $(BUILDPATH)
@@ -32,7 +31,4 @@ clean:
 	rm -rf $(BUILDPATH)
 
 install:
-	go install -v $(shell glide novendor)
-
-up:
-	glide up -u --strip-vcs
+	go install -v $(shell go list ./... | grep -v /vendor/)
