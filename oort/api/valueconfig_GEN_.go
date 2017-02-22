@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/getcfs/megacfs/ftls"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -16,7 +16,7 @@ import (
 type ValueStoreConfig struct {
 	// Logger defines where log output will go. If not set, the logger will
 	// default to zap.New(zap.NewJSONEncoder()).
-	Logger zap.Logger
+	Logger *zap.Logger
 	// AddressIndex indicates which of the ring node addresses to use when
 	// connecting to a node (see github.com/gholt/ring/Node.Address).
 	AddressIndex int

@@ -7,7 +7,7 @@ import (
     "time"
 
     "github.com/gholt/brimtime"
-    "github.com/uber-go/zap"
+    "go.uber.org/zap"
 )
 
 type {{.t}}TombstoneDiscardState struct {

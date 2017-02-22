@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gholt/brimtime"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const _VALUE_PULL_REPLICATION_MSG_TYPE = 0x579c4bd162f045b3

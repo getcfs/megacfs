@@ -15,7 +15,7 @@ import (
 
 	"github.com/gholt/brimio"
 	"github.com/spaolacci/murmur3"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 //    "VALUESTORETOC v0            ":28, checksumInterval:4

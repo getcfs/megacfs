@@ -6,7 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // bsam: entries:n

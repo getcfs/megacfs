@@ -7,7 +7,7 @@ import (
 
     "github.com/cloudfoundry/gosigar"
     "github.com/ricochet2200/go-disk-usage/du"
-    "github.com/uber-go/zap"
+    "go.uber.org/zap"
 )
 
 type {{.t}}WatcherState struct {

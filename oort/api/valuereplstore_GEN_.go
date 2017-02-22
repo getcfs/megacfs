@@ -12,13 +12,13 @@ import (
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/gholt/ring"
 	"github.com/gholt/store"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
 type ReplValueStore struct {
-	logger                     zap.Logger
+	logger                     *zap.Logger
 	addressIndex               int
 	valueCap                   int
 	poolSize                   int
@@ -52,7 +52,11 @@ func NewReplValueStore(c *ValueStoreConfig) *ReplValueStore {
 		ringClientID:               cfg.RingClientID,
 	}
 	if rs.logger == nil {
-		rs.logger = zap.New(zap.NewJSONEncoder())
+		var err error
+		rs.logger, err = zap.NewProduction()
+		if err != nil {
+			panic(err)
+		}
 	}
 	if rs.ringCachePath != "" {
 		if fp, err := os.Open(rs.ringCachePath); err != nil {

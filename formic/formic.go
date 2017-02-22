@@ -8,7 +8,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/spaolacci/murmur3"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -71,7 +71,7 @@ func Unmarshal(buf []byte, pb proto.Message) error {
 }
 
 // Todo: return a server struct that we can gracefully restart and shutdown
-func NewFormicServer(cfg *Config, logger zap.Logger) error {
+func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 
 	creds, err := credentials.NewServerTLSFromFile(cfg.CertFile, cfg.KeyFile)
 	if err != nil {
