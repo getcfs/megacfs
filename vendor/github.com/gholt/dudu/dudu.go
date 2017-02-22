@@ -173,7 +173,11 @@ func DUDU(args []string) error {
 						fmt.Printf("%s\t%s\n", bsit(dirCounts[subitem]), subitem)
 					}
 				}
-				fmt.Printf("%s\t%s\n", bsit(dirCounts[item]), item)
+				subitem := item
+				if item[len(item)-1] == '/' {
+					subitem = item[:len(item)-1]
+				}
+				fmt.Printf("%s\t%s\n", bsit(dirCounts[subitem]), item)
 			} else {
 				fmt.Printf("%s\t%s\n", bsit(fileCounts[item]), item)
 			}
