@@ -125,6 +125,9 @@ FIND_LOCAL_NODE:
 			}
 		}
 	}
+	if formicIP == "" {
+		logger.Fatal("No local IP match within ring.")
+	}
 	formicCertPath = "/etc/cfsd/" + formicIP + ".pem"
 	formicKeyPath = "/etc/cfsd/" + formicIP + "-key.pem"
 	grpcGroupCertPath = "/etc/cfsd/" + grpcGroupIP + ".pem"
