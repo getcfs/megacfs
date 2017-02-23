@@ -9,7 +9,6 @@ import (
 
 type Config struct {
 	NodeID int
-	Debug  bool
 
 	FormicAddressIndex int
 	GroupAddressIndex  int
@@ -27,6 +26,12 @@ type Config struct {
 	SkipAuth     bool
 }
 
+func NewConfig() *Config {
+	return &Config{
+		NodeID: -1,
+	}
+}
+
 func ResolveConfig(c *Config) *Config {
 	cfg := &Config{}
 	if c != nil {
@@ -41,17 +46,11 @@ func ResolveConfig(c *Config) *Config {
 	if env := os.Getenv("AUTH_PASSWORD"); env != "" {
 		cfg.AuthPassword = env
 	}
-	cfg.NodeID = -1
 	if env := os.Getenv("FORMIC_NODE_ID"); env != "" {
 		if val, err := strconv.Atoi(env); err == nil {
 			cfg.NodeID = val
 		}
 	}
-	cfg.Debug = false
-	if env := os.Getenv("DEBUG"); env == "true" {
-		cfg.Debug = true
-	}
-	cfg.SkipAuth = false
 	if env := os.Getenv("SKIP_AUTH"); env == "true" {
 		cfg.SkipAuth = true
 	}

@@ -221,20 +221,20 @@ FIND_LOCAL_NODE:
 	}
 
 	// Startup formic
-	err = formic.NewFormicServer(&formic.Config{
-		FormicAddressIndex: ADDR_FORMIC,
-		ValueAddressIndex:  ADDR_VALUE_GRPC,
-		GroupAddressIndex:  ADDR_GROUP_GRPC,
-		CertFile:           formicCertPath,
-		KeyFile:            formicKeyPath,
-		CAFile:             caPath,
-		Ring:               oneRing,
-		RingPath:           ringPath,
-		IpAddr:             formicIP,
-		AuthUrl:            "http://localhost:5000",
-		AuthUser:           "admin",
-		AuthPassword:       "admin",
-	}, logger)
+	formicCfg := formic.NewConfig()
+	formicCfg.FormicAddressIndex = ADDR_FORMIC
+	formicCfg.ValueAddressIndex = ADDR_VALUE_GRPC
+	formicCfg.GroupAddressIndex = ADDR_GROUP_GRPC
+	formicCfg.CertFile = formicCertPath
+	formicCfg.KeyFile = formicKeyPath
+	formicCfg.CAFile = caPath
+	formicCfg.Ring = oneRing
+	formicCfg.RingPath = ringPath
+	formicCfg.IpAddr = formicIP
+	formicCfg.AuthUrl = "http://localhost:5000"
+	formicCfg.AuthUser = "admin"
+	formicCfg.AuthPassword = "admin"
+	err = formic.NewFormicServer(formicCfg, logger)
 	if err != nil {
 		logger.Fatal("Couldn't start up formic", zap.Error(err))
 	}
