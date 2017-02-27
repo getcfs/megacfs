@@ -13,8 +13,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/getcfs/fuse"
-	"github.com/getcfs/fuse/fuseutil"
+	"bazil.org/fuse"
+	"bazil.org/fuse/fuseutil"
 	pb "github.com/getcfs/megacfs/formic/proto"
 )
 

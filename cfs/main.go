@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/getcfs/fuse"
+	"bazil.org/fuse"
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/cpcp"
 	"github.com/gholt/dudu"
