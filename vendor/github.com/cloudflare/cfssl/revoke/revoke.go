@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	neturl "net/url"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ocsp"
@@ -30,6 +31,7 @@ var HardFail = false
 // CRLSet associates a PKIX certificate list with the URL the CRL is
 // fetched from.
 var CRLSet = map[string]*pkix.CertificateList{}
+var crlLock = new(sync.Mutex)
 
 // We can't handle LDAP certificates, so this checks to see if the
 // URL string points to an LDAP resource so that we can ignore it.
@@ -132,7 +134,9 @@ func certIsRevokedCRL(cert *x509.Certificate, url string) (revoked, ok bool) {
 	crl, ok := CRLSet[url]
 	if ok && crl == nil {
 		ok = false
+		crlLock.Lock()
 		delete(CRLSet, url)
+		crlLock.Unlock()
 	}
 
 	var shouldFetchCRL = true
@@ -161,7 +165,9 @@ func certIsRevokedCRL(cert *x509.Certificate, url string) (revoked, ok bool) {
 			}
 		}
 
+		crlLock.Lock()
 		CRLSet[url] = crl
+		crlLock.Unlock()
 	}
 
 	for _, revoked := range crl.TBSCertList.RevokedCertificates {
@@ -257,14 +263,12 @@ func certIsRevokedOCSP(leaf *x509.Certificate, strict bool) (revoked, ok bool) {
 	return
 }
 
-var ocspUnauthorised = []byte{0x30, 0x03, 0x0a, 0x01, 0x06}
-var ocspMalformed = []byte{0x30, 0x03, 0x0a, 0x01, 0x01}
-
 // sendOCSPRequest attempts to request an OCSP response from the
 // server. The error only indicates a failure to *fetch* the
 // certificate, and *does not* mean the certificate is valid.
-func sendOCSPRequest(server string, req []byte, issuer *x509.Certificate) (ocspResponse *ocsp.Response, err error) {
+func sendOCSPRequest(server string, req []byte, issuer *x509.Certificate) (*ocsp.Response, error) {
 	var resp *http.Response
+	var err error
 	if len(req) > 256 {
 		buf := bytes.NewBuffer(req)
 		resp, err = http.Post(server, "application/ocsp-request", buf)
@@ -274,25 +278,30 @@ func sendOCSPRequest(server string, req []byte, issuer *x509.Certificate) (ocspR
 	}
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return
+		return nil, errors.New("failed to retrieve OSCP")
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return
+		return nil, err
 	}
 	resp.Body.Close()
 
-	if bytes.Equal(body, ocspUnauthorised) {
-		return
-	}
-
-	if bytes.Equal(body, ocspMalformed) {
-		return
+	switch {
+	case bytes.Equal(body, ocsp.UnauthorizedErrorResponse):
+		return nil, errors.New("OSCP unauthorized")
+	case bytes.Equal(body, ocsp.MalformedRequestErrorResponse):
+		return nil, errors.New("OSCP malformed")
+	case bytes.Equal(body, ocsp.InternalErrorErrorResponse):
+		return nil, errors.New("OSCP internal error")
+	case bytes.Equal(body, ocsp.TryLaterErrorResponse):
+		return nil, errors.New("OSCP try later")
+	case bytes.Equal(body, ocsp.SigRequredErrorResponse):
+		return nil, errors.New("OSCP signature required")
 	}
 
 	return ocsp.ParseResponse(body, issuer)

@@ -1,0 +1,10 @@
+# pack-refs with: peeled fully-peeled 
+12592ca48efc73057c0edcdddc2a279b37c2b27b refs/remotes/origin/_start_-bettertest-part_1.0
+25b40c0a56162ff0e1376d8254ce395532b03d07 refs/remotes/origin/bettertest-part_1.0
+382317ee3ebb6d1eda419167fed89548282d7ee8 refs/remotes/origin/color
+12592ca48efc73057c0edcdddc2a279b37c2b27b refs/remotes/origin/master
+ee253a188011cba3386f4ddb3321718d537d5a16 refs/remotes/origin/stacktrace
+7b570da7907863367834f20d9cead0dbc770b1a7 refs/remotes/origin/update-benchmarks
+c064b5c44b285a7e2fd5c9b26e8c38228ce2bccb refs/tags/v0.1.0-beta.1
+72313cde80537dd4dc9b7b80eda6d7ed796c4232 refs/tags/v1.0.0-rc.1
+a03b90bc236f3def382f17743518889a31f8187c refs/tags/v1.0.0-rc.2

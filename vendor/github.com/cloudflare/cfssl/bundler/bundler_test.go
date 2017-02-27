@@ -239,23 +239,10 @@ func TestBundleWithRSAKeyMarshalJSON(t *testing.T) {
 // Test marshal to JSON on hostnames
 func TestBundleHostnamesMarshalJSON(t *testing.T) {
 	b := newBundler(t)
-	bundle, err := b.BundleFromRemote("www.cloudflare.com", "", Ubiquitous)
-	if err != nil {
-		t.Fatal(err)
-	}
-	hostnames, err := json.Marshal(bundle.Hostnames)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expectedOne := []byte(`["www.cloudflare.com","cloudflare.com"]`)
-	expectedTheOther := []byte(`["cloudflare.com","www.cloudflare.com"]`)
-	if !bytes.Equal(hostnames, expectedOne) && !bytes.Equal(hostnames, expectedTheOther) {
-		t.Fatal("Hostnames construction failed for cloudflare.com.", string(hostnames))
-	}
 
-	bundle, _ = b.BundleFromPEMorDER(GoDaddyIntermediateCert, nil, Optimal, "")
+	bundle, _ := b.BundleFromPEMorDER(GoDaddyIntermediateCert, nil, Optimal, "")
 	expected := []byte(`["Go Daddy Secure Certification Authority"]`)
-	hostnames, _ = json.Marshal(bundle.Hostnames)
+	hostnames, _ := json.Marshal(bundle.Hostnames)
 	if !bytes.Equal(hostnames, expected) {
 		t.Fatal("Hostnames construction failed for godaddy root cert.", string(hostnames))
 	}
@@ -301,9 +288,9 @@ func TestRebundleExpiring(t *testing.T) {
 	policy := &config.Signing{
 		Profiles: map[string]*config.SigningProfile{
 			"expireIn1Hour": {
-				Usage:  []string{"cert sign"},
-				Expiry: expiry,
-				CA:     true,
+				Usage:        []string{"cert sign"},
+				Expiry:       expiry,
+				CAConstraint: config.CAConstraint{IsCA: true},
 			},
 		},
 		Default: config.DefaultConfig(),
@@ -993,4 +980,16 @@ func TestBundlerWithEmptyRootInfo(t *testing.T) {
 	}
 	checkBundleFunc = ExpectBundleLength(2)
 	checkBundleFunc(t, bundle)
+}
+
+func TestBundlerClientAuth(t *testing.T) {
+	b, err := NewBundler("testdata/client-auth/root.pem", "testdata/client-auth/int.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leafFile := range []string{"testdata/client-auth/leaf-server.pem", "testdata/client-auth/leaf-client.pem"} {
+		if _, err := b.BundleFromFile(leafFile, "", Optimal, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
 }

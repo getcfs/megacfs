@@ -1,0 +1,4 @@
+# pack-refs with: peeled fully-peeled 
+dfaa4d491586af21e1ce06028df3926389a99654 refs/remotes/origin/master
+ead00a8e0c6739ad3c47f1158432d4ae8c387de4 refs/tags/scotty_09012012
+^95cbeda03a6dd5339030585805e928009834e073

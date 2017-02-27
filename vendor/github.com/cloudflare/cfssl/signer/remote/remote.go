@@ -4,11 +4,13 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"net/http"
 
 	"github.com/cloudflare/cfssl/api/client"
 	"github.com/cloudflare/cfssl/certdb"
 	"github.com/cloudflare/cfssl/config"
 	cferr "github.com/cloudflare/cfssl/errors"
+	"github.com/cloudflare/cfssl/helpers"
 	"github.com/cloudflare/cfssl/info"
 	"github.com/cloudflare/cfssl/signer"
 )
@@ -16,7 +18,8 @@ import (
 // A Signer represents a CFSSL instance running as signing server.
 // fulfills the signer.Signer interface
 type Signer struct {
-	policy *config.Signing
+	policy      *config.Signing
+	reqModifier func(*http.Request, []byte)
 }
 
 // NewSigner creates a new remote Signer directly from a
@@ -74,11 +77,13 @@ func (s *Signer) remoteOp(req interface{}, profile, target string) (resp interfa
 		return
 	}
 
-	server := client.NewServer(p.RemoteServer)
+	server := client.NewServerTLS(p.RemoteServer, helpers.CreateTLSConfig(p.RemoteCAs, p.ClientCert))
 	if server == nil {
 		return nil, cferr.Wrap(cferr.PolicyError, cferr.InvalidRequest,
 			errors.New("failed to connect to remote"))
 	}
+
+	server.SetReqModifier(s.reqModifier)
 
 	// There's no auth provider for the "info" method
 	if target == "info" {
@@ -110,6 +115,11 @@ func (s *Signer) SetPolicy(policy *config.Signing) {
 // SetDBAccessor sets the signers' cert db accessor
 func (s *Signer) SetDBAccessor(dba certdb.Accessor) {
 	// noop
+}
+
+// SetReqModifier sets the function to call to modify the HTTP request prior to sending it
+func (s *Signer) SetReqModifier(mod func(*http.Request, []byte)) {
+	s.reqModifier = mod
 }
 
 // Policy returns the signer's policy.

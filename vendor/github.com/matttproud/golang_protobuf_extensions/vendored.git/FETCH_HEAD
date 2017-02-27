@@ -1,0 +1,5 @@
+c12348ce28de40eed0136aa2b644d0ee0650e56c		branch 'master' of https://github.com/matttproud/golang_protobuf_extensions
+23af6d7d9736e2906a08f94da7e9de9f23b96b9e	not-for-merge	branch 'refactor/buffer-retention' of https://github.com/matttproud/golang_protobuf_extensions
+cf251c14f26165d7a7369c51a095052d4822cb73	not-for-merge	branch 'refactor/new-directory-structure' of https://github.com/matttproud/golang_protobuf_extensions
+7e778b145b77141eb497d8d0e0a725553281a075	not-for-merge	branch 'testing/delete-pbtest' of https://github.com/matttproud/golang_protobuf_extensions
+7d2226a0b256044be1a933edbf2745c7c6c4e473	not-for-merge	branch 'testing/remove-externals' of https://github.com/matttproud/golang_protobuf_extensions
