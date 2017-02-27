@@ -161,6 +161,7 @@ func (b *Bundler) VerifyOptions() x509.VerifyOptions {
 		Intermediates: b.IntermediatePool,
 		KeyUsages: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
 			x509.ExtKeyUsageMicrosoftServerGatedCrypto,
 			x509.ExtKeyUsageNetscapeServerGatedCrypto,
 		},
@@ -611,9 +612,9 @@ func (b *Bundler) Bundle(certs []*x509.Certificate, key crypto.Signer, flavor Bu
 			}
 
 			log.Debugf("searching for intermediates via AIA issuer")
-			err = b.fetchIntermediates(certs)
-			if err != nil {
-				log.Debugf("search failed: %v", err)
+			searchErr := b.fetchIntermediates(certs)
+			if searchErr != nil {
+				log.Debugf("search failed: %v", searchErr)
 				return nil, errors.Wrap(errors.CertificateError, errors.VerifyFailed, err)
 			}
 
@@ -645,7 +646,6 @@ func (b *Bundler) Bundle(certs []*x509.Certificate, key crypto.Signer, flavor Bu
 	var messages []string
 	// Check if bundle is expiring.
 	expiringCerts := checkExpiringCerts(bundle.Chain)
-	bundle.Expires = helpers.ExpiryTime(bundle.Chain)
 	if len(expiringCerts) > 0 {
 		statusCode |= errors.BundleExpiringBit
 		messages = append(messages, expirationWarning(expiringCerts))
@@ -702,6 +702,8 @@ func (b *Bundler) Bundle(certs []*x509.Certificate, key crypto.Signer, flavor Bu
 	}
 
 	bundle.Status.IsRebundled = diff(bundle.Chain, certs)
+	bundle.Expires = helpers.ExpiryTime(bundle.Chain)
+	bundle.LeafExpires = bundle.Chain[0].NotAfter
 
 	log.Debugf("bundle complete")
 	return bundle, nil

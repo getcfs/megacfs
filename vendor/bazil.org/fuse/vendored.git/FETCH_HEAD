@@ -1,0 +1,5 @@
+371fbbdaa8987b715bdd21d6adc4c9b20155f748		branch 'master' of https://github.com/bazil/fuse
+6d28fdc5a2357a3a40985ed2b6d4c3af57d025d0	not-for-merge	branch 'wip-attr' of https://github.com/bazil/fuse
+56c06fdf24552e4eeda43c7fda3226c5418848fb	not-for-merge	branch 'wip-bench' of https://github.com/bazil/fuse
+4c126c17077aa0d029fc8f5ed5f36bc015b468a2	not-for-merge	branch 'wip-freebsd' of https://github.com/bazil/fuse
+3c5fc38c646b0f5a75182b1fcc38ac11a49d8389	not-for-merge	branch 'wip-osxfuse3' of https://github.com/bazil/fuse

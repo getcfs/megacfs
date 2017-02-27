@@ -1,0 +1,6 @@
+0208149b40d863d2c1a2f8fe5753096a9cf2cc8b		branch 'master' of https://github.com/Sirupsen/logrus
+b2322b7a15fa6fb24e18d495b6c8876e895e27e9	not-for-merge	branch 'break-out-specials' of https://github.com/Sirupsen/logrus
+f7e0e76df0e413f2ea2eea2ef1580bf8302f160b	not-for-merge	branch 'caller-hook' of https://github.com/Sirupsen/logrus
+af41a51636a06c626b65bd6e5fb396e0264e14bd	not-for-merge	branch 'hook-fire-fail' of https://github.com/Sirupsen/logrus
+f8f08842cce7ed05c296430852f60f287458c529	not-for-merge	branch 'log-to-stderr' of https://github.com/Sirupsen/logrus
+e178ef4efd314fc87c4b60a2e1d374bf93c067d9	not-for-merge	branch 'logstash' of https://github.com/Sirupsen/logrus

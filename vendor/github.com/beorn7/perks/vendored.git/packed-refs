@@ -1,0 +1,6 @@
+# pack-refs with: peeled fully-peeled 
+163b2a3474b8ab974135bac208df175d550f284d refs/remotes/origin/broken-but-fast
+408e7f0c0a99eb2c7fc205794594e7fe6c857598 refs/remotes/origin/histo
+4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9 refs/remotes/origin/master
+da3e0acc8525a74a0ac8651ac5e7a68891291fdf refs/remotes/origin/opt/pool-for-sample
+ea22b6eaf3d636b1ff43234fa83d93086d89e30a refs/remotes/origin/test/error-calculation

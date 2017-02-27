@@ -32,3 +32,9 @@ clean:
 
 install:
 	go install -v $(shell go list ./... | grep -v /vendor/)
+
+vendor-unlock:
+	find vendor/ -name vendored.git -execdir mv -i vendored.git .git \; -prune
+
+vendor-lock:
+	find vendor/ -name .git -execdir mv -i .git vendored.git \; -prune

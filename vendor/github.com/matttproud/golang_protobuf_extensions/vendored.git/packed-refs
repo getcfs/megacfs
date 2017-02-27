@@ -1,0 +1,8 @@
+# pack-refs with: peeled fully-peeled 
+c12348ce28de40eed0136aa2b644d0ee0650e56c refs/remotes/origin/master
+23af6d7d9736e2906a08f94da7e9de9f23b96b9e refs/remotes/origin/refactor/buffer-retention
+cf251c14f26165d7a7369c51a095052d4822cb73 refs/remotes/origin/refactor/new-directory-structure
+7e778b145b77141eb497d8d0e0a725553281a075 refs/remotes/origin/testing/delete-pbtest
+7d2226a0b256044be1a933edbf2745c7c6c4e473 refs/remotes/origin/testing/remove-externals
+b9b18cebe37dabe19485a34c54f4b7a964ba60d6 refs/tags/v1.0.0
+^3247c84500bff8d9fb6d579d800f20b3e091582c
