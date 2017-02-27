@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/getcfs/fuse"
+	"bazil.org/fuse"
 
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"github.com/gholt/brimtime"
