@@ -12,6 +12,7 @@ import (
 
 	"github.com/getcfs/megacfs/formic"
 	"github.com/getcfs/megacfs/oort/api/server"
+	"github.com/gholt/brimtext"
 	"github.com/gholt/ring"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -45,7 +46,7 @@ func main() {
 	var replValueCertPath string
 	var replValueKeyPath string
 
-	_, debug := os.LookupEnv("DEBUG")
+	debug := brimtext.TrueString(os.Getenv("DEBUG"))
 	for _, arg := range os.Args[1:] {
 		switch arg {
 		case "debug", "--debug":

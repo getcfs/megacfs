@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/gholt/brimtext"
 	"github.com/gholt/ring"
 )
 
@@ -51,8 +52,11 @@ func ResolveConfig(c *Config) *Config {
 			cfg.NodeID = val
 		}
 	}
-	if env := os.Getenv("SKIP_AUTH"); env == "true" {
+	if brimtext.TrueString(os.Getenv("SKIP_AUTH")) {
 		cfg.SkipAuth = true
+	}
+	if brimtext.FalseString(os.Getenv("SKIP_AUTH")) {
+		cfg.SkipAuth = false
 	}
 
 	return cfg
