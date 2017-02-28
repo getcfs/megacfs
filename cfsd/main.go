@@ -45,7 +45,7 @@ func main() {
 	var replValueCertPath string
 	var replValueKeyPath string
 
-	debug := false
+	_, debug := os.LookupEnv("DEBUG")
 	for _, arg := range os.Args[1:] {
 		switch arg {
 		case "debug", "--debug":
