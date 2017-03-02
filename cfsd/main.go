@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,12 +15,14 @@ import (
 	"github.com/getcfs/megacfs/oort/api/server"
 	"github.com/gholt/brimtext"
 	"github.com/gholt/ring"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
 const (
-	ADDR_FORMIC = iota
+	ADDR_PROMETHEUS = iota
+	ADDR_FORMIC
 	ADDR_GROUP_GRPC
 	ADDR_GROUP_REPL
 	ADDR_VALUE_GRPC
@@ -30,11 +33,14 @@ func main() {
 	ringPath := "/etc/cfsd/cfs.ring"
 	caPath := "/etc/cfsd/ca.pem"
 	dataPath := "/var/lib/cfsd"
+	var prometheusIP string
 	var formicIP string
 	var grpcGroupIP string
 	var replGroupIP string
 	var grpcValueIP string
 	var replValueIP string
+	var prometheusCertPath string
+	var prometheusKeyPath string
 	var formicCertPath string
 	var formicKeyPath string
 	var grpcGroupCertPath string
@@ -95,8 +101,13 @@ FIND_LOCAL_NODE:
 					nodeIP := net.ParseIP(host)
 					if ipNet.IP.Equal(nodeIP) {
 						oneRing.SetLocalNode(node.ID())
-						nodeAddr = node.Address(ADDR_FORMIC)
+						nodeAddr = node.Address(ADDR_PROMETHEUS)
 						i := strings.LastIndex(nodeAddr, ":")
+						if i >= 0 {
+							prometheusIP = nodeAddr[:i]
+						}
+						nodeAddr = node.Address(ADDR_FORMIC)
+						i = strings.LastIndex(nodeAddr, ":")
 						if i >= 0 {
 							formicIP = nodeAddr[:i]
 						}
@@ -129,6 +140,8 @@ FIND_LOCAL_NODE:
 	if formicIP == "" {
 		logger.Fatal("No local IP match within ring.")
 	}
+	prometheusCertPath = "/etc/cfsd/" + prometheusIP + ".pem"
+	prometheusKeyPath = "/etc/cfsd/" + prometheusIP + "-key.pem"
 	formicCertPath = "/etc/cfsd/" + formicIP + ".pem"
 	formicKeyPath = "/etc/cfsd/" + formicIP + "-key.pem"
 	grpcGroupCertPath = "/etc/cfsd/" + grpcGroupIP + ".pem"
@@ -139,6 +152,14 @@ FIND_LOCAL_NODE:
 	grpcValueKeyPath = "/etc/cfsd/" + grpcValueIP + "-key.pem"
 	replValueCertPath = "/etc/cfsd/" + replValueIP + ".pem"
 	replValueKeyPath = "/etc/cfsd/" + replValueIP + "-key.pem"
+
+	hostPort, err := ring.CanonicalHostPort(oneRing.LocalNode().Address(ADDR_PROMETHEUS), 9100)
+	if err != nil {
+		logger.Fatal("Erroring translating configured prometheus address.", zap.Error(err))
+	}
+	logger.Warn("Need to switch Prometheus to using TLS", zap.String("cert", prometheusCertPath), zap.String("key", prometheusKeyPath))
+	http.Handle("/metrics", prometheus.Handler())
+	go http.ListenAndServe(hostPort, nil)
 
 	waitGroup := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
