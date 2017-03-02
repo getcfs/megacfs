@@ -151,7 +151,7 @@ add <public_ip> <private_ip>
 		if err := ring.CLI([]string{"cfsadm add", "/etc/cfsd/cfs.builder", "set-replicas", fmt.Sprintf("%d", replicaCount)}, os.Stdout, false); err != nil {
 			panic(err)
 		}
-		if err := ring.CLI([]string{"cfsadm add", "/etc/cfsd/cfs.builder", "add", "address0=" + publicIP + ":12300", "address1=" + privateIP + ":12310", "address2=" + privateIP + ":12311", "address3=" + privateIP + ":12320", "address4=" + privateIP + ":12321"}, os.Stdout, false); err != nil {
+		if err := ring.CLI([]string{"cfsadm add", "/etc/cfsd/cfs.builder", "add", "address0=" + publicIP + ":9100", "address1=" + publicIP + ":12300", "address2=" + privateIP + ":12310", "address3=" + privateIP + ":12311", "address4=" + privateIP + ":12320", "address5=" + privateIP + ":12321"}, os.Stdout, false); err != nil {
 			panic(err)
 		}
 		if err := ring.CLI([]string{"cfsadm add", "/etc/cfsd/cfs.builder", "ring"}, os.Stdout, false); err != nil {
