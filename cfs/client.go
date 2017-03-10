@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
+	"syscall"
 
 	pb "github.com/getcfs/megacfs/formic/proto"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/metadata"
 )
 
 // configuration ...
@@ -265,5 +268,59 @@ func revoke(addr, authURL, username, password string) error {
 		return fmt.Errorf("Request Error: %v", err)
 	}
 	fmt.Println(res.Data)
+	return nil
+}
+
+func check(addr string) error {
+	var filePath string
+	fsidBytes := make([]byte, 36)
+	f := flag.NewFlagSet("check", flag.ContinueOnError)
+	f.Usage = func() {
+		fmt.Println("Usage:")
+		fmt.Println("    cfs check <path/of/file/to/check>")
+		fmt.Println("Example:")
+		fmt.Println("    cfs check ./badfile.txt")
+		os.Exit(1)
+	}
+	f.Parse(flag.Args()[1:])
+	if f.NArg() == 1 {
+		filePath = f.Args()[0]
+	} else {
+		f.Usage()
+	}
+	filePath = path.Clean(filePath)
+	fileName := path.Base(filePath)
+	dirPath := path.Dir(filePath)
+	// Check for the fsid
+	_, err := syscall.Getxattr(dirPath, "cfs.fsid", fsidBytes)
+	if err != nil {
+		fmt.Println("Error determining fsid for path: ", dirPath)
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fsid := string(fsidBytes)
+	// Get the inode of the parent dir
+	var stat syscall.Stat_t
+	err = syscall.Stat(dirPath, &stat)
+	if err != nil {
+		fmt.Println("Error determining inode for: ", dirPath)
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	c := setupWS(addr)
+	defer c.Close()
+	ws := pb.NewApiClient(c)
+	ctx := context.Background()
+	ctx = metadata.NewContext(
+		ctx,
+		metadata.Pairs("fsid", fsid),
+	)
+	res, err := ws.Check(ctx, &pb.CheckRequest{Inode: stat.Ino, Name: fileName})
+	if err != nil {
+		fmt.Println("Error calling check: ", err)
+		os.Exit(1)
+	}
+	fmt.Println(res.Response)
+
 	return nil
 }

@@ -293,6 +293,7 @@ func main() {
 		fmt.Println("    revoke       revoke access to a filesystem")
 		fmt.Println("    mount        mount an existing filesystem")
 		fmt.Println("    version      show client version")
+		fmt.Println("    check        check a file for errors")
 		fmt.Println("    cp           parallel cp command; cfs cp --help")
 		fmt.Println("    du           parallel du command; cfs du --help")
 		fmt.Println("    find         parallel find command; cfs find --help")
@@ -394,6 +395,16 @@ func main() {
 			os.Exit(1)
 		}
 		err := revoke(addr, authURL, username, password)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	case "check":
+		if !configured {
+			fmt.Println("You must run \"cfs configure\" first.")
+			os.Exit(1)
+		}
+		err := check(addr)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
