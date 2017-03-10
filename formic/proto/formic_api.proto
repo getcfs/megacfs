@@ -28,6 +28,7 @@ service Api {
     rpc Rename(RenameRequest) returns (RenameResponse) {}
     rpc Statfs(StatfsRequest) returns (StatfsResponse) {}
     rpc InitFs(InitFsRequest) returns (InitFsResponse) {}
+    rpc Check(CheckRequest) returns (CheckResponse) {}
 }
 
 // DirEnt is a directory entry
@@ -251,7 +252,18 @@ message StatfsResponse {
 
 // InitFs
 message InitFsRequest {}
+
 message InitFsResponse {}
+
+// Check
+message CheckRequest {
+    uint64 inode = 1;
+    string name  = 2;
+}
+
+message CheckResponse {
+    string response = 1;    
+}
 
 // Since this data can sit around for a while, we track a version number of the api so that it
 // is easier to explicitly check what version we are using and act accordingly
