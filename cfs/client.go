@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	pb "github.com/getcfs/megacfs/formic/proto"
+	"github.com/pkg/xattr"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/metadata"
 )
@@ -273,7 +274,6 @@ func revoke(addr, authURL, username, password string) error {
 
 func check(addr string) error {
 	var filePath string
-	fsidBytes := make([]byte, 36)
 	f := flag.NewFlagSet("check", flag.ContinueOnError)
 	f.Usage = func() {
 		fmt.Println("Usage:")
@@ -292,7 +292,10 @@ func check(addr string) error {
 	fileName := path.Base(filePath)
 	dirPath := path.Dir(filePath)
 	// Check for the fsid
-	_, err := syscall.Getxattr(dirPath, "cfs.fsid", fsidBytes)
+	fsidBytes, err := xattr.Get(dirPath, "cfs.fsid")
+	if err == nil && len(fsidBytes) != 36 {
+		err = fmt.Errorf("cfs.fsid incorrect length %d != 36", len(fsidBytes))
+	}
 	if err != nil {
 		fmt.Println("Error determining fsid for path: ", dirPath)
 		fmt.Println(err)
