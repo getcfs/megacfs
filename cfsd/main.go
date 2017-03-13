@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -63,6 +62,7 @@ func main() {
 	var err error
 	if debug {
 		baseLogger, err = zap.NewDevelopmentConfig().Build()
+		baseLogger.Debug("Logging in developer mode.")
 	} else {
 		baseLogger, err = zap.NewProduction()
 	}
@@ -137,8 +137,26 @@ FIND_LOCAL_NODE:
 			}
 		}
 	}
-	if formicIP == "" {
+	if oneRing.LocalNode() == nil {
 		logger.Fatal("No local IP match within ring.")
+	}
+	if prometheusIP == "" {
+		logger.Fatal("No prometheusIP in ring.")
+	}
+	if formicIP == "" {
+		logger.Fatal("No formicIP in ring.")
+	}
+	if grpcGroupIP == "" {
+		logger.Fatal("No grpcGroupIP in ring.")
+	}
+	if replGroupIP == "" {
+		logger.Fatal("No replGroupIP in ring.")
+	}
+	if grpcValueIP == "" {
+		logger.Fatal("No grpcValueIP in ring.")
+	}
+	if replValueIP == "" {
+		logger.Fatal("No replValueIP in ring.")
 	}
 	prometheusCertPath = "/etc/cfsd/" + prometheusIP + ".pem"
 	prometheusKeyPath = "/etc/cfsd/" + prometheusIP + "-key.pem"
@@ -268,7 +286,6 @@ FIND_LOCAL_NODE:
 		for {
 			select {
 			case <-ch:
-				fmt.Println("Shutting down due to signal")
 				close(shutdownChan)
 				waitGroup.Done()
 				return
@@ -279,6 +296,6 @@ FIND_LOCAL_NODE:
 		}
 	}()
 
-	fmt.Println("Done launching components")
+	logger.Debug("Done launching components; ready for action.")
 	waitGroup.Wait()
 }
