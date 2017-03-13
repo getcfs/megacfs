@@ -144,7 +144,7 @@ func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 	}
 	nodeID, apiServer := NewApiServer(fs, formicNodeID, comms, logger)
 	pb.RegisterApiServer(s, apiServer)
-	logger.Info("Starting formic and the filesystem API", zap.Uint64("node", nodeID))
+	logger.Debug("Starting formic and the filesystem API", zap.Uint64("node", nodeID))
 	go s.Serve(l)
 	return nil
 }
