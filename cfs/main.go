@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -147,31 +148,41 @@ func auth(authURL string, username string, password string) string {
 	return token
 }
 
-func mount() error {
+func mount(config map[string]string) error {
 	f := flag.NewFlagSet("mount", flag.ContinueOnError)
+	usageError := false
 	f.Usage = func() {
-		fmt.Println("Usage:")
-		fmt.Println("    cfs mount [-o option,...] <server addr>:<fsid> <mountpoint>")
-		fmt.Println("Options:")
-		fmt.Println("    -o debug          enables debug output")
-		fmt.Println("    -o ro             mount the filesystem read only")
-		fmt.Println("    -o allow_other    allow access to other users")
-		fmt.Println("Examples:")
-		fmt.Println("    cfs mount 127.0.0.1:11111111-1111-1111-1111-111111111111 /mnt/test")
-		fmt.Println("    cfs mount -o debug,ro 127.0.0.1:11111111-1111-1111-1111-111111111111 /mnt/test")
-		os.Exit(1)
+		usageError = true
 	}
+	usageErr := errors.New(strings.TrimSpace(`
+Usage:
+    cfs mount [-o option,...] [serveraddr:]<fsid> <mountpoint>
+Options:
+    -o debug          enables debug output
+    -o ro             mount the filesystem read only
+    -o allow_other    allow access to other users
+    -o noumount       skips the fusermount -uz retry on first error
+Examples:
+    cfs mount 11111111-1111-1111-1111-111111111111 /mnt/test
+    cfs mount -o debug,ro 127.0.0.1:11111111-1111-1111-1111-111111111111 /mnt/test
+`))
 	var options string
 	f.StringVar(&options, "o", "", "")
 	f.Parse(flag.Args()[1:])
+	if usageError {
+		return usageErr
+	}
 	if f.NArg() != 2 {
-		f.Usage()
+		return usageErr
 	}
 	addrFsid := f.Args()[0]
+	if !strings.Contains(addrFsid, ":") {
+		addrFsid = config["addr"] + ":" + addrFsid
+	}
 	parts := strings.Split(addrFsid, ":")
 	if len(parts) != 2 {
 		fmt.Println("Invalid filesystem:", addrFsid)
-		f.Usage()
+		return usageErr
 	}
 	addr := fmt.Sprintf("%s:%s", strings.ToLower(parts[0]), PORT)
 	fsid := parts[1]
@@ -179,75 +190,83 @@ func mount() error {
 	// Verify mountpoint exists
 	_, err := os.Stat(mountpoint)
 	if os.IsNotExist(err) {
-		fmt.Printf("Mount point %s does not exist\n", mountpoint)
-		os.Exit(1)
+		return fmt.Errorf("Mount point %s does not exist\n", mountpoint)
 	}
 	// Verify addr
-
-	// handle fuse mount options
-	mountOptions := []fuse.MountOption{
-		fuse.FSName("cfs"),
-		fuse.Subtype("cfs"),
-		fuse.DefaultPermissions(),
-		fuse.MaxReadahead(128 * 1024),
-		fuse.AsyncRead(),
-		//fuse.WritebackCache(),
-		fuse.AutoInvalData(),
-	}
 
 	// parse mount options string
 	clargs := getArgs(options)
 
-	// handle debug mount option
-	_, debug := clargs["debug"]
-	if !debug {
-		log.SetFlags(0)
-		log.SetOutput(ioutil.Discard)
-	}
+	for iteration := 0; ; iteration++ {
+		switch iteration {
+		case 0:
+		case 1:
+			if _, noumount := clargs["noumount"]; noumount {
+				return err
+			}
+			fmt.Println(err, ":: retrying after fusermount -uz")
+			exec.Command("fusermount", "-uz", mountpoint).Run()
+		default:
+			return err
+		}
 
-	// handle allow_other mount option
-	_, allowOther := clargs["allow_other"]
-	if allowOther {
-		mountOptions = append(mountOptions, fuse.AllowOther())
-	}
+		// handle fuse mount options
+		mountOptions := []fuse.MountOption{
+			fuse.FSName("cfs"),
+			fuse.Subtype("cfs"),
+			fuse.DefaultPermissions(),
+			fuse.MaxReadahead(128 * 1024),
+			fuse.AsyncRead(),
+			//fuse.WritebackCache(),
+			fuse.AutoInvalData(),
+		}
 
-	// handle ro mount option
-	_, readOnly := clargs["ro"]
-	if readOnly {
-		mountOptions = append(mountOptions, fuse.ReadOnly())
-	}
+		// handle debug mount option
+		_, debug := clargs["debug"]
+		if !debug {
+			log.SetFlags(0)
+			log.SetOutput(ioutil.Discard)
+		}
 
-	// perform fuse mount
-	fusermountPath()
-	cfs, err := fuse.Mount(mountpoint, mountOptions...)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	defer cfs.Close()
+		// handle allow_other mount option
+		_, allowOther := clargs["allow_other"]
+		if allowOther {
+			mountOptions = append(mountOptions, fuse.AllowOther())
+		}
 
-	// setup rpc client
-	rpc := newrpc(addr)
-	fs := newfs(cfs, rpc, fsid)
-	err = fs.InitFs()
-	if err != nil {
-		fmt.Println(err)
-		exec.Command("fusermount", "-uz", mountpoint).Run()
-		os.Exit(1)
-	}
-	srv := newserver(fs)
+		// handle ro mount option
+		_, readOnly := clargs["ro"]
+		if readOnly {
+			mountOptions = append(mountOptions, fuse.ReadOnly())
+		}
 
-	if err := srv.serve(); err != nil {
-		fmt.Println(err)
-		exec.Command("fusermount", "-uz", mountpoint).Run()
-		os.Exit(1)
-	}
+		// perform fuse mount
+		fusermountPath()
+		var cfs *fuse.Conn
+		cfs, err = fuse.Mount(mountpoint, mountOptions...)
+		if err != nil {
+			continue
+		}
+		defer cfs.Close()
 
-	<-cfs.Ready
-	if err := cfs.MountError; err != nil {
-		fmt.Println(err)
-		exec.Command("fusermount", "-uz", mountpoint).Run()
-		os.Exit(1)
+		// setup rpc client
+		rpc := newrpc(addr)
+		fs := newfs(cfs, rpc, fsid)
+		err = fs.InitFs()
+		if err != nil {
+			continue
+		}
+		srv := newserver(fs)
+
+		if err = srv.serve(); err != nil {
+			continue
+		}
+
+		<-cfs.Ready
+		if err = cfs.MountError; err != nil {
+			continue
+		}
+		break
 	}
 	return nil
 }
@@ -410,7 +429,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "mount":
-		err := mount()
+		err := mount(config)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
