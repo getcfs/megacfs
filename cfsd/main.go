@@ -17,7 +17,64 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/grpclog"
 )
+
+var logger *zap.Logger
+
+type redirectGRPCLogger struct {
+	sugaredLogger *zap.SugaredLogger
+}
+
+func (logger *redirectGRPCLogger) Fatal(args ...interface{}) {
+	logger.sugaredLogger.Fatal(args)
+}
+
+func (logger *redirectGRPCLogger) Fatalf(format string, args ...interface{}) {
+	logger.sugaredLogger.Fatalf(format, args)
+}
+
+func (logger *redirectGRPCLogger) Fatalln(args ...interface{}) {
+	logger.sugaredLogger.Fatal(args)
+}
+
+func (logger *redirectGRPCLogger) Print(args ...interface{}) {
+	logger.sugaredLogger.Debug(args)
+}
+
+func (logger *redirectGRPCLogger) Printf(format string, args ...interface{}) {
+	logger.sugaredLogger.Debugf(format, args)
+}
+
+func (logger *redirectGRPCLogger) Println(args ...interface{}) {
+	logger.sugaredLogger.Debug(args)
+}
+
+var redirectGRPCLoggerV redirectGRPCLogger
+
+func init() {
+	debug := brimtext.TrueString(os.Getenv("DEBUG"))
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "debug", "--debug":
+			debug = true
+		}
+	}
+	var baseLogger *zap.Logger
+	var err error
+	if debug {
+		baseLogger, err = zap.NewDevelopmentConfig().Build()
+		baseLogger.Debug("Logging in developer mode.")
+	} else {
+		baseLogger, err = zap.NewProduction()
+	}
+	if err != nil {
+		panic(err)
+	}
+	logger = baseLogger.With(zap.String("name", "cfsd"))
+	redirectGRPCLoggerV.sugaredLogger = baseLogger.With(zap.String("name", "cfsd")).Sugar()
+	grpclog.SetLogger(&redirectGRPCLoggerV)
+}
 
 const (
 	ADDR_PROMETHEUS = iota
@@ -50,26 +107,6 @@ func main() {
 	var grpcValueKeyPath string
 	var replValueCertPath string
 	var replValueKeyPath string
-
-	debug := brimtext.TrueString(os.Getenv("DEBUG"))
-	for _, arg := range os.Args[1:] {
-		switch arg {
-		case "debug", "--debug":
-			debug = true
-		}
-	}
-	var baseLogger *zap.Logger
-	var err error
-	if debug {
-		baseLogger, err = zap.NewDevelopmentConfig().Build()
-		baseLogger.Debug("Logging in developer mode.")
-	} else {
-		baseLogger, err = zap.NewProduction()
-	}
-	if err != nil {
-		panic(err)
-	}
-	logger := baseLogger.With(zap.String("name", "cfsd"))
 
 	fp, err := os.Open(ringPath)
 	if err != nil {
