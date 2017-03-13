@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -19,12 +18,74 @@ import (
 
 	"bazil.org/fuse"
 	pb "github.com/getcfs/megacfs/formic/proto"
+	"github.com/gholt/brimtext"
 	"github.com/gholt/cpcp"
 	"github.com/gholt/dudu"
 	"github.com/gholt/findfind"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/grpclog"
 )
+
+var logger *zap.Logger
+
+type redirectGRPCLogger struct {
+	sugaredLogger *zap.SugaredLogger
+}
+
+func (logger *redirectGRPCLogger) Fatal(args ...interface{}) {
+	logger.sugaredLogger.Fatal(args)
+}
+
+func (logger *redirectGRPCLogger) Fatalf(format string, args ...interface{}) {
+	logger.sugaredLogger.Fatalf(format, args)
+}
+
+func (logger *redirectGRPCLogger) Fatalln(args ...interface{}) {
+	logger.sugaredLogger.Fatal(args)
+}
+
+func (logger *redirectGRPCLogger) Print(args ...interface{}) {
+	logger.sugaredLogger.Debug(args)
+}
+
+func (logger *redirectGRPCLogger) Printf(format string, args ...interface{}) {
+	logger.sugaredLogger.Debugf(format, args)
+}
+
+func (logger *redirectGRPCLogger) Println(args ...interface{}) {
+	logger.sugaredLogger.Debug(args)
+}
+
+var redirectGRPCLoggerV redirectGRPCLogger
+
+func init() {
+	debug := brimtext.TrueString(os.Getenv("DEBUG"))
+	for i := 1; i < len(os.Args)-1; i++ {
+		if os.Args[i] == "-o" {
+			v := os.Args[i+1]
+			if v == "debug" || strings.HasPrefix(v, "debug,") || strings.Contains(v, ",debug,") || strings.HasSuffix(v, ",debug") {
+				debug = true
+				break
+			}
+		}
+	}
+	var baseLogger *zap.Logger
+	var err error
+	if debug {
+		baseLogger, err = zap.NewDevelopmentConfig().Build()
+		baseLogger.Debug("Logging in developer mode.")
+	} else {
+		baseLogger, err = zap.NewProduction()
+	}
+	if err != nil {
+		panic(err)
+	}
+	logger = baseLogger.With(zap.String("name", "cfs"))
+	redirectGRPCLoggerV.sugaredLogger = baseLogger.With(zap.String("name", "cfs")).Sugar()
+	grpclog.SetLogger(&redirectGRPCLoggerV)
+}
 
 // FORMIC PORT
 const (
@@ -61,10 +122,6 @@ func (s *server) serve() error {
 		}()
 	}
 	return nil
-}
-
-func debuglog(msg interface{}) {
-	fmt.Fprintf(os.Stderr, "%v\n", msg)
 }
 
 type rpc struct {
@@ -219,13 +276,6 @@ Examples:
 			fuse.AsyncRead(),
 			//fuse.WritebackCache(),
 			fuse.AutoInvalData(),
-		}
-
-		// handle debug mount option
-		_, debug := clargs["debug"]
-		if !debug {
-			log.SetFlags(0)
-			log.SetOutput(ioutil.Discard)
 		}
 
 		// handle allow_other mount option
@@ -459,7 +509,7 @@ func getArgs(args string) map[string]string {
 		if strings.Contains(item, "=") {
 			value := strings.Split(item, "=")
 			if value[0] == "" || value[1] == "" {
-				log.Printf("Invalid option %s, %s no value\n\n", value[0], value[1])
+				logger.Fatal("Invalid option", zap.String("left side", value[0]), zap.String("right side", value[1]))
 				os.Exit(1)
 			} else {
 				clargs[value[0]] = value[1]
@@ -491,7 +541,7 @@ func setupWS(svr string) *grpc.ClientConn {
 	opts = append(opts, grpc.WithTransportCredentials(creds))
 	conn, err := grpc.Dial(svr, opts...)
 	if err != nil {
-		log.Fatalf("failed to dial: %v", err)
+		logger.Fatal("failed to dial", zap.Error(err))
 	}
 	return conn
 }
