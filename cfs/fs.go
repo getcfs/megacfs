@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -16,6 +15,7 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fuseutil"
 	pb "github.com/getcfs/megacfs/formic/proto"
+	"go.uber.org/zap"
 )
 
 const (
@@ -42,93 +42,93 @@ func newfs(c *fuse.Conn, r *rpc, fsid string) *fs {
 
 // Handle fuse request
 func (f *fs) handle(r fuse.Request) {
-	switch r := r.(type) {
+	switch tr := r.(type) {
 	default:
-		log.Printf("Unhandled request: %s", r)
-		r.RespondError(fuse.ENOSYS)
+		logger.Debug("Unhandled request", zap.Any("request", tr))
+		tr.RespondError(fuse.ENOSYS)
 
 	case *fuse.GetattrRequest:
-		f.handleGetattr(r)
+		f.handleGetattr(tr)
 
 	case *fuse.LookupRequest:
-		f.handleLookup(r)
+		f.handleLookup(tr)
 
 	case *fuse.MkdirRequest:
-		f.handleMkdir(r)
+		f.handleMkdir(tr)
 
 	case *fuse.OpenRequest:
-		f.handleOpen(r)
+		f.handleOpen(tr)
 
 	case *fuse.ReadRequest:
-		f.handleRead(r)
+		f.handleRead(tr)
 
 	case *fuse.WriteRequest:
-		f.handleWrite(r)
+		f.handleWrite(tr)
 
 	case *fuse.CreateRequest:
-		f.handleCreate(r)
+		f.handleCreate(tr)
 
 	case *fuse.SetattrRequest:
-		f.handleSetattr(r)
+		f.handleSetattr(tr)
 
 	case *fuse.ReleaseRequest:
-		f.handleRelease(r)
+		f.handleRelease(tr)
 
 	case *fuse.FlushRequest:
-		f.handleFlush(r)
+		f.handleFlush(tr)
 
 	case *fuse.InterruptRequest:
-		f.handleInterrupt(r)
+		f.handleInterrupt(tr)
 
 	case *fuse.ForgetRequest:
-		f.handleForget(r)
+		f.handleForget(tr)
 
 	case *fuse.RemoveRequest:
-		f.handleRemove(r)
+		f.handleRemove(tr)
 
 	case *fuse.AccessRequest:
-		f.handleAccess(r)
+		f.handleAccess(tr)
 
 	case *fuse.SymlinkRequest:
-		f.handleSymlink(r)
+		f.handleSymlink(tr)
 
 	case *fuse.ReadlinkRequest:
-		f.handleReadlink(r)
+		f.handleReadlink(tr)
 
 	case *fuse.GetxattrRequest:
-		f.handleGetxattr(r)
+		f.handleGetxattr(tr)
 
 	case *fuse.ListxattrRequest:
-		f.handleListxattr(r)
+		f.handleListxattr(tr)
 
 	case *fuse.SetxattrRequest:
-		f.handleSetxattr(r)
+		f.handleSetxattr(tr)
 
 	case *fuse.RemovexattrRequest:
-		f.handleRemovexattr(r)
+		f.handleRemovexattr(tr)
 
 	case *fuse.RenameRequest:
-		f.handleRename(r)
+		f.handleRename(tr)
 
 	case *fuse.StatfsRequest:
-		f.handleStatfs(r)
+		f.handleStatfs(tr)
 
 		/*
 			case *fuse.InitRequest:
-				f.handleInit(r)
+				f.handleInit(tr)
 
 			case *fuse.MknodRequest:
-				f.handleMknod(r)
+				f.handleMknod(tr)
 
 
 			case *fuse.LinkRequest:
-				f.handleLink(r)
+				f.handleLink(tr)
 
 			case *fuse.DestroyRequest:
-				f.handleDestroy(r)
+				f.handleDestroy(tr)
 
 			case *fuse.FsyncRequest:
-				f.handleFsync(r)
+				f.handleFsync(tr)
 		*/
 	}
 }
@@ -206,19 +206,18 @@ func (f *fs) getContext() context.Context {
 }
 
 func (f *fs) InitFs() error {
-	log.Println("Inside InitFs")
+	logger.Debug("Inside InitFs")
 	_, err := f.rpc.api().InitFs(f.getContext(), &pb.InitFsRequest{})
 	return err
 }
 
 func (f *fs) handleGetattr(r *fuse.GetattrRequest) {
-	log.Println("Inside handleGetattr")
-	log.Println(r)
+	logger.Debug("Inside handleGetattr", zap.Any("request", r))
 	resp := &fuse.GetattrResponse{}
 
 	a, err := f.rpc.api().GetAttr(f.getContext(), &pb.GetAttrRequest{Inode: uint64(r.Node)})
 	if err != nil {
-		log.Printf("GetAttr fail: %s", err)
+		logger.Debug("GetAttr fail", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -226,25 +225,23 @@ func (f *fs) handleGetattr(r *fuse.GetattrRequest) {
 	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
 
-	log.Println(resp)
+	logger.Debug("handleGetattr returning", zap.Any("response", resp))
 	r.Respond(resp)
 }
 
 func (f *fs) handleLookup(r *fuse.LookupRequest) {
-	log.Println("Inside handleLookup")
-	log.Printf("Running Lookup for %s", r.Name)
-	log.Println(r)
+	logger.Debug("Inside handleLookup", zap.String("name", r.Name), zap.Any("request", r))
 	resp := &fuse.LookupResponse{}
 
 	l, err := f.rpc.api().Lookup(f.getContext(), &pb.LookupRequest{Name: r.Name, Parent: uint64(r.Node)})
 
 	if grpc.Code(err) == codes.NotFound {
-		log.Printf("ENOENT Lookup(%s)", r.Name)
+		logger.Debug("ENOENT Lookup", zap.String("name", r.Name))
 		r.RespondError(fuse.ENOENT)
 		return
 	}
 	if err != nil {
-		log.Printf("Lookup failed(%s): %s", r.Name, err)
+		logger.Debug("Lookup failed", zap.String("name", r.Name), zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -254,24 +251,23 @@ func (f *fs) handleLookup(r *fuse.LookupRequest) {
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
 
-	log.Println(resp)
+	logger.Debug("handleLookup returning", zap.Any("response", resp))
 	r.Respond(resp)
 }
 
 func (f *fs) handleMkdir(r *fuse.MkdirRequest) {
-	log.Println("Inside handleMkdir")
-	log.Println(r)
+	logger.Debug("Inside handleMkdir", zap.Any("request", r))
 	resp := &fuse.MkdirResponse{}
 
 	m, err := f.rpc.api().MkDir(f.getContext(), &pb.MkDirRequest{Name: r.Name, Parent: uint64(r.Node), Attr: &pb.Attr{Uid: r.Uid, Gid: r.Gid, Mode: uint32(r.Mode)}})
 	if err != nil {
-		log.Printf("Mkdir failed(%s): %s", r.Name, err)
+		logger.Debug("Mkdir failed", zap.String("name", r.Name), zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
 	// If the name is empty, then the dir already exists
 	if m.Name != r.Name {
-		log.Printf("EEXIST Mkdir(%s)", r.Name)
+		logger.Debug("EEXIST Mkdir", zap.String("name", r.Name))
 		r.RespondError(fuse.EEXIST)
 		return
 	}
@@ -280,24 +276,22 @@ func (f *fs) handleMkdir(r *fuse.MkdirRequest) {
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
 
-	log.Println(resp)
+	logger.Debug("handleMkdir returning", zap.Any("response", resp))
 	r.Respond(resp)
 }
 
 func (f *fs) handleOpen(r *fuse.OpenRequest) {
-	log.Println("Inside handleOpen")
-	log.Println(r)
+	logger.Debug("Inside handleOpen", zap.Any("request", r))
 	resp := &fuse.OpenResponse{}
 	// For now use the inode as the file handle
 	resp.Handle = f.handles.newFileHandle(r.Node)
 	resp.Flags |= fuse.OpenKeepCache
-	log.Println(resp)
+	logger.Debug("handleOpen returning", zap.Any("response", resp))
 	r.Respond(resp)
 }
 
 func (f *fs) handleRead(r *fuse.ReadRequest) {
-	log.Println("Inside handleRead")
-	log.Println(r)
+	logger.Debug("Inside handleRead", zap.Any("request", r))
 	resp := &fuse.ReadResponse{Data: make([]byte, r.Size)}
 	if r.Dir {
 		// handle directory listing
@@ -305,7 +299,7 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 		if data == nil {
 			d, err := f.rpc.api().ReadDirAll(f.getContext(), &pb.ReadDirAllRequest{Inode: uint64(r.Node)})
 			if err != nil {
-				log.Printf("Read on dir failed: %s", err)
+				logger.Debug("Read on dir failed", zap.Error(err))
 				r.RespondError(fuse.EIO)
 				return
 			}
@@ -343,7 +337,7 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 		Size:   int64(r.Size),
 	})
 	if err != nil {
-		log.Printf("Read on file failed: %s", err)
+		logger.Debug("Read on file failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -352,32 +346,30 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 }
 
 func (f *fs) handleWrite(r *fuse.WriteRequest) {
-	log.Println("Inside handleWrite")
-	log.Printf("Writing %d bytes at offset %d", len(r.Data), r.Offset)
-	log.Println(r)
+	logger.Debug("Inside handleWrite", zap.Any("request", r))
+	logger.Debug("Writing bytes at offset", zap.Int("bytes", len(r.Data)), zap.Int64("offset", r.Offset))
 	// TODO: Implement write
 	// Currently this is stupid simple and doesn't handle all the possibilities
 	resp := &fuse.WriteResponse{}
 	w, err := f.rpc.api().Write(f.getContext(), &pb.WriteRequest{Inode: uint64(r.Node), Offset: r.Offset, Payload: r.Data})
 	if err != nil {
-		log.Printf("Write to file failed: %s", err)
+		logger.Debug("Write to file failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
 	if w.Status != 0 {
-		log.Printf("Write status non zero(%d)\n", w.Status)
+		logger.Debug("Write status non zero", zap.Int32("status", w.Status))
 	}
 	resp.Size = len(r.Data)
 	r.Respond(resp)
 }
 
 func (f *fs) handleCreate(r *fuse.CreateRequest) {
-	log.Println("Inside handleCreate")
-	log.Println(r)
+	logger.Debug("Inside handleCreate", zap.Any("request", r))
 	resp := &fuse.CreateResponse{}
 	c, err := f.rpc.api().Create(f.getContext(), &pb.CreateRequest{Parent: uint64(r.Node), Name: r.Name, Attr: &pb.Attr{Uid: r.Uid, Gid: r.Gid, Mode: uint32(r.Mode)}})
 	if err != nil {
-		log.Printf("Failed to create file: %s", err)
+		logger.Debug("Failed to create file", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -392,8 +384,7 @@ func (f *fs) handleCreate(r *fuse.CreateRequest) {
 }
 
 func (f *fs) handleSetattr(r *fuse.SetattrRequest) {
-	log.Println("Inside handleSetattr")
-	log.Println(r)
+	logger.Debug("Inside handleSetattr", zap.Any("request", r))
 	resp := &fuse.SetattrResponse{}
 	resp.Attr.Inode = uint64(r.Node)
 	a := &pb.Attr{
@@ -422,46 +413,45 @@ func (f *fs) handleSetattr(r *fuse.SetattrRequest) {
 	}
 	setAttrResp, err := f.rpc.api().SetAttr(f.getContext(), &pb.SetAttrRequest{Attr: a, Valid: uint32(r.Valid)})
 	if err != nil {
-		log.Printf("Setattr failed: %s", err)
+		logger.Debug("Setattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
 	copyAttr(&resp.Attr, setAttrResp.Attr)
 	resp.Attr.Valid = attrValidTime
-	log.Println(resp)
+	logger.Debug("handleSetattr returning", zap.Any("response", resp))
 	r.Respond(resp)
 }
 
 func (f *fs) handleFlush(r *fuse.FlushRequest) {
-	log.Println("Inside handleFlush")
+	logger.Debug("Inside handleFlush")
 	r.Respond()
 }
 
 func (f *fs) handleRelease(r *fuse.ReleaseRequest) {
-	log.Println("Inside handleRelease")
+	logger.Debug("Inside handleRelease")
 	f.handles.removeFileHandle(r.Handle)
 	r.Respond()
 }
 
 func (f *fs) handleInterrupt(r *fuse.InterruptRequest) {
-	log.Println("Inside handleInterrupt")
+	logger.Debug("Inside handleInterrupt")
 	// TODO: Just passing on this for now.  Need to figure out what really needs to be done here
 	r.Respond()
 }
 
 func (f *fs) handleForget(r *fuse.ForgetRequest) {
-	log.Println("Inside handleForget")
+	logger.Debug("Inside handleForget")
 	// TODO: Just passing on this for now.  Need to figure out what really needs to be done here
 	r.Respond()
 }
 
 func (f *fs) handleRemove(r *fuse.RemoveRequest) {
 	// TODO: Handle dir deletions correctly
-	log.Println("Inside handleRemove")
-	log.Println(r)
+	logger.Debug("Inside handleRemove", zap.Any("request", r))
 	_, err := f.rpc.api().Remove(f.getContext(), &pb.RemoveRequest{Parent: uint64(r.Node), Name: r.Name})
 	if err != nil {
-		log.Printf("Failed to delete file: %s", err)
+		logger.Debug("Failed to delete file", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -469,7 +459,7 @@ func (f *fs) handleRemove(r *fuse.RemoveRequest) {
 }
 
 func (f *fs) handleAccess(r *fuse.AccessRequest) {
-	log.Println("Inside handleAccess")
+	logger.Debug("Inside handleAccess")
 	// TODO: Add real access support, for now allows everything
 	r.Respond()
 }
@@ -478,24 +468,23 @@ func (f *fs) handleAccess(r *fuse.AccessRequest) {
 // Note: All handle functions should call r.Respond or r.Respond error before returning
 
 func (f *fs) handleMknod(r *fuse.MknodRequest) {
-	log.Println("Inside handleMknod")
+	logger.Debug("Inside handleMknod")
 	// NOTE: We probably will not need this since we implement Create
 	r.RespondError(fuse.EIO)
 }
 
 /*
 func (f *fs) handleInit(r *fuse.InitRequest) {
-	log.Println("Inside handleInit")
+	logger.Debug("Inside handleInit")
 	r.RespondError(fuse.ENOSYS)
 }
 */
 
 func (f *fs) handleStatfs(r *fuse.StatfsRequest) {
-	log.Println("Inside handleStatfs")
-	log.Println(r)
+	logger.Debug("Inside handleStatfs", zap.Any("request", r))
 	resp, err := f.rpc.api().Statfs(f.getContext(), &pb.StatfsRequest{})
 	if err != nil {
-		log.Printf("Failed to Statfs : %s", err)
+		logger.Debug("Failed to Statfs", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -513,12 +502,11 @@ func (f *fs) handleStatfs(r *fuse.StatfsRequest) {
 }
 
 func (f *fs) handleSymlink(r *fuse.SymlinkRequest) {
-	log.Println("Inside handleSymlink")
-	log.Println(r)
+	logger.Debug("Inside handleSymlink", zap.Any("request", r))
 	resp := &fuse.SymlinkResponse{}
 	symlink, err := f.rpc.api().Symlink(f.getContext(), &pb.SymlinkRequest{Parent: uint64(r.Node), Name: r.NewName, Target: r.Target, Uid: r.Uid, Gid: r.Gid})
 	if err != nil {
-		log.Printf("Symlink failed: %s", err)
+		logger.Debug("Symlink failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -526,31 +514,29 @@ func (f *fs) handleSymlink(r *fuse.SymlinkRequest) {
 	copyAttr(&resp.Attr, symlink.Attr)
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
-	log.Println(resp)
+	logger.Debug("handleSymlink returning", zap.Any("response", resp))
 	r.Respond(resp)
 }
 
 func (f *fs) handleReadlink(r *fuse.ReadlinkRequest) {
-	log.Println("Inside handleReadlink")
-	log.Println(r)
+	logger.Debug("Inside handleReadlink", zap.Any("request", r))
 	resp, err := f.rpc.api().Readlink(f.getContext(), &pb.ReadlinkRequest{Inode: uint64(r.Node)})
 	if err != nil {
-		log.Printf("Readlink failed: %s", err)
+		logger.Debug("Readlink failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
-	log.Println(resp)
+	logger.Debug("handleReadlink returning", zap.Any("reponse", resp))
 	r.Respond(resp.Target)
 }
 
 func (f *fs) handleLink(r *fuse.LinkRequest) {
-	log.Println("Inside handleLink")
+	logger.Debug("Inside handleLink")
 	r.RespondError(fuse.ENOSYS)
 }
 
 func (f *fs) handleGetxattr(r *fuse.GetxattrRequest) {
-	log.Println("Inside handleGetxattr")
-	log.Println(r)
+	logger.Debug("Inside handleGetxattr", zap.Any("request", r))
 	if r.Name == "security.capability" {
 		// Ignore this for now
 		// TODO: Figure out if we want to allow this or not
@@ -573,18 +559,17 @@ func (f *fs) handleGetxattr(r *fuse.GetxattrRequest) {
 	}
 	resp, err := f.rpc.api().Getxattr(f.getContext(), req)
 	if err != nil {
-		log.Printf("Getxattr failed: %s", err)
+		logger.Debug("Getxattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
 	fuseResp := &fuse.GetxattrResponse{Xattr: resp.Xattr}
-	log.Println(fuseResp)
+	logger.Debug("handleGetxattr returning", zap.Any("response", fuseResp))
 	r.Respond(fuseResp)
 }
 
 func (f *fs) handleListxattr(r *fuse.ListxattrRequest) {
-	log.Println("Inside handleListxattr")
-	log.Println(r)
+	logger.Debug("Inside handleListxattr", zap.Any("request", r))
 	req := &pb.ListxattrRequest{
 		Inode:    uint64(r.Node),
 		Size:     r.Size,
@@ -592,18 +577,17 @@ func (f *fs) handleListxattr(r *fuse.ListxattrRequest) {
 	}
 	resp, err := f.rpc.api().Listxattr(f.getContext(), req)
 	if err != nil {
-		log.Printf("Listxattr failed: %s", err)
+		logger.Debug("Listxattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
 	fuseResp := &fuse.ListxattrResponse{Xattr: resp.Xattr}
-	log.Println(fuseResp)
+	logger.Debug("handleListxattr returning", zap.Any("response", fuseResp))
 	r.Respond(fuseResp)
 }
 
 func (f *fs) handleSetxattr(r *fuse.SetxattrRequest) {
-	log.Println("Inside handleSetxattr")
-	log.Println(r)
+	logger.Debug("Inside handleSetxattr", zap.Any("request", r))
 	if r.Name == "system.posix_acl_access" || r.Name == "system.posix_acl_default" {
 		r.RespondError(fuse.ENOENT)
 		return
@@ -621,7 +605,7 @@ func (f *fs) handleSetxattr(r *fuse.SetxattrRequest) {
 	}
 	_, err := f.rpc.api().Setxattr(f.getContext(), req)
 	if err != nil {
-		log.Printf("Setxattr failed: %s", err)
+		logger.Debug("Setxattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -629,8 +613,7 @@ func (f *fs) handleSetxattr(r *fuse.SetxattrRequest) {
 }
 
 func (f *fs) handleRemovexattr(r *fuse.RemovexattrRequest) {
-	log.Println("Inside handleRemovexattr")
-	log.Println(r)
+	logger.Debug("Inside handleRemovexattr", zap.Any("request", r))
 	if strings.HasPrefix(r.Name, "cfs.") {
 		r.RespondError(fuse.ENOSYS)
 		return
@@ -641,7 +624,7 @@ func (f *fs) handleRemovexattr(r *fuse.RemovexattrRequest) {
 	}
 	_, err := f.rpc.api().Removexattr(f.getContext(), req)
 	if err != nil {
-		log.Printf("Removexattr failed: %s", err)
+		logger.Debug("Removexattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -649,16 +632,15 @@ func (f *fs) handleRemovexattr(r *fuse.RemovexattrRequest) {
 }
 
 func (f *fs) handleDestroy(r *fuse.DestroyRequest) {
-	log.Println("Inside handleDestroy")
+	logger.Debug("Inside handleDestroy")
 	r.RespondError(fuse.ENOSYS)
 }
 
 func (f *fs) handleRename(r *fuse.RenameRequest) {
-	log.Println("Inside handleRename")
-	log.Println(r)
+	logger.Debug("Inside handleRename", zap.Any("request", r))
 	_, err := f.rpc.api().Rename(f.getContext(), &pb.RenameRequest{OldParent: uint64(r.Node), NewParent: uint64(r.NewDir), OldName: r.OldName, NewName: r.NewName})
 	if err != nil {
-		log.Printf("Rename failed: %s", err)
+		logger.Debug("Rename failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -666,6 +648,6 @@ func (f *fs) handleRename(r *fuse.RenameRequest) {
 }
 
 func (f *fs) handleFsync(r *fuse.FsyncRequest) {
-	log.Println("Inside handleFsync")
+	logger.Debug("Inside handleFsync")
 	r.RespondError(fuse.ENOSYS)
 }
