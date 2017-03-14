@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
+	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
 	uuid "github.com/satori/go.uuid"

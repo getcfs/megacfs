@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
+	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort/api"
 	"github.com/gholt/ring"

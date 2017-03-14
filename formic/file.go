@@ -10,7 +10,7 @@ import (
 
 	"bazil.org/fuse"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
+	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
 	"github.com/spaolacci/murmur3"

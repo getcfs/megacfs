@@ -14,7 +14,7 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fuseutil"
-	pb "github.com/getcfs/megacfs/formic/proto"
+	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"go.uber.org/zap"
 )
 

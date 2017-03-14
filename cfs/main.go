@@ -17,7 +17,7 @@ import (
 	"sync"
 
 	"bazil.org/fuse"
-	pb "github.com/getcfs/megacfs/formic/proto"
+	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/gholt/brimtext"
 	"github.com/gholt/cpcp"
 	"github.com/gholt/dudu"

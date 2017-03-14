@@ -8,7 +8,7 @@ import (
 	"github.com/gholt/store"
 	"go.uber.org/zap"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
+	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"golang.org/x/net/context"
 )
 

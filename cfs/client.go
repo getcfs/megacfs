@@ -9,7 +9,7 @@ import (
 	"path"
 	"syscall"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
+	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/pkg/xattr"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/metadata"
