@@ -116,347 +116,351 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 	}
 	go func() {
 		mRingChanges := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "RingChanges",
 			Help:      "Number of received ring changes.",
 		})
 		mRingChangeCloses := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "RingChangeCloses",
 			Help:      "Number of connections closed due to ring changes.",
 		})
 		mMsgToNodes := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgToNodes",
 			Help:      "Number of times MsgToNode function has been called; single message to single node.",
 		})
 		mMsgToNodeNoRings := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgToNodeNoRings",
 			Help:      "Number of times MsgToNode function has been called with no ring yet available.",
 		})
 		mMsgToNodeNoNodes := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgToNodeNoNodes",
 			Help:      "Number of times MsgToNode function has been called with no matching node.",
 		})
 		mMsgToOtherReplicas := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgToOtherReplicas",
 			Help:      "Number of times MsgToOtherReplicas function has been called; single message to all replicas, excluding the local replica if responsible.",
 		})
 		mMsgToOtherReplicasNoRings := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgToOtherReplicasNoRings",
 			Help:      "Number of times MsgToOtherReplicas function has been called with no ring yet available.",
 		})
 		mListenErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "ListenErrors",
 			Help:      "Number of errors trying to establish a TCP listener.",
 		})
 		mIncomingConnections := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "IncomingConnections",
 			Help:      "Number of incoming TCP connections made.",
 		})
 		mDials := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "Dials",
 			Help:      "Number of attempts to establish outgoing TCP connections.",
 		})
 		mDialErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "DialErrors",
 			Help:      "Number of errors trying to establish outgoing TCP connections.",
 		})
 		mOutgoingConnections := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "OutgoingConnections",
 			Help:      "Number of outgoing TCP connections established.",
 		})
 		mMsgChanCreations := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgChanCreations",
 			Help:      "Number of internal message channels created.",
 		})
 		mMsgToAddrs := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
-			Name:      "MsgToAddrs",
+			Namespace: "GroupStore",
+			Name:      "MsgToAddrsTCPMsgRing",
 			Help:      "Number times internal function msgToAddr has been called.",
 		})
 		mMsgToAddrQueues := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgToAddrQueues",
 			Help:      "Number of messages msgToAddr successfully queued.",
 		})
 		mMsgToAddrTimeoutDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgToAddrTimeoutDrops",
 			Help:      "Number of messages msgToAddr dropped after timeout.",
 		})
 		mMsgToAddrShutdownDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgToAddrShutdownDrops",
 			Help:      "Number of messages msgToAddr dropped due to a shutdown.",
 		})
 		mMsgReads := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgReads",
 			Help:      "Number of incoming messages read.",
 		})
 		mMsgReadErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgReadErrors",
 			Help:      "Number of errors reading incoming messages.",
 		})
 		mMsgWrites := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgWrites",
 			Help:      "Number of outgoing messages written.",
 		})
 		mMsgWriteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "TCPMsgRing",
+			Namespace: "GroupStoreTCPMsgRing",
 			Name:      "MsgWriteErrors",
 			Help:      "Number of errors writing outgoing messages.",
 		})
 		mValues := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "Values",
 			Help:      "Current number of values stored.",
 		})
 		mValueBytes := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "ValueBytes",
 			Help:      "Current number of bytes for the values stored.",
 		})
 		mLookups := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "Lookups",
 			Help:      "Count of lookup requests executed.",
 		})
 		mLookupErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "LookupErrors",
 			Help:      "Count of lookup requests executed resulting in errors.",
 		})
+
 		mLookupGroups := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "LookupGroups",
 			Help:      "Count of lookup-group requests executed.",
 		})
 		mLookupGroupItems := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "LookupGroupItems",
 			Help:      "Count of items lookup-group requests have returned.",
 		})
 		mLookupGroupErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "LookupGroupErrors",
 			Help:      "Count of errors lookup-group requests have returned.",
 		})
+
 		mReads := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "Reads",
 			Help:      "Count of read requests executed.",
 		})
 		mReadErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "ReadErrors",
 			Help:      "Count of read requests executed resulting in errors.",
 		})
+
 		mReadGroups := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "ReadGroups",
 			Help:      "Count of read-group requests executed.",
 		})
 		mReadGroupItems := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "ReadGroupItems",
 			Help:      "Count of items read-group requests have returned.",
 		})
 		mReadGroupErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "ReadGroupErrors",
 			Help:      "Count of errors read-group requests have returned.",
 		})
+
 		mWrites := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "Writes",
 			Help:      "Count of write requests executed.",
 		})
 		mWriteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "WriteErrors",
 			Help:      "Count of write requests executed resulting in errors.",
 		})
 		mWritesOverridden := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "WritesOverridden",
 			Help:      "Count of write requests that were outdated or repeated.",
 		})
 		mDeletes := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "Deletes",
 			Help:      "Count of delete requests executed.",
 		})
 		mDeleteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "DeleteErrors",
 			Help:      "Count of delete requests executed resulting in errors.",
 		})
 		mDeletesOverridden := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "DeletesOverridden",
 			Help:      "Count of delete requests that were outdated or repeated.",
 		})
 		mOutBulkSets := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "OutBulkSets",
 			Help:      "Count of outgoing bulk-set messages in response to incoming pull replication messages.",
 		})
 		mOutBulkSetValues := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "OutBulkSetValues",
 			Help:      "Count of values in outgoing bulk-set messages; these bulk-set messages are those in response to incoming pull-replication messages.",
 		})
 		mOutBulkSetPushes := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "OutBulkSetPushes",
 			Help:      "Count of outgoing bulk-set messages due to push replication.",
 		})
 		mOutBulkSetPushValues := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "OutBulkSetPushValues",
 			Help:      "Count of values in outgoing bulk-set messages; these bulk-set messages are those due to push replication.",
 		})
 		mOutPushReplicationSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "OutPushReplicationSeconds",
 			Help:      "How long the last out push replication pass took.",
 		})
 		mInBulkSets := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSets",
 			Help:      "Count of incoming bulk-set messages.",
 		})
 		mInBulkSetDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetDrops",
 			Help:      "Count of incoming bulk-set messages dropped due to the local system being overworked at the time.",
 		})
 		mInBulkSetInvalids := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetInvalids",
 			Help:      "Count of incoming bulk-set messages that couldn't be parsed.",
 		})
 		mInBulkSetWrites := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetWrites",
 			Help:      "Count of writes due to incoming bulk-set messages.",
 		})
 		mInBulkSetWriteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetWriteErrors",
 			Help:      "Count of errors returned from writes due to incoming bulk-set messages.",
 		})
 		mInBulkSetWritesOverridden := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetWritesOverridden",
 			Help:      "Count of writes from incoming bulk-set messages that result in no change.",
 		})
 		mOutBulkSetAcks := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "OutBulkSetAcks",
 			Help:      "Count of outgoing bulk-set-ack messages.",
 		})
 		mInBulkSetAcks := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetAcks",
 			Help:      "Count of incoming bulk-set-ack messages.",
 		})
 		mInBulkSetAckDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetAckDrops",
 			Help:      "Count of incoming bulk-set-ack messages dropped due to the local system being overworked at the time.",
 		})
 		mInBulkSetAckInvalids := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetAckInvalids",
 			Help:      "Count of incoming bulk-set-ack messages that couldn't be parsed.",
 		})
 		mInBulkSetAckWrites := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetAckWrites",
 			Help:      "Count of writes (for local removal) due to incoming bulk-set-ack messages.",
 		})
 		mInBulkSetAckWriteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetAckWriteErrors",
 			Help:      "Count of errors returned from writes due to incoming bulk-set-ack messages.",
 		})
 		mInBulkSetAckWritesOverridden := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InBulkSetAckWritesOverridden",
 			Help:      "Count of writes from incoming bulk-set-ack messages that result in no change.",
 		})
 		mOutPullReplications := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "OutPullReplications",
 			Help:      "Count of outgoing pull-replication messages.",
 		})
 		mOutPullReplicationSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "OutPullReplicationSeconds",
 			Help:      "How long the last out pull replication pass took.",
 		})
 		mInPullReplications := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InPullReplications",
 			Help:      "Count of incoming pull-replication messages.",
 		})
 		mInPullReplicationDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InPullReplicationDrops",
 			Help:      "Count of incoming pull-replication messages droppped due to the local system being overworked at the time.",
 		})
 		mInPullReplicationInvalids := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "InPullReplicationInvalids",
 			Help:      "Count of incoming pull-replication messages that couldn't be parsed.",
 		})
 		mExpiredDeletions := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "ExpiredDeletions",
 			Help:      "Count of recent deletes that have become old enough to be completely discarded.",
 		})
+		mTombstoneDiscardSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "GroupStore",
+			Name:      "TombstoneDiscardSeconds",
+			Help:      "How long the last tombstone discard pass took.",
+		})
+		mCompactionSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "GroupStore",
+			Name:      "CompactionSeconds",
+			Help:      "How long the last compaction pass took.",
+		})
 		mCompactions := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "Compactions",
 			Help:      "Count of disk file sets compacted due to their contents exceeding a staleness threshold. For example, this happens when enough of the values have been overwritten or deleted in more recent operations.",
 		})
 		mSmallFileCompactions := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "SmallFileCompactions",
 			Help:      "Count of disk file sets compacted due to the entire file size being too small. For example, this may happen when the store is shutdown and restarted.",
 		})
 		mReadOnly := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "ReadOnly",
 			Help:      "Indicates when the store has been put in read-only mode, whether by an operator or automatically by the watcher.",
 		})
-		mCompactionSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "Store",
-			Name:      "CompactionSeconds",
-			Help:      "How long the last compaction pass took.",
-		})
-		mTombstoneDiscardSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "Store",
-			Name:      "TombstoneDiscardSeconds",
-			Help:      "How long the last tombstone discard pass took.",
-		})
 		mAuditSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "Store",
+			Namespace: "GroupStore",
 			Name:      "AuditSeconds",
 			Help:      "How long the last audit pass took.",
 		})
@@ -485,14 +489,18 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 		prometheus.Register(mValueBytes)
 		prometheus.Register(mLookups)
 		prometheus.Register(mLookupErrors)
+
 		prometheus.Register(mLookupGroups)
 		prometheus.Register(mLookupGroupItems)
 		prometheus.Register(mLookupGroupErrors)
+
 		prometheus.Register(mReads)
 		prometheus.Register(mReadErrors)
+
 		prometheus.Register(mReadGroups)
 		prometheus.Register(mReadGroupItems)
 		prometheus.Register(mReadGroupErrors)
+
 		prometheus.Register(mWrites)
 		prometheus.Register(mWriteErrors)
 		prometheus.Register(mWritesOverridden)
@@ -523,12 +531,12 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 		prometheus.Register(mInPullReplicationDrops)
 		prometheus.Register(mInPullReplicationInvalids)
 		prometheus.Register(mExpiredDeletions)
+		prometheus.Register(mTombstoneDiscardSeconds)
+		prometheus.Register(mCompactionSeconds)
 		prometheus.Register(mCompactions)
 		prometheus.Register(mSmallFileCompactions)
-		prometheus.Register(mCompactionSeconds)
-		prometheus.Register(mTombstoneDiscardSeconds)
-		prometheus.Register(mAuditSeconds)
 		prometheus.Register(mReadOnly)
+		prometheus.Register(mAuditSeconds)
 		tcpMsgRingStats := s.groupStoreMsgRing.Stats(false)
 		select {
 		case <-s.shutdownChan:
@@ -559,63 +567,63 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 			stats, err := s.groupStore.Stats(context.Background(), false)
 			if err != nil {
 				s.logger.Debug("stats error", zap.Error(err))
-			} else if gstats, ok := stats.(*store.GroupStoreStats); ok {
-				mValues.Set(float64(gstats.Values))
-				mValueBytes.Set(float64(gstats.ValueBytes))
-				mLookups.Add(float64(gstats.Lookups))
-				mLookupErrors.Add(float64(gstats.LookupErrors))
+			} else if sstats, ok := stats.(*store.GroupStoreStats); ok {
+				mValues.Set(float64(sstats.Values))
+				mValueBytes.Set(float64(sstats.ValueBytes))
+				mLookups.Add(float64(sstats.Lookups))
+				mLookupErrors.Add(float64(sstats.LookupErrors))
 
-				mLookupGroups.Add(float64(gstats.LookupGroups))
-				mLookupGroupItems.Add(float64(gstats.LookupGroupItems))
-				mLookupGroupErrors.Add(float64(gstats.LookupGroupErrors))
+				mLookupGroups.Add(float64(sstats.LookupGroups))
+				mLookupGroupItems.Add(float64(sstats.LookupGroupItems))
+				mLookupGroupErrors.Add(float64(sstats.LookupGroupErrors))
 
-				mReads.Add(float64(gstats.Reads))
-				mReadErrors.Add(float64(gstats.ReadErrors))
+				mReads.Add(float64(sstats.Reads))
+				mReadErrors.Add(float64(sstats.ReadErrors))
 
-				mReadGroups.Add(float64(gstats.ReadGroups))
-				mReadGroupItems.Add(float64(gstats.ReadGroupItems))
-				mReadGroupErrors.Add(float64(gstats.ReadGroupErrors))
+				mReadGroups.Add(float64(sstats.ReadGroups))
+				mReadGroupItems.Add(float64(sstats.ReadGroupItems))
+				mReadGroupErrors.Add(float64(sstats.ReadGroupErrors))
 
-				mWrites.Add(float64(gstats.Writes))
-				mWriteErrors.Add(float64(gstats.WriteErrors))
-				mWritesOverridden.Add(float64(gstats.WritesOverridden))
-				mDeletes.Add(float64(gstats.Deletes))
-				mDeleteErrors.Add(float64(gstats.DeleteErrors))
-				mDeletesOverridden.Add(float64(gstats.DeletesOverridden))
-				mOutBulkSets.Add(float64(gstats.OutBulkSets))
-				mOutBulkSetValues.Add(float64(gstats.OutBulkSetValues))
-				mOutBulkSetPushes.Add(float64(gstats.OutBulkSetPushes))
-				mOutBulkSetPushValues.Add(float64(gstats.OutBulkSetPushValues))
-				mOutPushReplicationSeconds.Set(float64(gstats.OutPushReplicationNanoseconds) / 1000000000)
-				mInBulkSets.Add(float64(gstats.InBulkSets))
-				mInBulkSetDrops.Add(float64(gstats.InBulkSetDrops))
-				mInBulkSetInvalids.Add(float64(gstats.InBulkSetInvalids))
-				mInBulkSetWrites.Add(float64(gstats.InBulkSetWrites))
-				mInBulkSetWriteErrors.Add(float64(gstats.InBulkSetWriteErrors))
-				mInBulkSetWritesOverridden.Add(float64(gstats.InBulkSetWritesOverridden))
-				mOutBulkSetAcks.Add(float64(gstats.OutBulkSetAcks))
-				mInBulkSetAcks.Add(float64(gstats.InBulkSetAcks))
-				mInBulkSetAckDrops.Add(float64(gstats.InBulkSetAckDrops))
-				mInBulkSetAckInvalids.Add(float64(gstats.InBulkSetAckInvalids))
-				mInBulkSetAckWrites.Add(float64(gstats.InBulkSetAckWrites))
-				mInBulkSetAckWriteErrors.Add(float64(gstats.InBulkSetAckWriteErrors))
-				mInBulkSetAckWritesOverridden.Add(float64(gstats.InBulkSetAckWritesOverridden))
-				mOutPullReplications.Add(float64(gstats.OutPullReplications))
-				mOutPullReplicationSeconds.Set(float64(gstats.OutPullReplicationNanoseconds) / 1000000000)
-				mInPullReplications.Add(float64(gstats.InPullReplications))
-				mInPullReplicationDrops.Add(float64(gstats.InPullReplicationDrops))
-				mInPullReplicationInvalids.Add(float64(gstats.InPullReplicationInvalids))
-				mExpiredDeletions.Add(float64(gstats.ExpiredDeletions))
-				mCompactions.Add(float64(gstats.Compactions))
-				mSmallFileCompactions.Add(float64(gstats.SmallFileCompactions))
-				mCompactionSeconds.Set(float64(gstats.CompactionNanoseconds) / 1000000000)
-				mTombstoneDiscardSeconds.Set(float64(gstats.TombstoneDiscardNanoseconds) / 1000000000)
-				mAuditSeconds.Set(float64(gstats.AuditNanoseconds) / 1000000000)
-				if gstats.ReadOnly {
+				mWrites.Add(float64(sstats.Writes))
+				mWriteErrors.Add(float64(sstats.WriteErrors))
+				mWritesOverridden.Add(float64(sstats.WritesOverridden))
+				mDeletes.Add(float64(sstats.Deletes))
+				mDeleteErrors.Add(float64(sstats.DeleteErrors))
+				mDeletesOverridden.Add(float64(sstats.DeletesOverridden))
+				mOutBulkSets.Add(float64(sstats.OutBulkSets))
+				mOutBulkSetValues.Add(float64(sstats.OutBulkSetValues))
+				mOutBulkSetPushes.Add(float64(sstats.OutBulkSetPushes))
+				mOutBulkSetPushValues.Add(float64(sstats.OutBulkSetPushValues))
+				mOutPushReplicationSeconds.Set(float64(sstats.OutPushReplicationNanoseconds) / 1000000000)
+				mInBulkSets.Add(float64(sstats.InBulkSets))
+				mInBulkSetDrops.Add(float64(sstats.InBulkSetDrops))
+				mInBulkSetInvalids.Add(float64(sstats.InBulkSetInvalids))
+				mInBulkSetWrites.Add(float64(sstats.InBulkSetWrites))
+				mInBulkSetWriteErrors.Add(float64(sstats.InBulkSetWriteErrors))
+				mInBulkSetWritesOverridden.Add(float64(sstats.InBulkSetWritesOverridden))
+				mOutBulkSetAcks.Add(float64(sstats.OutBulkSetAcks))
+				mInBulkSetAcks.Add(float64(sstats.InBulkSetAcks))
+				mInBulkSetAckDrops.Add(float64(sstats.InBulkSetAckDrops))
+				mInBulkSetAckInvalids.Add(float64(sstats.InBulkSetAckInvalids))
+				mInBulkSetAckWrites.Add(float64(sstats.InBulkSetAckWrites))
+				mInBulkSetAckWriteErrors.Add(float64(sstats.InBulkSetAckWriteErrors))
+				mInBulkSetAckWritesOverridden.Add(float64(sstats.InBulkSetAckWritesOverridden))
+				mOutPullReplications.Add(float64(sstats.OutPullReplications))
+				mOutPullReplicationSeconds.Set(float64(sstats.OutPullReplicationNanoseconds) / 1000000000)
+				mInPullReplications.Add(float64(sstats.InPullReplications))
+				mInPullReplicationDrops.Add(float64(sstats.InPullReplicationDrops))
+				mInPullReplicationInvalids.Add(float64(sstats.InPullReplicationInvalids))
+				mExpiredDeletions.Add(float64(sstats.ExpiredDeletions))
+				mTombstoneDiscardSeconds.Set(float64(sstats.TombstoneDiscardNanoseconds) / 1000000000)
+				mCompactionSeconds.Set(float64(sstats.CompactionNanoseconds) / 1000000000)
+				mCompactions.Add(float64(sstats.Compactions))
+				mSmallFileCompactions.Add(float64(sstats.SmallFileCompactions))
+				if sstats.ReadOnly {
 					mReadOnly.Set(1)
 				} else {
 					mReadOnly.Set(0)
 				}
+				mAuditSeconds.Set(float64(sstats.AuditNanoseconds) / 1000000000)
 			} else {
 				s.logger.Debug("unknown stats type", zap.Any("stats", stats))
 			}
