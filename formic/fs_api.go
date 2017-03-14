@@ -23,10 +23,9 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/getcfs/megacfs/formic/proto"
+	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
-	"github.com/prometheus/common/log"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spaolacci/murmur3"
 	"go.uber.org/zap"
@@ -610,7 +609,7 @@ func (s *FileSystemAPIServer) UpdateFS(ctx context.Context, r *pb.UpdateFSReques
 	}
 
 	if r.Filesys.Name == "" {
-		log.Info("UPDATE FAILED", zap.String("error", "NameRequired"), zap.String("name", ""))
+		s.log.Info("UPDATE FAILED", zap.String("error", "NameRequired"), zap.String("name", ""))
 		return nil, errf(codes.FailedPrecondition, "%v", "File System name cannot be empty")
 	}
 
