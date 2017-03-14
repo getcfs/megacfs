@@ -230,6 +230,7 @@ FIND_LOCAL_NODE:
 		Scale:            0.4,
 		Path:             dataPath,
 		Ring:             oneRing,
+		Logger:           logger,
 	})
 	if err != nil {
 		logger.Fatal("Error initializing group store", zap.Error(err))
@@ -269,6 +270,7 @@ FIND_LOCAL_NODE:
 		Scale:            0.4,
 		Path:             dataPath,
 		Ring:             oneRing,
+		Logger:           logger,
 	})
 	if err != nil {
 		logger.Fatal("Error initializing value store", zap.Error(err))

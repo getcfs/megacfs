@@ -14,6 +14,7 @@ import (
 	"github.com/gholt/ring"
 	"github.com/gholt/store"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -34,6 +35,7 @@ type ValueStore struct {
 	replCertFile      string
 	replKeyFile       string
 	caFile            string
+	logger            *zap.Logger
 }
 
 type ValueStoreConfig struct {
@@ -47,9 +49,26 @@ type ValueStoreConfig struct {
 	Path             string
 	Scale            float64
 	Ring             ring.Ring
+	Logger           *zap.Logger
+}
+
+func resolveValueStoreConfig(c *ValueStoreConfig) *ValueStoreConfig {
+	cfg := &ValueStoreConfig{}
+	if c != nil {
+		*cfg = *c
+	}
+	if cfg.Logger == nil {
+		var err error
+		cfg.Logger, err = zap.NewProduction()
+		if err != nil {
+			panic(err)
+		}
+	}
+	return cfg
 }
 
 func NewValueStore(cfg *ValueStoreConfig) (*ValueStore, chan error, error) {
+	cfg = resolveValueStoreConfig(cfg)
 	s := &ValueStore{
 		waitValue:        &sync.WaitGroup{},
 		grpcAddressIndex: cfg.GRPCAddressIndex,
@@ -58,6 +77,7 @@ func NewValueStore(cfg *ValueStoreConfig) (*ValueStore, chan error, error) {
 		replCertFile:     cfg.ReplCertFile,
 		replKeyFile:      cfg.ReplKeyFile,
 		caFile:           cfg.CAFile,
+		logger:           cfg.Logger,
 	}
 	var err error
 	s.valueStoreMsgRing, err = ring.NewTCPMsgRing(&ring.TCPMsgRingConfig{
@@ -538,7 +558,7 @@ func (s *ValueStore) Startup(ctx context.Context) error {
 			mMsgWriteErrors.Add(float64(tcpMsgRingStats.MsgWriteErrors))
 			stats, err := s.valueStore.Stats(context.Background(), false)
 			if err != nil {
-				fmt.Println("stats error", err)
+				s.logger.Debug("stats error", zap.Error(err))
 			} else if gstats, ok := stats.(*store.ValueStoreStats); ok {
 				mValues.Set(float64(gstats.Values))
 				mValueBytes.Set(float64(gstats.ValueBytes))
@@ -589,7 +609,7 @@ func (s *ValueStore) Startup(ctx context.Context) error {
 					mReadOnly.Set(0)
 				}
 			} else {
-				fmt.Println("unknown stats type", stats)
+				s.logger.Debug("unknown stats type", zap.Any("stats", stats))
 			}
 		}
 	}()
@@ -637,7 +657,7 @@ func (s *ValueStore) Startup(ctx context.Context) error {
 	go func() {
 		err := s.grpcServer.Serve(lis)
 		if err != nil {
-			fmt.Println(err)
+			s.logger.Debug("grpcServer.Serve error", zap.Error(err))
 		}
 		lis.Close()
 		s.waitValue.Done()
