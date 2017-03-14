@@ -13,6 +13,7 @@ import (
 	"github.com/getcfs/megacfs/oort/api/proto"
 	"github.com/gholt/ring"
 	"github.com/gholt/store"
+	"github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -668,7 +669,11 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.grpcServer = grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsCfg)))
+	s.grpcServer = grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(tlsCfg)),
+		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+	)
 	groupproto.RegisterGroupStoreServer(s.grpcServer, s)
 
 	s.waitGroup.Add(1)
