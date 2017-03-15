@@ -659,7 +659,7 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	tlsCfg, err := ftls.DefaultServerFTLSConf(s.grpcCertFile, s.grpcKeyFile, s.caFile)
+	tlsCfg, err := ftls.NewServerTLSConfig(ftls.DefaultServerFTLSConf(s.grpcCertFile, s.grpcKeyFile, s.caFile))
 	if err != nil {
 		return err
 	}

@@ -37,11 +37,12 @@ func DefaultServerFTLSConf(CertFile, KeyFile, CAFile string) *Config {
 		StrictClientVerify: true,
 		MutualTLS:          true,
 		InsecureSkipVerify: false,
-		MinVersion:         DefaultMinVersion,
-		CipherSet:          DefaultCipherSet,
-		CertFile:           CertFile,
-		KeyFile:            KeyFile,
-		CAFile:             CAFile,
+		// TODO: I know syn wanted these minimums, but they weren't working last I tested.
+		// MinVersion:         DefaultMinVersion,
+		// CipherSet:          DefaultCipherSet,
+		CertFile: CertFile,
+		KeyFile:  KeyFile,
+		CAFile:   CAFile,
 	}
 }
 
@@ -50,10 +51,11 @@ func DefaultClientFTLSConf(CertFile, KeyFile, CAFile string) *Config {
 	return &Config{
 		MutualTLS:          true,
 		InsecureSkipVerify: false,
-		MinVersion:         DefaultMinVersion,
-		CertFile:           CertFile,
-		KeyFile:            KeyFile,
-		CAFile:             CAFile,
+		// TODO: I know syn wanted these minimums, but they weren't working last I tested.
+		// MinVersion:         DefaultMinVersion,
+		CertFile: CertFile,
+		KeyFile:  KeyFile,
+		CAFile:   CAFile,
 	}
 }
 

@@ -611,13 +611,7 @@ func (s *ValueStore) Startup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	tlsCfg, err := ftls.NewServerTLSConfig(&ftls.Config{
-		MutualTLS:          true,
-		InsecureSkipVerify: false,
-		CertFile:           s.grpcCertFile,
-		KeyFile:            s.grpcKeyFile,
-		CAFile:             s.caFile,
-	})
+	tlsCfg, err := ftls.NewServerTLSConfig(ftls.DefaultServerFTLSConf(s.grpcCertFile, s.grpcKeyFile, s.caFile))
 	if err != nil {
 		return err
 	}
@@ -627,6 +621,7 @@ func (s *ValueStore) Startup(ctx context.Context) error {
 		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
 	)
 	valueproto.RegisterValueStoreServer(s.grpcServer, s)
+	grpc_prometheus.Register(s.grpcServer)
 
 	s.waitValue.Add(1)
 	go func() {
