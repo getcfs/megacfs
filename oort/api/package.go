@@ -5,8 +5,8 @@ import "errors"
 // got is at https://github.com/gholt/got
 //go:generate got config.got valueconfig_GEN_.go TT=VALUE T=Value t=value
 //go:generate got config.got groupconfig_GEN_.go TT=GROUP T=Group t=group
-//go:generate got store.got valuestore_GEN_.go TT=VALUE T=Value t=value R,Lookup,Read,Write,Delete
-//go:generate got store.got groupstore_GEN_.go TT=GROUP T=Group t=group R,Lookup,Read,Write,Delete,LookupGroup,ReadGroup
+//go:generate got store.got valuestore_GEN_.go TT=VALUE T=Value t=value R,Delete,Lookup,Read,Write
+//go:generate got store.got groupstore_GEN_.go TT=GROUP T=Group t=group R,Delete,LookupGroup,Lookup,ReadGroup,Read,Write
 //go:generate got poolstore.got valuepoolstore_GEN_.go TT=VALUE T=Value t=value
 //go:generate got poolstore.got grouppoolstore_GEN_.go TT=GROUP T=Group t=group
 //go:generate got replstore.got valuereplstore_GEN_.go TT=VALUE T=Value t=value

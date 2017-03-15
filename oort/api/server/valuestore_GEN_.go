@@ -653,17 +653,7 @@ func (s *ValueStore) Shutdown(ctx context.Context) error {
 	return s.valueStore.Shutdown(ctx)
 }
 
-func (s *ValueStore) Write(ctx context.Context, req *valueproto.WriteRequest) (*valueproto.WriteResponse, error) {
-	resp := valueproto.WriteResponse{Rpcid: req.Rpcid}
-	var err error
-	resp.TimestampMicro, err = s.valueStore.Write(ctx, req.KeyA, req.KeyB, req.TimestampMicro, req.Value)
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	}
-	return &resp, nil
-}
-
-func (s *ValueStore) StreamWrite(stream valueproto.ValueStore_StreamWriteServer) error {
+func (s *ValueStore) Write(stream valueproto.ValueStore_WriteServer) error {
 	var resp valueproto.WriteResponse
 	for {
 		req, err := stream.Recv()
@@ -685,17 +675,7 @@ func (s *ValueStore) StreamWrite(stream valueproto.ValueStore_StreamWriteServer)
 	}
 }
 
-func (s *ValueStore) Read(ctx context.Context, req *valueproto.ReadRequest) (*valueproto.ReadResponse, error) {
-	resp := valueproto.ReadResponse{Rpcid: req.Rpcid}
-	var err error
-	resp.TimestampMicro, resp.Value, err = s.valueStore.Read(ctx, req.KeyA, req.KeyB, resp.Value)
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	}
-	return &resp, nil
-}
-
-func (s *ValueStore) StreamRead(stream valueproto.ValueStore_StreamReadServer) error {
+func (s *ValueStore) Read(stream valueproto.ValueStore_ReadServer) error {
 	var resp valueproto.ReadResponse
 	for {
 		req, err := stream.Recv()
@@ -717,17 +697,7 @@ func (s *ValueStore) StreamRead(stream valueproto.ValueStore_StreamReadServer) e
 	}
 }
 
-func (s *ValueStore) Lookup(ctx context.Context, req *valueproto.LookupRequest) (*valueproto.LookupResponse, error) {
-	resp := valueproto.LookupResponse{Rpcid: req.Rpcid}
-	var err error
-	resp.TimestampMicro, resp.Length, err = s.valueStore.Lookup(ctx, req.KeyA, req.KeyB)
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	}
-	return &resp, nil
-}
-
-func (s *ValueStore) StreamLookup(stream valueproto.ValueStore_StreamLookupServer) error {
+func (s *ValueStore) Lookup(stream valueproto.ValueStore_LookupServer) error {
 	var resp valueproto.LookupResponse
 	for {
 		req, err := stream.Recv()
@@ -749,17 +719,7 @@ func (s *ValueStore) StreamLookup(stream valueproto.ValueStore_StreamLookupServe
 	}
 }
 
-func (s *ValueStore) Delete(ctx context.Context, req *valueproto.DeleteRequest) (*valueproto.DeleteResponse, error) {
-	resp := valueproto.DeleteResponse{Rpcid: req.Rpcid}
-	var err error
-	resp.TimestampMicro, err = s.valueStore.Delete(ctx, req.KeyA, req.KeyB, req.TimestampMicro)
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	}
-	return &resp, nil
-}
-
-func (s *ValueStore) StreamDelete(stream valueproto.ValueStore_StreamDeleteServer) error {
+func (s *ValueStore) Delete(stream valueproto.ValueStore_DeleteServer) error {
 	var resp valueproto.DeleteResponse
 	for {
 		req, err := stream.Recv()

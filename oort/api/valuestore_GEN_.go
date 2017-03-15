@@ -22,6 +22,10 @@ type valueStore struct {
 	client           pb.ValueStoreClient
 	handlersDoneChan chan struct{}
 
+	pendingDeleteReqChan chan *asyncValueDeleteRequest
+	freeDeleteReqChan    chan *asyncValueDeleteRequest
+	freeDeleteResChan    chan *asyncValueDeleteResponse
+
 	pendingLookupReqChan chan *asyncValueLookupRequest
 	freeLookupReqChan    chan *asyncValueLookupRequest
 	freeLookupResChan    chan *asyncValueLookupResponse
@@ -33,10 +37,6 @@ type valueStore struct {
 	pendingWriteReqChan chan *asyncValueWriteRequest
 	freeWriteReqChan    chan *asyncValueWriteRequest
 	freeWriteResChan    chan *asyncValueWriteResponse
-
-	pendingDeleteReqChan chan *asyncValueDeleteRequest
-	freeDeleteReqChan    chan *asyncValueDeleteRequest
-	freeDeleteResChan    chan *asyncValueDeleteResponse
 }
 
 // NewValueStore creates a ValueStore connection via grpc to the given
@@ -49,6 +49,17 @@ func NewValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts .
 		handlersDoneChan: make(chan struct{}),
 	}
 
+	stor.pendingDeleteReqChan = make(chan *asyncValueDeleteRequest, concurrency)
+	stor.freeDeleteReqChan = make(chan *asyncValueDeleteRequest, concurrency)
+	stor.freeDeleteResChan = make(chan *asyncValueDeleteResponse, concurrency)
+	for i := 0; i < cap(stor.freeDeleteReqChan); i++ {
+		stor.freeDeleteReqChan <- &asyncValueDeleteRequest{resChan: make(chan *asyncValueDeleteResponse, 1)}
+	}
+	for i := 0; i < cap(stor.freeDeleteResChan); i++ {
+		stor.freeDeleteResChan <- &asyncValueDeleteResponse{}
+	}
+	go stor.handleDelete()
+
 	stor.pendingLookupReqChan = make(chan *asyncValueLookupRequest, concurrency)
 	stor.freeLookupReqChan = make(chan *asyncValueLookupRequest, concurrency)
 	stor.freeLookupResChan = make(chan *asyncValueLookupResponse, concurrency)
@@ -58,7 +69,7 @@ func NewValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts .
 	for i := 0; i < cap(stor.freeLookupResChan); i++ {
 		stor.freeLookupResChan <- &asyncValueLookupResponse{}
 	}
-	go stor.handleLookupStream()
+	go stor.handleLookup()
 
 	stor.pendingReadReqChan = make(chan *asyncValueReadRequest, concurrency)
 	stor.freeReadReqChan = make(chan *asyncValueReadRequest, concurrency)
@@ -69,7 +80,7 @@ func NewValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts .
 	for i := 0; i < cap(stor.freeReadResChan); i++ {
 		stor.freeReadResChan <- &asyncValueReadResponse{}
 	}
-	go stor.handleReadStream()
+	go stor.handleRead()
 
 	stor.pendingWriteReqChan = make(chan *asyncValueWriteRequest, concurrency)
 	stor.freeWriteReqChan = make(chan *asyncValueWriteRequest, concurrency)
@@ -80,18 +91,7 @@ func NewValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts .
 	for i := 0; i < cap(stor.freeWriteResChan); i++ {
 		stor.freeWriteResChan <- &asyncValueWriteResponse{}
 	}
-	go stor.handleWriteStream()
-
-	stor.pendingDeleteReqChan = make(chan *asyncValueDeleteRequest, concurrency)
-	stor.freeDeleteReqChan = make(chan *asyncValueDeleteRequest, concurrency)
-	stor.freeDeleteResChan = make(chan *asyncValueDeleteResponse, concurrency)
-	for i := 0; i < cap(stor.freeDeleteReqChan); i++ {
-		stor.freeDeleteReqChan <- &asyncValueDeleteRequest{resChan: make(chan *asyncValueDeleteResponse, 1)}
-	}
-	for i := 0; i < cap(stor.freeDeleteResChan); i++ {
-		stor.freeDeleteResChan <- &asyncValueDeleteResponse{}
-	}
-	go stor.handleDeleteStream()
+	go stor.handleWrite()
 
 	return stor
 }
@@ -185,6 +185,209 @@ func (stor *valueStore) ValueCap(ctx context.Context) (uint32, error) {
 	return 0xffffffff, nil
 }
 
+type asyncValueDeleteRequest struct {
+	req          pb.DeleteRequest
+	resChan      chan *asyncValueDeleteResponse
+	canceledLock sync.Mutex
+	canceled     bool
+}
+
+type asyncValueDeleteResponse struct {
+	res *pb.DeleteResponse
+	err error
+}
+
+func (stor *valueStore) handleDelete() {
+	resChan := make(chan *asyncValueDeleteResponse, cap(stor.freeDeleteReqChan))
+	resFunc := func(stream pb.ValueStore_DeleteClient) {
+		var err error
+		var res *asyncValueDeleteResponse
+		for {
+			select {
+			case res = <-stor.freeDeleteResChan:
+			case <-stor.handlersDoneChan:
+				return
+			}
+			res.res, res.err = stream.Recv()
+			err = res.err
+			if err != nil {
+				res.res = nil
+			}
+			select {
+			case resChan <- res:
+			case <-stor.handlersDoneChan:
+				return
+			}
+			if err != nil {
+				return
+			}
+		}
+	}
+	var err error
+	var stream pb.ValueStore_DeleteClient
+	waitingMax := uint32(cap(stor.freeDeleteReqChan)) - 1
+	waiting := make([]*asyncValueDeleteRequest, waitingMax+1)
+	waitingIndex := uint32(0)
+	for {
+		select {
+		case req := <-stor.pendingDeleteReqChan:
+			j := waitingIndex
+			for waiting[waitingIndex] != nil {
+				waitingIndex++
+				if waitingIndex > waitingMax {
+					waitingIndex = 0
+				}
+				if waitingIndex == j {
+					panic("coding error: got more concurrent requests from pendingDeleteReqChan than should be available")
+				}
+			}
+			req.req.Rpcid = waitingIndex
+			waiting[waitingIndex] = req
+			waitingIndex++
+			if waitingIndex > waitingMax {
+				waitingIndex = 0
+			}
+			if stream == nil {
+				stor.lock.Lock()
+				if stor.client == nil {
+					if err = stor.startup(); err != nil {
+						stor.lock.Unlock()
+						res := <-stor.freeDeleteResChan
+						res.err = err
+						res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
+						resChan <- res
+						break
+					}
+				}
+				stream, err = stor.client.Delete(context.Background())
+				stor.lock.Unlock()
+				if err != nil {
+					res := <-stor.freeDeleteResChan
+					res.err = err
+					res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
+					resChan <- res
+					break
+				}
+				go resFunc(stream)
+			}
+			if err = stream.Send(&req.req); err != nil {
+				stream = nil
+				res := <-stor.freeDeleteResChan
+				res.err = err
+				res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
+				resChan <- res
+			}
+		case res := <-resChan:
+			if res.res == nil {
+				// Receiver got unrecoverable error, so we'll have to
+				// respond with errors to all waiting requests.
+				wereWaiting := make([]*asyncValueDeleteRequest, len(waiting))
+				for i, v := range waiting {
+					wereWaiting[i] = v
+				}
+				err := res.err
+				if err == nil {
+					err = errors.New("receiver had error, had to close any other waiting requests")
+				}
+				go func(reqs []*asyncValueDeleteRequest, err error) {
+					for _, req := range reqs {
+						if req == nil {
+							continue
+						}
+						res := <-stor.freeDeleteResChan
+						res.err = err
+						res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
+						resChan <- res
+					}
+				}(wereWaiting, err)
+				break
+			}
+			if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
+				// TODO: Debug log error?
+				break
+			}
+			req := waiting[res.res.Rpcid]
+			if req == nil {
+				// TODO: Debug log error?
+				break
+			}
+			waiting[res.res.Rpcid] = nil
+			req.canceledLock.Lock()
+			if !req.canceled {
+				req.resChan <- res
+			} else {
+				stor.freeDeleteReqChan <- req
+				stor.freeDeleteResChan <- res
+			}
+			req.canceledLock.Unlock()
+		case <-stor.handlersDoneChan:
+			return
+		}
+	}
+}
+
+func (stor *valueStore) Delete(ctx context.Context, keyA, keyB uint64, timestampMicro int64) (oldTimestampMicro int64, err error) {
+
+	var req *asyncValueDeleteRequest
+	select {
+	case req = <-stor.freeDeleteReqChan:
+	case <-ctx.Done():
+
+		return 0, ctx.Err()
+
+	}
+	req.canceled = false
+
+	req.req.KeyA = keyA
+	req.req.KeyB = keyB
+
+	req.req.TimestampMicro = timestampMicro
+
+	select {
+	case stor.pendingDeleteReqChan <- req:
+	case <-ctx.Done():
+		stor.freeDeleteReqChan <- req
+
+		return 0, ctx.Err()
+
+	}
+	var res *asyncValueDeleteResponse
+	select {
+	case res = <-req.resChan:
+	case <-ctx.Done():
+		req.canceledLock.Lock()
+		select {
+		case <-req.resChan:
+		default:
+			req.canceled = true
+		}
+		req.canceledLock.Unlock()
+
+		return 0, ctx.Err()
+
+	}
+	stor.freeDeleteReqChan <- req
+	if res.err != nil {
+		err = res.err
+		stor.freeDeleteResChan <- res
+
+		return 0, err
+
+	}
+
+	oldTimestampMicro = res.res.TimestampMicro
+
+	if res.res.Err == "" {
+		err = nil
+	} else {
+		err = proto.TranslateErrorString(res.res.Err)
+	}
+	stor.freeDeleteResChan <- res
+
+	return oldTimestampMicro, err
+
+}
+
 type asyncValueLookupRequest struct {
 	req          pb.LookupRequest
 	resChan      chan *asyncValueLookupResponse
@@ -197,9 +400,9 @@ type asyncValueLookupResponse struct {
 	err error
 }
 
-func (stor *valueStore) handleLookupStream() {
+func (stor *valueStore) handleLookup() {
 	resChan := make(chan *asyncValueLookupResponse, cap(stor.freeLookupReqChan))
-	resFunc := func(stream pb.ValueStore_StreamLookupClient) {
+	resFunc := func(stream pb.ValueStore_LookupClient) {
 		var err error
 		var res *asyncValueLookupResponse
 		for {
@@ -224,7 +427,7 @@ func (stor *valueStore) handleLookupStream() {
 		}
 	}
 	var err error
-	var stream pb.ValueStore_StreamLookupClient
+	var stream pb.ValueStore_LookupClient
 	waitingMax := uint32(cap(stor.freeLookupReqChan)) - 1
 	waiting := make([]*asyncValueLookupRequest, waitingMax+1)
 	waitingIndex := uint32(0)
@@ -259,7 +462,7 @@ func (stor *valueStore) handleLookupStream() {
 						break
 					}
 				}
-				stream, err = stor.client.StreamLookup(context.Background())
+				stream, err = stor.client.Lookup(context.Background())
 				stor.lock.Unlock()
 				if err != nil {
 					res := <-stor.freeLookupResChan
@@ -399,9 +602,9 @@ type asyncValueReadResponse struct {
 	err error
 }
 
-func (stor *valueStore) handleReadStream() {
+func (stor *valueStore) handleRead() {
 	resChan := make(chan *asyncValueReadResponse, cap(stor.freeReadReqChan))
-	resFunc := func(stream pb.ValueStore_StreamReadClient) {
+	resFunc := func(stream pb.ValueStore_ReadClient) {
 		var err error
 		var res *asyncValueReadResponse
 		for {
@@ -426,7 +629,7 @@ func (stor *valueStore) handleReadStream() {
 		}
 	}
 	var err error
-	var stream pb.ValueStore_StreamReadClient
+	var stream pb.ValueStore_ReadClient
 	waitingMax := uint32(cap(stor.freeReadReqChan)) - 1
 	waiting := make([]*asyncValueReadRequest, waitingMax+1)
 	waitingIndex := uint32(0)
@@ -461,7 +664,7 @@ func (stor *valueStore) handleReadStream() {
 						break
 					}
 				}
-				stream, err = stor.client.StreamRead(context.Background())
+				stream, err = stor.client.Read(context.Background())
 				stor.lock.Unlock()
 				if err != nil {
 					res := <-stor.freeReadResChan
@@ -601,9 +804,9 @@ type asyncValueWriteResponse struct {
 	err error
 }
 
-func (stor *valueStore) handleWriteStream() {
+func (stor *valueStore) handleWrite() {
 	resChan := make(chan *asyncValueWriteResponse, cap(stor.freeWriteReqChan))
-	resFunc := func(stream pb.ValueStore_StreamWriteClient) {
+	resFunc := func(stream pb.ValueStore_WriteClient) {
 		var err error
 		var res *asyncValueWriteResponse
 		for {
@@ -628,7 +831,7 @@ func (stor *valueStore) handleWriteStream() {
 		}
 	}
 	var err error
-	var stream pb.ValueStore_StreamWriteClient
+	var stream pb.ValueStore_WriteClient
 	waitingMax := uint32(cap(stor.freeWriteReqChan)) - 1
 	waiting := make([]*asyncValueWriteRequest, waitingMax+1)
 	waitingIndex := uint32(0)
@@ -663,7 +866,7 @@ func (stor *valueStore) handleWriteStream() {
 						break
 					}
 				}
-				stream, err = stor.client.StreamWrite(context.Background())
+				stream, err = stor.client.Write(context.Background())
 				stor.lock.Unlock()
 				if err != nil {
 					res := <-stor.freeWriteResChan
@@ -791,209 +994,6 @@ func (stor *valueStore) Write(ctx context.Context, keyA, keyB uint64, timestampM
 		err = proto.TranslateErrorString(res.res.Err)
 	}
 	stor.freeWriteResChan <- res
-
-	return oldTimestampMicro, err
-
-}
-
-type asyncValueDeleteRequest struct {
-	req          pb.DeleteRequest
-	resChan      chan *asyncValueDeleteResponse
-	canceledLock sync.Mutex
-	canceled     bool
-}
-
-type asyncValueDeleteResponse struct {
-	res *pb.DeleteResponse
-	err error
-}
-
-func (stor *valueStore) handleDeleteStream() {
-	resChan := make(chan *asyncValueDeleteResponse, cap(stor.freeDeleteReqChan))
-	resFunc := func(stream pb.ValueStore_StreamDeleteClient) {
-		var err error
-		var res *asyncValueDeleteResponse
-		for {
-			select {
-			case res = <-stor.freeDeleteResChan:
-			case <-stor.handlersDoneChan:
-				return
-			}
-			res.res, res.err = stream.Recv()
-			err = res.err
-			if err != nil {
-				res.res = nil
-			}
-			select {
-			case resChan <- res:
-			case <-stor.handlersDoneChan:
-				return
-			}
-			if err != nil {
-				return
-			}
-		}
-	}
-	var err error
-	var stream pb.ValueStore_StreamDeleteClient
-	waitingMax := uint32(cap(stor.freeDeleteReqChan)) - 1
-	waiting := make([]*asyncValueDeleteRequest, waitingMax+1)
-	waitingIndex := uint32(0)
-	for {
-		select {
-		case req := <-stor.pendingDeleteReqChan:
-			j := waitingIndex
-			for waiting[waitingIndex] != nil {
-				waitingIndex++
-				if waitingIndex > waitingMax {
-					waitingIndex = 0
-				}
-				if waitingIndex == j {
-					panic("coding error: got more concurrent requests from pendingDeleteReqChan than should be available")
-				}
-			}
-			req.req.Rpcid = waitingIndex
-			waiting[waitingIndex] = req
-			waitingIndex++
-			if waitingIndex > waitingMax {
-				waitingIndex = 0
-			}
-			if stream == nil {
-				stor.lock.Lock()
-				if stor.client == nil {
-					if err = stor.startup(); err != nil {
-						stor.lock.Unlock()
-						res := <-stor.freeDeleteResChan
-						res.err = err
-						res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
-						resChan <- res
-						break
-					}
-				}
-				stream, err = stor.client.StreamDelete(context.Background())
-				stor.lock.Unlock()
-				if err != nil {
-					res := <-stor.freeDeleteResChan
-					res.err = err
-					res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
-					resChan <- res
-					break
-				}
-				go resFunc(stream)
-			}
-			if err = stream.Send(&req.req); err != nil {
-				stream = nil
-				res := <-stor.freeDeleteResChan
-				res.err = err
-				res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
-				resChan <- res
-			}
-		case res := <-resChan:
-			if res.res == nil {
-				// Receiver got unrecoverable error, so we'll have to
-				// respond with errors to all waiting requests.
-				wereWaiting := make([]*asyncValueDeleteRequest, len(waiting))
-				for i, v := range waiting {
-					wereWaiting[i] = v
-				}
-				err := res.err
-				if err == nil {
-					err = errors.New("receiver had error, had to close any other waiting requests")
-				}
-				go func(reqs []*asyncValueDeleteRequest, err error) {
-					for _, req := range reqs {
-						if req == nil {
-							continue
-						}
-						res := <-stor.freeDeleteResChan
-						res.err = err
-						res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
-						resChan <- res
-					}
-				}(wereWaiting, err)
-				break
-			}
-			if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
-				// TODO: Debug log error?
-				break
-			}
-			req := waiting[res.res.Rpcid]
-			if req == nil {
-				// TODO: Debug log error?
-				break
-			}
-			waiting[res.res.Rpcid] = nil
-			req.canceledLock.Lock()
-			if !req.canceled {
-				req.resChan <- res
-			} else {
-				stor.freeDeleteReqChan <- req
-				stor.freeDeleteResChan <- res
-			}
-			req.canceledLock.Unlock()
-		case <-stor.handlersDoneChan:
-			return
-		}
-	}
-}
-
-func (stor *valueStore) Delete(ctx context.Context, keyA, keyB uint64, timestampMicro int64) (oldTimestampMicro int64, err error) {
-
-	var req *asyncValueDeleteRequest
-	select {
-	case req = <-stor.freeDeleteReqChan:
-	case <-ctx.Done():
-
-		return 0, ctx.Err()
-
-	}
-	req.canceled = false
-
-	req.req.KeyA = keyA
-	req.req.KeyB = keyB
-
-	req.req.TimestampMicro = timestampMicro
-
-	select {
-	case stor.pendingDeleteReqChan <- req:
-	case <-ctx.Done():
-		stor.freeDeleteReqChan <- req
-
-		return 0, ctx.Err()
-
-	}
-	var res *asyncValueDeleteResponse
-	select {
-	case res = <-req.resChan:
-	case <-ctx.Done():
-		req.canceledLock.Lock()
-		select {
-		case <-req.resChan:
-		default:
-			req.canceled = true
-		}
-		req.canceledLock.Unlock()
-
-		return 0, ctx.Err()
-
-	}
-	stor.freeDeleteReqChan <- req
-	if res.err != nil {
-		err = res.err
-		stor.freeDeleteResChan <- res
-
-		return 0, err
-
-	}
-
-	oldTimestampMicro = res.res.TimestampMicro
-
-	if res.res.Err == "" {
-		err = nil
-	} else {
-		err = proto.TranslateErrorString(res.res.Err)
-	}
-	stor.freeDeleteResChan <- res
 
 	return oldTimestampMicro, err
 

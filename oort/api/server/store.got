@@ -701,17 +701,7 @@ func (s *{{.T}}Store) Shutdown(ctx context.Context) error {
 	return s.{{.t}}Store.Shutdown(ctx)
 }
 
-func (s *{{.T}}Store) Write(ctx context.Context, req *{{.t}}proto.WriteRequest) (*{{.t}}proto.WriteResponse, error) {
-	resp := {{.t}}proto.WriteResponse{Rpcid: req.Rpcid}
-	var err error
-	resp.TimestampMicro, err = s.{{.t}}Store.Write(ctx, req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, req.TimestampMicro, req.Value)
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	}
-	return &resp, nil
-}
-
-func (s *{{.T}}Store) StreamWrite(stream {{.t}}proto.{{.T}}Store_StreamWriteServer) error {
+func (s *{{.T}}Store) Write(stream {{.t}}proto.{{.T}}Store_WriteServer) error {
 	var resp {{.t}}proto.WriteResponse
 	for {
 		req, err := stream.Recv()
@@ -733,17 +723,7 @@ func (s *{{.T}}Store) StreamWrite(stream {{.t}}proto.{{.T}}Store_StreamWriteServ
 	}
 }
 
-func (s *{{.T}}Store) Read(ctx context.Context, req *{{.t}}proto.ReadRequest) (*{{.t}}proto.ReadResponse, error) {
-	resp := {{.t}}proto.ReadResponse{Rpcid: req.Rpcid}
-	var err error
-	resp.TimestampMicro, resp.Value, err = s.{{.t}}Store.Read(ctx, req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, resp.Value)
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	}
-	return &resp, nil
-}
-
-func (s *{{.T}}Store) StreamRead(stream {{.t}}proto.{{.T}}Store_StreamReadServer) error {
+func (s *{{.T}}Store) Read(stream {{.t}}proto.{{.T}}Store_ReadServer) error {
 	var resp {{.t}}proto.ReadResponse
 	for {
 		req, err := stream.Recv()
@@ -765,17 +745,7 @@ func (s *{{.T}}Store) StreamRead(stream {{.t}}proto.{{.T}}Store_StreamReadServer
 	}
 }
 
-func (s *{{.T}}Store) Lookup(ctx context.Context, req *{{.t}}proto.LookupRequest) (*{{.t}}proto.LookupResponse, error) {
-	resp := {{.t}}proto.LookupResponse{Rpcid: req.Rpcid}
-	var err error
-	resp.TimestampMicro, resp.Length, err = s.{{.t}}Store.Lookup(ctx, req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}})
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	}
-	return &resp, nil
-}
-
-func (s *{{.T}}Store) StreamLookup(stream {{.t}}proto.{{.T}}Store_StreamLookupServer) error {
+func (s *{{.T}}Store) Lookup(stream {{.t}}proto.{{.T}}Store_LookupServer) error {
 	var resp {{.t}}proto.LookupResponse
 	for {
 		req, err := stream.Recv()
@@ -798,25 +768,7 @@ func (s *{{.T}}Store) StreamLookup(stream {{.t}}proto.{{.T}}Store_StreamLookupSe
 }
 
 {{if eq .t "group"}}
-func (s *GroupStore) LookupGroup(ctx context.Context, req *groupproto.LookupGroupRequest) (*groupproto.LookupGroupResponse, error) {
-	resp := &groupproto.LookupGroupResponse{Rpcid: req.Rpcid}
-	items, err := s.groupStore.LookupGroup(ctx, req.KeyA, req.KeyB)
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	} else {
-		for _, v := range items {
-			g := groupproto.LookupGroupItem{}
-			g.Length = v.Length
-			g.ChildKeyA = v.ChildKeyA
-			g.ChildKeyB = v.ChildKeyB
-			g.TimestampMicro = v.TimestampMicro
-			resp.Items = append(resp.Items, &g)
-		}
-	}
-	return resp, nil
-}
-
-func (s *GroupStore) StreamLookupGroup(stream groupproto.GroupStore_StreamLookupGroupServer) error {
+func (s *GroupStore) LookupGroup(stream groupproto.GroupStore_LookupGroupServer) error {
 	var resp groupproto.LookupGroupResponse
 	for {
 		req, err := stream.Recv()
@@ -847,32 +799,7 @@ func (s *GroupStore) StreamLookupGroup(stream groupproto.GroupStore_StreamLookup
 	}
 }
 
-func (s *GroupStore) ReadGroup(ctx context.Context, req *groupproto.ReadGroupRequest) (*groupproto.ReadGroupResponse, error) {
-	resp := groupproto.ReadGroupResponse{Rpcid: req.Rpcid}
-	lgis, err := s.groupStore.LookupGroup(ctx, req.KeyA, req.KeyB)
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	} else {
-		resp.Items = make([]*groupproto.ReadGroupItem, len(lgis))
-		itemCount := 0
-		var err error
-		for i, lgi := range lgis {
-			g := &groupproto.ReadGroupItem{}
-			g.TimestampMicro, g.Value, err = s.groupStore.Read(ctx, req.KeyA, req.KeyB, lgi.ChildKeyA, lgi.ChildKeyB, nil)
-			if err != nil {
-				continue
-			}
-			g.ChildKeyA = lgi.ChildKeyA
-			g.ChildKeyB = lgi.ChildKeyB
-			resp.Items[i] = g
-			itemCount++
-		}
-		resp.Items = resp.Items[:itemCount]
-	}
-	return &resp, nil
-}
-
-func (s *GroupStore) StreamReadGroup(stream groupproto.GroupStore_StreamReadGroupServer) error {
+func (s *GroupStore) ReadGroup(stream groupproto.GroupStore_ReadGroupServer) error {
 	var resp groupproto.ReadGroupResponse
 	for {
 		req, err := stream.Recv()
@@ -910,17 +837,7 @@ func (s *GroupStore) StreamReadGroup(stream groupproto.GroupStore_StreamReadGrou
 }
 {{end}}
 
-func (s *{{.T}}Store) Delete(ctx context.Context, req *{{.t}}proto.DeleteRequest) (*{{.t}}proto.DeleteResponse, error) {
-	resp := {{.t}}proto.DeleteResponse{Rpcid: req.Rpcid}
-	var err error
-	resp.TimestampMicro, err = s.{{.t}}Store.Delete(ctx, req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, req.TimestampMicro)
-	if err != nil {
-		resp.Err = proto.TranslateError(err)
-	}
-	return &resp, nil
-}
-
-func (s *{{.T}}Store) StreamDelete(stream {{.t}}proto.{{.T}}Store_StreamDeleteServer) error {
+func (s *{{.T}}Store) Delete(stream {{.t}}proto.{{.T}}Store_DeleteServer) error {
 	var resp {{.t}}proto.DeleteResponse
 	for {
 		req, err := stream.Recv()
