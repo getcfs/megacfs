@@ -9,15 +9,14 @@ It is generated from these files:
 	value_api.proto
 
 It has these top-level messages:
-	EmptyMsg
-	WriteRequest
-	LookupRequest
-	ReadRequest
 	DeleteRequest
-	WriteResponse
-	LookupResponse
-	ReadResponse
 	DeleteResponse
+	LookupRequest
+	LookupResponse
+	ReadRequest
+	ReadResponse
+	WriteRequest
+	WriteResponse
 */
 package valueproto
 
@@ -41,13 +40,221 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-type EmptyMsg struct {
+type DeleteRequest struct {
+	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
+	KeyA           uint64 `protobuf:"varint,2,opt,name=keyA" json:"keyA,omitempty"`
+	KeyB           uint64 `protobuf:"varint,3,opt,name=keyB" json:"keyB,omitempty"`
+	TimestampMicro int64  `protobuf:"varint,4,opt,name=timestampMicro" json:"timestampMicro,omitempty"`
 }
 
-func (m *EmptyMsg) Reset()                    { *m = EmptyMsg{} }
-func (m *EmptyMsg) String() string            { return proto.CompactTextString(m) }
-func (*EmptyMsg) ProtoMessage()               {}
-func (*EmptyMsg) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+func (m *DeleteRequest) Reset()                    { *m = DeleteRequest{} }
+func (m *DeleteRequest) String() string            { return proto.CompactTextString(m) }
+func (*DeleteRequest) ProtoMessage()               {}
+func (*DeleteRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+
+func (m *DeleteRequest) GetRpcid() uint32 {
+	if m != nil {
+		return m.Rpcid
+	}
+	return 0
+}
+
+func (m *DeleteRequest) GetKeyA() uint64 {
+	if m != nil {
+		return m.KeyA
+	}
+	return 0
+}
+
+func (m *DeleteRequest) GetKeyB() uint64 {
+	if m != nil {
+		return m.KeyB
+	}
+	return 0
+}
+
+func (m *DeleteRequest) GetTimestampMicro() int64 {
+	if m != nil {
+		return m.TimestampMicro
+	}
+	return 0
+}
+
+type DeleteResponse struct {
+	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
+	TimestampMicro int64  `protobuf:"varint,2,opt,name=timestampMicro" json:"timestampMicro,omitempty"`
+	Err            string `protobuf:"bytes,3,opt,name=err" json:"err,omitempty"`
+}
+
+func (m *DeleteResponse) Reset()                    { *m = DeleteResponse{} }
+func (m *DeleteResponse) String() string            { return proto.CompactTextString(m) }
+func (*DeleteResponse) ProtoMessage()               {}
+func (*DeleteResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+
+func (m *DeleteResponse) GetRpcid() uint32 {
+	if m != nil {
+		return m.Rpcid
+	}
+	return 0
+}
+
+func (m *DeleteResponse) GetTimestampMicro() int64 {
+	if m != nil {
+		return m.TimestampMicro
+	}
+	return 0
+}
+
+func (m *DeleteResponse) GetErr() string {
+	if m != nil {
+		return m.Err
+	}
+	return ""
+}
+
+type LookupRequest struct {
+	Rpcid uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
+	KeyA  uint64 `protobuf:"varint,2,opt,name=keyA" json:"keyA,omitempty"`
+	KeyB  uint64 `protobuf:"varint,3,opt,name=keyB" json:"keyB,omitempty"`
+}
+
+func (m *LookupRequest) Reset()                    { *m = LookupRequest{} }
+func (m *LookupRequest) String() string            { return proto.CompactTextString(m) }
+func (*LookupRequest) ProtoMessage()               {}
+func (*LookupRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+func (m *LookupRequest) GetRpcid() uint32 {
+	if m != nil {
+		return m.Rpcid
+	}
+	return 0
+}
+
+func (m *LookupRequest) GetKeyA() uint64 {
+	if m != nil {
+		return m.KeyA
+	}
+	return 0
+}
+
+func (m *LookupRequest) GetKeyB() uint64 {
+	if m != nil {
+		return m.KeyB
+	}
+	return 0
+}
+
+type LookupResponse struct {
+	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
+	TimestampMicro int64  `protobuf:"varint,2,opt,name=timestampMicro" json:"timestampMicro,omitempty"`
+	Length         uint32 `protobuf:"varint,3,opt,name=length" json:"length,omitempty"`
+	Err            string `protobuf:"bytes,4,opt,name=err" json:"err,omitempty"`
+}
+
+func (m *LookupResponse) Reset()                    { *m = LookupResponse{} }
+func (m *LookupResponse) String() string            { return proto.CompactTextString(m) }
+func (*LookupResponse) ProtoMessage()               {}
+func (*LookupResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+
+func (m *LookupResponse) GetRpcid() uint32 {
+	if m != nil {
+		return m.Rpcid
+	}
+	return 0
+}
+
+func (m *LookupResponse) GetTimestampMicro() int64 {
+	if m != nil {
+		return m.TimestampMicro
+	}
+	return 0
+}
+
+func (m *LookupResponse) GetLength() uint32 {
+	if m != nil {
+		return m.Length
+	}
+	return 0
+}
+
+func (m *LookupResponse) GetErr() string {
+	if m != nil {
+		return m.Err
+	}
+	return ""
+}
+
+type ReadRequest struct {
+	Rpcid uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
+	KeyA  uint64 `protobuf:"varint,2,opt,name=keyA" json:"keyA,omitempty"`
+	KeyB  uint64 `protobuf:"varint,3,opt,name=keyB" json:"keyB,omitempty"`
+}
+
+func (m *ReadRequest) Reset()                    { *m = ReadRequest{} }
+func (m *ReadRequest) String() string            { return proto.CompactTextString(m) }
+func (*ReadRequest) ProtoMessage()               {}
+func (*ReadRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+
+func (m *ReadRequest) GetRpcid() uint32 {
+	if m != nil {
+		return m.Rpcid
+	}
+	return 0
+}
+
+func (m *ReadRequest) GetKeyA() uint64 {
+	if m != nil {
+		return m.KeyA
+	}
+	return 0
+}
+
+func (m *ReadRequest) GetKeyB() uint64 {
+	if m != nil {
+		return m.KeyB
+	}
+	return 0
+}
+
+type ReadResponse struct {
+	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
+	TimestampMicro int64  `protobuf:"varint,2,opt,name=timestampMicro" json:"timestampMicro,omitempty"`
+	Value          []byte `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	Err            string `protobuf:"bytes,4,opt,name=err" json:"err,omitempty"`
+}
+
+func (m *ReadResponse) Reset()                    { *m = ReadResponse{} }
+func (m *ReadResponse) String() string            { return proto.CompactTextString(m) }
+func (*ReadResponse) ProtoMessage()               {}
+func (*ReadResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+
+func (m *ReadResponse) GetRpcid() uint32 {
+	if m != nil {
+		return m.Rpcid
+	}
+	return 0
+}
+
+func (m *ReadResponse) GetTimestampMicro() int64 {
+	if m != nil {
+		return m.TimestampMicro
+	}
+	return 0
+}
+
+func (m *ReadResponse) GetValue() []byte {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+func (m *ReadResponse) GetErr() string {
+	if m != nil {
+		return m.Err
+	}
+	return ""
+}
 
 type WriteRequest struct {
 	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
@@ -60,7 +267,7 @@ type WriteRequest struct {
 func (m *WriteRequest) Reset()                    { *m = WriteRequest{} }
 func (m *WriteRequest) String() string            { return proto.CompactTextString(m) }
 func (*WriteRequest) ProtoMessage()               {}
-func (*WriteRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (*WriteRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
 
 func (m *WriteRequest) GetRpcid() uint32 {
 	if m != nil {
@@ -97,110 +304,6 @@ func (m *WriteRequest) GetTimestampMicro() int64 {
 	return 0
 }
 
-type LookupRequest struct {
-	Rpcid uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
-	KeyA  uint64 `protobuf:"varint,2,opt,name=keyA" json:"keyA,omitempty"`
-	KeyB  uint64 `protobuf:"varint,3,opt,name=keyB" json:"keyB,omitempty"`
-}
-
-func (m *LookupRequest) Reset()                    { *m = LookupRequest{} }
-func (m *LookupRequest) String() string            { return proto.CompactTextString(m) }
-func (*LookupRequest) ProtoMessage()               {}
-func (*LookupRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
-
-func (m *LookupRequest) GetRpcid() uint32 {
-	if m != nil {
-		return m.Rpcid
-	}
-	return 0
-}
-
-func (m *LookupRequest) GetKeyA() uint64 {
-	if m != nil {
-		return m.KeyA
-	}
-	return 0
-}
-
-func (m *LookupRequest) GetKeyB() uint64 {
-	if m != nil {
-		return m.KeyB
-	}
-	return 0
-}
-
-type ReadRequest struct {
-	Rpcid uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
-	KeyA  uint64 `protobuf:"varint,2,opt,name=keyA" json:"keyA,omitempty"`
-	KeyB  uint64 `protobuf:"varint,3,opt,name=keyB" json:"keyB,omitempty"`
-}
-
-func (m *ReadRequest) Reset()                    { *m = ReadRequest{} }
-func (m *ReadRequest) String() string            { return proto.CompactTextString(m) }
-func (*ReadRequest) ProtoMessage()               {}
-func (*ReadRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
-
-func (m *ReadRequest) GetRpcid() uint32 {
-	if m != nil {
-		return m.Rpcid
-	}
-	return 0
-}
-
-func (m *ReadRequest) GetKeyA() uint64 {
-	if m != nil {
-		return m.KeyA
-	}
-	return 0
-}
-
-func (m *ReadRequest) GetKeyB() uint64 {
-	if m != nil {
-		return m.KeyB
-	}
-	return 0
-}
-
-type DeleteRequest struct {
-	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
-	KeyA           uint64 `protobuf:"varint,2,opt,name=keyA" json:"keyA,omitempty"`
-	KeyB           uint64 `protobuf:"varint,3,opt,name=keyB" json:"keyB,omitempty"`
-	TimestampMicro int64  `protobuf:"varint,4,opt,name=timestampMicro" json:"timestampMicro,omitempty"`
-}
-
-func (m *DeleteRequest) Reset()                    { *m = DeleteRequest{} }
-func (m *DeleteRequest) String() string            { return proto.CompactTextString(m) }
-func (*DeleteRequest) ProtoMessage()               {}
-func (*DeleteRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
-
-func (m *DeleteRequest) GetRpcid() uint32 {
-	if m != nil {
-		return m.Rpcid
-	}
-	return 0
-}
-
-func (m *DeleteRequest) GetKeyA() uint64 {
-	if m != nil {
-		return m.KeyA
-	}
-	return 0
-}
-
-func (m *DeleteRequest) GetKeyB() uint64 {
-	if m != nil {
-		return m.KeyB
-	}
-	return 0
-}
-
-func (m *DeleteRequest) GetTimestampMicro() int64 {
-	if m != nil {
-		return m.TimestampMicro
-	}
-	return 0
-}
-
 type WriteResponse struct {
 	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
 	TimestampMicro int64  `protobuf:"varint,2,opt,name=timestampMicro" json:"timestampMicro,omitempty"`
@@ -210,7 +313,7 @@ type WriteResponse struct {
 func (m *WriteResponse) Reset()                    { *m = WriteResponse{} }
 func (m *WriteResponse) String() string            { return proto.CompactTextString(m) }
 func (*WriteResponse) ProtoMessage()               {}
-func (*WriteResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+func (*WriteResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
 
 func (m *WriteResponse) GetRpcid() uint32 {
 	if m != nil {
@@ -233,128 +336,15 @@ func (m *WriteResponse) GetErr() string {
 	return ""
 }
 
-type LookupResponse struct {
-	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
-	TimestampMicro int64  `protobuf:"varint,2,opt,name=timestampMicro" json:"timestampMicro,omitempty"`
-	Length         uint32 `protobuf:"varint,3,opt,name=length" json:"length,omitempty"`
-	Err            string `protobuf:"bytes,4,opt,name=err" json:"err,omitempty"`
-}
-
-func (m *LookupResponse) Reset()                    { *m = LookupResponse{} }
-func (m *LookupResponse) String() string            { return proto.CompactTextString(m) }
-func (*LookupResponse) ProtoMessage()               {}
-func (*LookupResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
-
-func (m *LookupResponse) GetRpcid() uint32 {
-	if m != nil {
-		return m.Rpcid
-	}
-	return 0
-}
-
-func (m *LookupResponse) GetTimestampMicro() int64 {
-	if m != nil {
-		return m.TimestampMicro
-	}
-	return 0
-}
-
-func (m *LookupResponse) GetLength() uint32 {
-	if m != nil {
-		return m.Length
-	}
-	return 0
-}
-
-func (m *LookupResponse) GetErr() string {
-	if m != nil {
-		return m.Err
-	}
-	return ""
-}
-
-type ReadResponse struct {
-	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
-	TimestampMicro int64  `protobuf:"varint,2,opt,name=timestampMicro" json:"timestampMicro,omitempty"`
-	Value          []byte `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
-	Err            string `protobuf:"bytes,4,opt,name=err" json:"err,omitempty"`
-}
-
-func (m *ReadResponse) Reset()                    { *m = ReadResponse{} }
-func (m *ReadResponse) String() string            { return proto.CompactTextString(m) }
-func (*ReadResponse) ProtoMessage()               {}
-func (*ReadResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
-
-func (m *ReadResponse) GetRpcid() uint32 {
-	if m != nil {
-		return m.Rpcid
-	}
-	return 0
-}
-
-func (m *ReadResponse) GetTimestampMicro() int64 {
-	if m != nil {
-		return m.TimestampMicro
-	}
-	return 0
-}
-
-func (m *ReadResponse) GetValue() []byte {
-	if m != nil {
-		return m.Value
-	}
-	return nil
-}
-
-func (m *ReadResponse) GetErr() string {
-	if m != nil {
-		return m.Err
-	}
-	return ""
-}
-
-type DeleteResponse struct {
-	Rpcid          uint32 `protobuf:"varint,1,opt,name=rpcid" json:"rpcid,omitempty"`
-	TimestampMicro int64  `protobuf:"varint,2,opt,name=timestampMicro" json:"timestampMicro,omitempty"`
-	Err            string `protobuf:"bytes,3,opt,name=err" json:"err,omitempty"`
-}
-
-func (m *DeleteResponse) Reset()                    { *m = DeleteResponse{} }
-func (m *DeleteResponse) String() string            { return proto.CompactTextString(m) }
-func (*DeleteResponse) ProtoMessage()               {}
-func (*DeleteResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
-
-func (m *DeleteResponse) GetRpcid() uint32 {
-	if m != nil {
-		return m.Rpcid
-	}
-	return 0
-}
-
-func (m *DeleteResponse) GetTimestampMicro() int64 {
-	if m != nil {
-		return m.TimestampMicro
-	}
-	return 0
-}
-
-func (m *DeleteResponse) GetErr() string {
-	if m != nil {
-		return m.Err
-	}
-	return ""
-}
-
 func init() {
-	proto.RegisterType((*EmptyMsg)(nil), "valueproto.EmptyMsg")
-	proto.RegisterType((*WriteRequest)(nil), "valueproto.WriteRequest")
-	proto.RegisterType((*LookupRequest)(nil), "valueproto.LookupRequest")
-	proto.RegisterType((*ReadRequest)(nil), "valueproto.ReadRequest")
 	proto.RegisterType((*DeleteRequest)(nil), "valueproto.DeleteRequest")
-	proto.RegisterType((*WriteResponse)(nil), "valueproto.WriteResponse")
-	proto.RegisterType((*LookupResponse)(nil), "valueproto.LookupResponse")
-	proto.RegisterType((*ReadResponse)(nil), "valueproto.ReadResponse")
 	proto.RegisterType((*DeleteResponse)(nil), "valueproto.DeleteResponse")
+	proto.RegisterType((*LookupRequest)(nil), "valueproto.LookupRequest")
+	proto.RegisterType((*LookupResponse)(nil), "valueproto.LookupResponse")
+	proto.RegisterType((*ReadRequest)(nil), "valueproto.ReadRequest")
+	proto.RegisterType((*ReadResponse)(nil), "valueproto.ReadResponse")
+	proto.RegisterType((*WriteRequest)(nil), "valueproto.WriteRequest")
+	proto.RegisterType((*WriteResponse)(nil), "valueproto.WriteResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -368,14 +358,10 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for ValueStore service
 
 type ValueStoreClient interface {
-	Write(ctx context.Context, in *WriteRequest, opts ...grpc.CallOption) (*WriteResponse, error)
-	StreamWrite(ctx context.Context, opts ...grpc.CallOption) (ValueStore_StreamWriteClient, error)
-	Lookup(ctx context.Context, in *LookupRequest, opts ...grpc.CallOption) (*LookupResponse, error)
-	StreamLookup(ctx context.Context, opts ...grpc.CallOption) (ValueStore_StreamLookupClient, error)
-	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error)
-	StreamRead(ctx context.Context, opts ...grpc.CallOption) (ValueStore_StreamReadClient, error)
-	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
-	StreamDelete(ctx context.Context, opts ...grpc.CallOption) (ValueStore_StreamDeleteClient, error)
+	Delete(ctx context.Context, opts ...grpc.CallOption) (ValueStore_DeleteClient, error)
+	Lookup(ctx context.Context, opts ...grpc.CallOption) (ValueStore_LookupClient, error)
+	Read(ctx context.Context, opts ...grpc.CallOption) (ValueStore_ReadClient, error)
+	Write(ctx context.Context, opts ...grpc.CallOption) (ValueStore_WriteClient, error)
 }
 
 type valueStoreClient struct {
@@ -386,79 +372,61 @@ func NewValueStoreClient(cc *grpc.ClientConn) ValueStoreClient {
 	return &valueStoreClient{cc}
 }
 
-func (c *valueStoreClient) Write(ctx context.Context, in *WriteRequest, opts ...grpc.CallOption) (*WriteResponse, error) {
-	out := new(WriteResponse)
-	err := grpc.Invoke(ctx, "/valueproto.ValueStore/Write", in, out, c.cc, opts...)
+func (c *valueStoreClient) Delete(ctx context.Context, opts ...grpc.CallOption) (ValueStore_DeleteClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_ValueStore_serviceDesc.Streams[0], c.cc, "/valueproto.ValueStore/Delete", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
-}
-
-func (c *valueStoreClient) StreamWrite(ctx context.Context, opts ...grpc.CallOption) (ValueStore_StreamWriteClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_ValueStore_serviceDesc.Streams[0], c.cc, "/valueproto.ValueStore/StreamWrite", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &valueStoreStreamWriteClient{stream}
+	x := &valueStoreDeleteClient{stream}
 	return x, nil
 }
 
-type ValueStore_StreamWriteClient interface {
-	Send(*WriteRequest) error
-	Recv() (*WriteResponse, error)
+type ValueStore_DeleteClient interface {
+	Send(*DeleteRequest) error
+	Recv() (*DeleteResponse, error)
 	grpc.ClientStream
 }
 
-type valueStoreStreamWriteClient struct {
+type valueStoreDeleteClient struct {
 	grpc.ClientStream
 }
 
-func (x *valueStoreStreamWriteClient) Send(m *WriteRequest) error {
+func (x *valueStoreDeleteClient) Send(m *DeleteRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *valueStoreStreamWriteClient) Recv() (*WriteResponse, error) {
-	m := new(WriteResponse)
+func (x *valueStoreDeleteClient) Recv() (*DeleteResponse, error) {
+	m := new(DeleteResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (c *valueStoreClient) Lookup(ctx context.Context, in *LookupRequest, opts ...grpc.CallOption) (*LookupResponse, error) {
-	out := new(LookupResponse)
-	err := grpc.Invoke(ctx, "/valueproto.ValueStore/Lookup", in, out, c.cc, opts...)
+func (c *valueStoreClient) Lookup(ctx context.Context, opts ...grpc.CallOption) (ValueStore_LookupClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_ValueStore_serviceDesc.Streams[1], c.cc, "/valueproto.ValueStore/Lookup", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
-}
-
-func (c *valueStoreClient) StreamLookup(ctx context.Context, opts ...grpc.CallOption) (ValueStore_StreamLookupClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_ValueStore_serviceDesc.Streams[1], c.cc, "/valueproto.ValueStore/StreamLookup", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &valueStoreStreamLookupClient{stream}
+	x := &valueStoreLookupClient{stream}
 	return x, nil
 }
 
-type ValueStore_StreamLookupClient interface {
+type ValueStore_LookupClient interface {
 	Send(*LookupRequest) error
 	Recv() (*LookupResponse, error)
 	grpc.ClientStream
 }
 
-type valueStoreStreamLookupClient struct {
+type valueStoreLookupClient struct {
 	grpc.ClientStream
 }
 
-func (x *valueStoreStreamLookupClient) Send(m *LookupRequest) error {
+func (x *valueStoreLookupClient) Send(m *LookupRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *valueStoreStreamLookupClient) Recv() (*LookupResponse, error) {
+func (x *valueStoreLookupClient) Recv() (*LookupResponse, error) {
 	m := new(LookupResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -466,39 +434,30 @@ func (x *valueStoreStreamLookupClient) Recv() (*LookupResponse, error) {
 	return m, nil
 }
 
-func (c *valueStoreClient) Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error) {
-	out := new(ReadResponse)
-	err := grpc.Invoke(ctx, "/valueproto.ValueStore/Read", in, out, c.cc, opts...)
+func (c *valueStoreClient) Read(ctx context.Context, opts ...grpc.CallOption) (ValueStore_ReadClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_ValueStore_serviceDesc.Streams[2], c.cc, "/valueproto.ValueStore/Read", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
-}
-
-func (c *valueStoreClient) StreamRead(ctx context.Context, opts ...grpc.CallOption) (ValueStore_StreamReadClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_ValueStore_serviceDesc.Streams[2], c.cc, "/valueproto.ValueStore/StreamRead", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &valueStoreStreamReadClient{stream}
+	x := &valueStoreReadClient{stream}
 	return x, nil
 }
 
-type ValueStore_StreamReadClient interface {
+type ValueStore_ReadClient interface {
 	Send(*ReadRequest) error
 	Recv() (*ReadResponse, error)
 	grpc.ClientStream
 }
 
-type valueStoreStreamReadClient struct {
+type valueStoreReadClient struct {
 	grpc.ClientStream
 }
 
-func (x *valueStoreStreamReadClient) Send(m *ReadRequest) error {
+func (x *valueStoreReadClient) Send(m *ReadRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *valueStoreStreamReadClient) Recv() (*ReadResponse, error) {
+func (x *valueStoreReadClient) Recv() (*ReadResponse, error) {
 	m := new(ReadResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -506,40 +465,31 @@ func (x *valueStoreStreamReadClient) Recv() (*ReadResponse, error) {
 	return m, nil
 }
 
-func (c *valueStoreClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
-	out := new(DeleteResponse)
-	err := grpc.Invoke(ctx, "/valueproto.ValueStore/Delete", in, out, c.cc, opts...)
+func (c *valueStoreClient) Write(ctx context.Context, opts ...grpc.CallOption) (ValueStore_WriteClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_ValueStore_serviceDesc.Streams[3], c.cc, "/valueproto.ValueStore/Write", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
-}
-
-func (c *valueStoreClient) StreamDelete(ctx context.Context, opts ...grpc.CallOption) (ValueStore_StreamDeleteClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_ValueStore_serviceDesc.Streams[3], c.cc, "/valueproto.ValueStore/StreamDelete", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &valueStoreStreamDeleteClient{stream}
+	x := &valueStoreWriteClient{stream}
 	return x, nil
 }
 
-type ValueStore_StreamDeleteClient interface {
-	Send(*DeleteRequest) error
-	Recv() (*DeleteResponse, error)
+type ValueStore_WriteClient interface {
+	Send(*WriteRequest) error
+	Recv() (*WriteResponse, error)
 	grpc.ClientStream
 }
 
-type valueStoreStreamDeleteClient struct {
+type valueStoreWriteClient struct {
 	grpc.ClientStream
 }
 
-func (x *valueStoreStreamDeleteClient) Send(m *DeleteRequest) error {
+func (x *valueStoreWriteClient) Send(m *WriteRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *valueStoreStreamDeleteClient) Recv() (*DeleteResponse, error) {
-	m := new(DeleteResponse)
+func (x *valueStoreWriteClient) Recv() (*WriteResponse, error) {
+	m := new(WriteResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -549,101 +499,61 @@ func (x *valueStoreStreamDeleteClient) Recv() (*DeleteResponse, error) {
 // Server API for ValueStore service
 
 type ValueStoreServer interface {
-	Write(context.Context, *WriteRequest) (*WriteResponse, error)
-	StreamWrite(ValueStore_StreamWriteServer) error
-	Lookup(context.Context, *LookupRequest) (*LookupResponse, error)
-	StreamLookup(ValueStore_StreamLookupServer) error
-	Read(context.Context, *ReadRequest) (*ReadResponse, error)
-	StreamRead(ValueStore_StreamReadServer) error
-	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
-	StreamDelete(ValueStore_StreamDeleteServer) error
+	Delete(ValueStore_DeleteServer) error
+	Lookup(ValueStore_LookupServer) error
+	Read(ValueStore_ReadServer) error
+	Write(ValueStore_WriteServer) error
 }
 
 func RegisterValueStoreServer(s *grpc.Server, srv ValueStoreServer) {
 	s.RegisterService(&_ValueStore_serviceDesc, srv)
 }
 
-func _ValueStore_Write_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(WriteRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ValueStoreServer).Write(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/valueproto.ValueStore/Write",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ValueStoreServer).Write(ctx, req.(*WriteRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+func _ValueStore_Delete_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ValueStoreServer).Delete(&valueStoreDeleteServer{stream})
 }
 
-func _ValueStore_StreamWrite_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ValueStoreServer).StreamWrite(&valueStoreStreamWriteServer{stream})
-}
-
-type ValueStore_StreamWriteServer interface {
-	Send(*WriteResponse) error
-	Recv() (*WriteRequest, error)
+type ValueStore_DeleteServer interface {
+	Send(*DeleteResponse) error
+	Recv() (*DeleteRequest, error)
 	grpc.ServerStream
 }
 
-type valueStoreStreamWriteServer struct {
+type valueStoreDeleteServer struct {
 	grpc.ServerStream
 }
 
-func (x *valueStoreStreamWriteServer) Send(m *WriteResponse) error {
+func (x *valueStoreDeleteServer) Send(m *DeleteResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *valueStoreStreamWriteServer) Recv() (*WriteRequest, error) {
-	m := new(WriteRequest)
+func (x *valueStoreDeleteServer) Recv() (*DeleteRequest, error) {
+	m := new(DeleteRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func _ValueStore_Lookup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LookupRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ValueStoreServer).Lookup(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/valueproto.ValueStore/Lookup",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ValueStoreServer).Lookup(ctx, req.(*LookupRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+func _ValueStore_Lookup_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ValueStoreServer).Lookup(&valueStoreLookupServer{stream})
 }
 
-func _ValueStore_StreamLookup_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ValueStoreServer).StreamLookup(&valueStoreStreamLookupServer{stream})
-}
-
-type ValueStore_StreamLookupServer interface {
+type ValueStore_LookupServer interface {
 	Send(*LookupResponse) error
 	Recv() (*LookupRequest, error)
 	grpc.ServerStream
 }
 
-type valueStoreStreamLookupServer struct {
+type valueStoreLookupServer struct {
 	grpc.ServerStream
 }
 
-func (x *valueStoreStreamLookupServer) Send(m *LookupResponse) error {
+func (x *valueStoreLookupServer) Send(m *LookupResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *valueStoreStreamLookupServer) Recv() (*LookupRequest, error) {
+func (x *valueStoreLookupServer) Recv() (*LookupRequest, error) {
 	m := new(LookupRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -651,43 +561,25 @@ func (x *valueStoreStreamLookupServer) Recv() (*LookupRequest, error) {
 	return m, nil
 }
 
-func _ValueStore_Read_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReadRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ValueStoreServer).Read(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/valueproto.ValueStore/Read",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ValueStoreServer).Read(ctx, req.(*ReadRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+func _ValueStore_Read_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ValueStoreServer).Read(&valueStoreReadServer{stream})
 }
 
-func _ValueStore_StreamRead_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ValueStoreServer).StreamRead(&valueStoreStreamReadServer{stream})
-}
-
-type ValueStore_StreamReadServer interface {
+type ValueStore_ReadServer interface {
 	Send(*ReadResponse) error
 	Recv() (*ReadRequest, error)
 	grpc.ServerStream
 }
 
-type valueStoreStreamReadServer struct {
+type valueStoreReadServer struct {
 	grpc.ServerStream
 }
 
-func (x *valueStoreStreamReadServer) Send(m *ReadResponse) error {
+func (x *valueStoreReadServer) Send(m *ReadResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *valueStoreStreamReadServer) Recv() (*ReadRequest, error) {
+func (x *valueStoreReadServer) Recv() (*ReadRequest, error) {
 	m := new(ReadRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -695,44 +587,26 @@ func (x *valueStoreStreamReadServer) Recv() (*ReadRequest, error) {
 	return m, nil
 }
 
-func _ValueStore_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ValueStoreServer).Delete(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/valueproto.ValueStore/Delete",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ValueStoreServer).Delete(ctx, req.(*DeleteRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+func _ValueStore_Write_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ValueStoreServer).Write(&valueStoreWriteServer{stream})
 }
 
-func _ValueStore_StreamDelete_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ValueStoreServer).StreamDelete(&valueStoreStreamDeleteServer{stream})
-}
-
-type ValueStore_StreamDeleteServer interface {
-	Send(*DeleteResponse) error
-	Recv() (*DeleteRequest, error)
+type ValueStore_WriteServer interface {
+	Send(*WriteResponse) error
+	Recv() (*WriteRequest, error)
 	grpc.ServerStream
 }
 
-type valueStoreStreamDeleteServer struct {
+type valueStoreWriteServer struct {
 	grpc.ServerStream
 }
 
-func (x *valueStoreStreamDeleteServer) Send(m *DeleteResponse) error {
+func (x *valueStoreWriteServer) Send(m *WriteResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *valueStoreStreamDeleteServer) Recv() (*DeleteRequest, error) {
-	m := new(DeleteRequest)
+func (x *valueStoreWriteServer) Recv() (*WriteRequest, error) {
+	m := new(WriteRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -742,46 +616,29 @@ func (x *valueStoreStreamDeleteServer) Recv() (*DeleteRequest, error) {
 var _ValueStore_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "valueproto.ValueStore",
 	HandlerType: (*ValueStoreServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Write",
-			Handler:    _ValueStore_Write_Handler,
-		},
-		{
-			MethodName: "Lookup",
-			Handler:    _ValueStore_Lookup_Handler,
-		},
-		{
-			MethodName: "Read",
-			Handler:    _ValueStore_Read_Handler,
-		},
-		{
-			MethodName: "Delete",
-			Handler:    _ValueStore_Delete_Handler,
-		},
-	},
+	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "StreamWrite",
-			Handler:       _ValueStore_StreamWrite_Handler,
+			StreamName:    "Delete",
+			Handler:       _ValueStore_Delete_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
 		{
-			StreamName:    "StreamLookup",
-			Handler:       _ValueStore_StreamLookup_Handler,
+			StreamName:    "Lookup",
+			Handler:       _ValueStore_Lookup_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
 		{
-			StreamName:    "StreamRead",
-			Handler:       _ValueStore_StreamRead_Handler,
+			StreamName:    "Read",
+			Handler:       _ValueStore_Read_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
 		{
-			StreamName:    "StreamDelete",
-			Handler:       _ValueStore_StreamDelete_Handler,
+			StreamName:    "Write",
+			Handler:       _ValueStore_Write_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
@@ -792,31 +649,27 @@ var _ValueStore_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("value_api.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 401 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xb4, 0x53, 0x4d, 0x4f, 0xab, 0x40,
-	0x14, 0x7d, 0x53, 0x68, 0xf3, 0xde, 0x2d, 0xf4, 0xbd, 0x4c, 0x5e, 0x14, 0x59, 0x11, 0x16, 0x86,
-	0x55, 0x63, 0x74, 0x69, 0x62, 0xd2, 0xc6, 0x26, 0x26, 0xb5, 0x9b, 0x69, 0xa2, 0xcb, 0x8a, 0xed,
-	0xa4, 0x92, 0x96, 0x32, 0x0e, 0x83, 0xb1, 0x7f, 0xc1, 0x9f, 0xe4, 0xaf, 0x33, 0xcc, 0x14, 0x0a,
-	0x82, 0x1b, 0x8b, 0xbb, 0xfb, 0x01, 0xe7, 0x9c, 0x39, 0xf7, 0x5e, 0xf8, 0xfb, 0xe2, 0xaf, 0x13,
-	0x3a, 0xf3, 0x59, 0xd0, 0x67, 0x3c, 0x12, 0x11, 0x06, 0x59, 0x90, 0xb1, 0x0b, 0xf0, 0x7b, 0x14,
-	0x32, 0xb1, 0x9d, 0xc4, 0x4b, 0xf7, 0x0d, 0x81, 0x71, 0xcf, 0x03, 0x41, 0x09, 0x7d, 0x4e, 0x68,
-	0x2c, 0xf0, 0x7f, 0x68, 0x73, 0x36, 0x0f, 0x16, 0x16, 0x72, 0x90, 0x67, 0x12, 0x95, 0x60, 0x0c,
-	0xfa, 0x8a, 0x6e, 0x07, 0x56, 0xcb, 0x41, 0x9e, 0x4e, 0x64, 0xbc, 0xab, 0x0d, 0x2d, 0x2d, 0xaf,
-	0x0d, 0xd3, 0xbf, 0x25, 0x91, 0xa5, 0x3b, 0xc8, 0x33, 0x88, 0x4a, 0xf0, 0x29, 0xf4, 0x44, 0x10,
-	0xd2, 0x58, 0xf8, 0x21, 0x9b, 0x04, 0x73, 0x1e, 0x59, 0x6d, 0x07, 0x79, 0x1a, 0xf9, 0x54, 0x75,
-	0x27, 0x60, 0xde, 0x46, 0xd1, 0x2a, 0x61, 0x8d, 0x88, 0x71, 0xc7, 0xd0, 0x25, 0xd4, 0x5f, 0x34,
-	0x03, 0x96, 0x80, 0x79, 0x4d, 0xd7, 0xb4, 0x29, 0xa3, 0xaa, 0x96, 0xe8, 0xb5, 0x96, 0xcc, 0xc0,
-	0xdc, 0x8d, 0x27, 0x66, 0xd1, 0x26, 0xa6, 0x5f, 0xd0, 0x56, 0xe1, 0x5a, 0x75, 0x70, 0xf8, 0x1f,
-	0x68, 0x94, 0x73, 0xa9, 0xe4, 0x0f, 0x49, 0x43, 0xf7, 0x15, 0x7a, 0x99, 0xe7, 0x8d, 0x30, 0x1c,
-	0x41, 0x67, 0x4d, 0x37, 0x4b, 0xf1, 0x24, 0x49, 0x4c, 0xb2, 0xcb, 0x32, 0x66, 0x7d, 0xcf, 0x2c,
-	0xc0, 0x50, 0xe3, 0x69, 0x84, 0x37, 0xdf, 0x3c, 0xad, 0xb8, 0x79, 0x55, 0xd6, 0x07, 0xe8, 0x65,
-	0x73, 0xfc, 0x19, 0x47, 0xcf, 0xdf, 0x75, 0x80, 0xbb, 0x94, 0x7d, 0x2a, 0x22, 0x4e, 0xf1, 0x15,
-	0xb4, 0xe5, 0x04, 0xb1, 0xd5, 0xdf, 0xdf, 0x60, 0xbf, 0x78, 0x73, 0xf6, 0x49, 0x4d, 0x47, 0x89,
-	0x73, 0x7f, 0xe1, 0x1b, 0xe8, 0x4e, 0x05, 0xa7, 0x7e, 0x78, 0x08, 0x8a, 0x87, 0xce, 0x10, 0x1e,
-	0x40, 0x47, 0x8d, 0x1a, 0x97, 0x3e, 0x2d, 0x9d, 0x9c, 0x6d, 0xd7, 0xb5, 0x72, 0x31, 0x63, 0x30,
-	0x94, 0x98, 0x03, 0x81, 0xa4, 0x9e, 0x4b, 0xd0, 0xd3, 0x05, 0xc0, 0xc7, 0xc5, 0x2f, 0x0b, 0x17,
-	0x6b, 0x5b, 0xd5, 0x46, 0xae, 0x64, 0x04, 0xa0, 0x94, 0x7c, 0x1b, 0x22, 0xf3, 0x44, 0xad, 0x43,
-	0xf9, 0x29, 0xa5, 0x53, 0x2f, 0x3f, 0xa5, 0xbc, 0x3d, 0x45, 0x4f, 0x0e, 0x04, 0x4a, 0xf5, 0x3c,
-	0x76, 0x64, 0xef, 0xe2, 0x23, 0x00, 0x00, 0xff, 0xff, 0x8d, 0xa0, 0x45, 0x1a, 0xc1, 0x05, 0x00,
-	0x00,
+	// 352 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x53, 0xcb, 0x4e, 0x83, 0x40,
+	0x14, 0x75, 0x5a, 0x68, 0xe2, 0xb5, 0x54, 0x33, 0x69, 0x94, 0xb2, 0x6a, 0x58, 0x18, 0x56, 0x8d,
+	0xd1, 0x0f, 0x30, 0x36, 0xba, 0xd2, 0x6e, 0xc6, 0x44, 0x97, 0x15, 0xdb, 0x1b, 0x25, 0x7d, 0xcc,
+	0x38, 0x0c, 0x46, 0x7f, 0xc1, 0x9f, 0xf0, 0x57, 0x0d, 0x33, 0xb4, 0x65, 0x04, 0x77, 0xb8, 0xbb,
+	0x8f, 0xc9, 0x79, 0xc0, 0xb9, 0x70, 0xf8, 0x1e, 0x2f, 0x33, 0x9c, 0xc6, 0x22, 0x19, 0x09, 0xc9,
+	0x15, 0xa7, 0xa0, 0x07, 0xba, 0x0e, 0x33, 0xf0, 0xae, 0x71, 0x89, 0x0a, 0x19, 0xbe, 0x65, 0x98,
+	0x2a, 0xda, 0x07, 0x57, 0x8a, 0x59, 0x32, 0xf7, 0xc9, 0x90, 0x44, 0x1e, 0x33, 0x0d, 0xa5, 0xe0,
+	0x2c, 0xf0, 0xf3, 0xca, 0x6f, 0x0d, 0x49, 0xe4, 0x30, 0x5d, 0x17, 0xb3, 0xb1, 0xdf, 0xde, 0xce,
+	0xc6, 0xf4, 0x14, 0x7a, 0x2a, 0x59, 0x61, 0xaa, 0xe2, 0x95, 0x98, 0x24, 0x33, 0xc9, 0x7d, 0x67,
+	0x48, 0xa2, 0x36, 0xfb, 0x35, 0x0d, 0x9f, 0xa0, 0xb7, 0xa1, 0x4d, 0x05, 0x5f, 0xa7, 0xf8, 0x07,
+	0x6f, 0x15, 0xaf, 0x55, 0x87, 0x47, 0x8f, 0xa0, 0x8d, 0x52, 0x6a, 0x29, 0xfb, 0x2c, 0x2f, 0xc3,
+	0x09, 0x78, 0x77, 0x9c, 0x2f, 0x32, 0xd1, 0x88, 0xb1, 0xf0, 0x03, 0x7a, 0x1b, 0xb8, 0x46, 0x04,
+	0x1f, 0x43, 0x67, 0x89, 0xeb, 0x17, 0xf5, 0xaa, 0x59, 0x3c, 0x56, 0x74, 0x1b, 0x23, 0xce, 0xce,
+	0xc8, 0x2d, 0x1c, 0x30, 0x8c, 0xe7, 0xcd, 0xd8, 0x50, 0xd0, 0x35, 0x60, 0x8d, 0x98, 0xe8, 0x83,
+	0xab, 0xa3, 0xa4, 0x29, 0xba, 0xcc, 0x34, 0x35, 0x16, 0xbe, 0x08, 0x74, 0x1f, 0x65, 0xd2, 0x54,
+	0xc8, 0xb6, 0xb4, 0x4e, 0x99, 0xb6, 0x2a, 0xda, 0xad, 0x8d, 0xde, 0x14, 0xbc, 0x42, 0xcb, 0xff,
+	0x24, 0xef, 0xfc, 0xbb, 0x05, 0xf0, 0x90, 0x4b, 0xba, 0x57, 0x5c, 0x22, 0xbd, 0x81, 0x8e, 0x89,
+	0x3a, 0x1d, 0x8c, 0x76, 0x87, 0x37, 0xb2, 0xae, 0x2e, 0x08, 0xea, 0x56, 0x46, 0x5f, 0xb8, 0x17,
+	0x91, 0x33, 0x92, 0xc3, 0x98, 0x00, 0xda, 0x30, 0x56, 0xc6, 0x6d, 0x18, 0x3b, 0xaf, 0x05, 0xcc,
+	0x25, 0x38, 0x79, 0x00, 0xe8, 0x49, 0xf9, 0x65, 0x29, 0x5f, 0x81, 0x5f, 0x5d, 0x58, 0x00, 0x63,
+	0x70, 0xf5, 0xe7, 0xa3, 0xd6, 0xc3, 0xf2, 0xdf, 0x0d, 0x06, 0x35, 0x9b, 0x32, 0xc6, 0x73, 0x47,
+	0xaf, 0x2e, 0x7e, 0x02, 0x00, 0x00, 0xff, 0xff, 0x24, 0x49, 0x09, 0xe1, 0x9a, 0x04, 0x00, 0x00,
 }

@@ -47,7 +47,7 @@ func New{{.T}}Store(addr string, concurrency int, ftlsConfig *ftls.Config, opts 
         for i := 0; i < cap(stor.free{{$R}}ResChan); i++ {
             stor.free{{$R}}ResChan <- &async{{$.T}}{{$R}}Response{}
         }
-        go stor.handle{{$R}}Stream()
+        go stor.handle{{$R}}()
     {{end}}
     return stor
 }
@@ -154,9 +154,9 @@ func (stor *{{.t}}Store) ValueCap(ctx context.Context) (uint32, error) {
         err error
     }
 
-    func (stor *{{$.t}}Store) handle{{$R}}Stream() {
+    func (stor *{{$.t}}Store) handle{{$R}}() {
         resChan := make(chan *async{{$.T}}{{$R}}Response, cap(stor.free{{$R}}ReqChan))
-        resFunc := func(stream pb.{{$.T}}Store_Stream{{$R}}Client) {
+        resFunc := func(stream pb.{{$.T}}Store_{{$R}}Client) {
             var err error
             var res *async{{$.T}}{{$R}}Response
             for {
@@ -181,7 +181,7 @@ func (stor *{{.t}}Store) ValueCap(ctx context.Context) (uint32, error) {
             }
         }
         var err error
-        var stream pb.{{$.T}}Store_Stream{{$R}}Client
+        var stream pb.{{$.T}}Store_{{$R}}Client
         waitingMax := uint32(cap(stor.free{{$R}}ReqChan)) - 1
         waiting := make([]*async{{$.T}}{{$R}}Request, waitingMax+1)
         waitingIndex := uint32(0)
@@ -216,7 +216,7 @@ func (stor *{{.t}}Store) ValueCap(ctx context.Context) (uint32, error) {
                             break
                         }
                     }
-                    stream, err = stor.client.Stream{{$R}}(context.Background())
+                    stream, err = stor.client.{{$R}}(context.Background())
                     stor.lock.Unlock()
                     if err != nil {
                         res := <-stor.free{{$R}}ResChan
