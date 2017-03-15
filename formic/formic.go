@@ -90,29 +90,19 @@ func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 
 	oortLogger := logger.With(zap.String("name", "cfsd.formic.oort"))
 	vstore := api.NewReplValueStore(&api.ValueStoreConfig{
-		Logger:       oortLogger,
-		AddressIndex: cfg.ValueAddressIndex,
-		StoreFTLSConfig: &ftls.Config{
-			MutualTLS: true,
-			CertFile:  cfg.CertFile,
-			KeyFile:   cfg.KeyFile,
-			CAFile:    cfg.CAFile,
-		},
-		RingCachePath: cfg.RingPath,
-		RingClientID:  cfg.IpAddr,
+		Logger:          oortLogger,
+		AddressIndex:    cfg.ValueAddressIndex,
+		StoreFTLSConfig: ftls.DefaultClientFTLSConf(cfg.CertFile, cfg.KeyFile, cfg.CAFile),
+		RingCachePath:   cfg.RingPath,
+		RingClientID:    cfg.IpAddr,
 	})
 
 	gstore := api.NewReplGroupStore(&api.GroupStoreConfig{
-		Logger:       oortLogger,
-		AddressIndex: cfg.GroupAddressIndex,
-		StoreFTLSConfig: &ftls.Config{
-			MutualTLS: true,
-			CertFile:  cfg.CertFile,
-			KeyFile:   cfg.KeyFile,
-			CAFile:    cfg.CAFile,
-		},
-		RingCachePath: cfg.RingPath,
-		RingClientID:  cfg.IpAddr,
+		Logger:          oortLogger,
+		AddressIndex:    cfg.GroupAddressIndex,
+		StoreFTLSConfig: ftls.DefaultClientFTLSConf(cfg.CertFile, cfg.KeyFile, cfg.CAFile),
+		RingCachePath:   cfg.RingPath,
+		RingClientID:    cfg.IpAddr,
 	})
 
 	//
