@@ -23,7 +23,7 @@ import (
 
 type ValueStore struct {
 	sync.RWMutex
-	waitValue         *sync.WaitGroup
+	waitGroup         *sync.WaitGroup
 	shutdownChan      chan struct{}
 	started           bool
 	valueStore        store.ValueStore
@@ -71,7 +71,7 @@ func resolveValueStoreConfig(c *ValueStoreConfig) *ValueStoreConfig {
 func NewValueStore(cfg *ValueStoreConfig) (*ValueStore, chan error, error) {
 	cfg = resolveValueStoreConfig(cfg)
 	s := &ValueStore{
-		waitValue:        &sync.WaitGroup{},
+		waitGroup:        &sync.WaitGroup{},
 		grpcAddressIndex: cfg.GRPCAddressIndex,
 		grpcCertFile:     cfg.GRPCCertFile,
 		grpcKeyFile:      cfg.GRPCKeyFile,
@@ -584,16 +584,16 @@ func (s *ValueStore) Startup(ctx context.Context) error {
 			}
 		}
 	}()
-	s.waitValue.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		s.valueStoreMsgRing.Listen()
-		s.waitValue.Done()
+		s.waitGroup.Done()
 	}()
-	s.waitValue.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		<-s.shutdownChan
 		s.valueStoreMsgRing.Shutdown()
-		s.waitValue.Done()
+		s.waitGroup.Done()
 	}()
 	ln := s.valueStoreMsgRing.Ring().LocalNode()
 	if ln == nil {
@@ -623,21 +623,21 @@ func (s *ValueStore) Startup(ctx context.Context) error {
 	valueproto.RegisterValueStoreServer(s.grpcServer, s)
 	grpc_prometheus.Register(s.grpcServer)
 
-	s.waitValue.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		err := s.grpcServer.Serve(lis)
 		if err != nil {
 			s.logger.Debug("grpcServer.Serve error", zap.Error(err))
 		}
 		lis.Close()
-		s.waitValue.Done()
+		s.waitGroup.Done()
 	}()
-	s.waitValue.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		<-s.shutdownChan
 		s.grpcServer.Stop()
 		lis.Close()
-		s.waitValue.Done()
+		s.waitGroup.Done()
 	}()
 	return nil
 }
@@ -649,7 +649,7 @@ func (s *ValueStore) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	close(s.shutdownChan)
-	s.waitValue.Wait()
+	s.waitGroup.Wait()
 	return s.valueStore.Shutdown(ctx)
 }
 
