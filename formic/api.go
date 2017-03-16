@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 
-	"github.com/getcfs/megacfs/formic/flother"
+	"github.com/getcfs/megacfs/flother"
 	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
