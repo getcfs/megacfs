@@ -702,6 +702,18 @@ func (s *GroupStore) Shutdown(ctx context.Context) error {
 }
 
 func (s *GroupStore) Write(stream groupproto.GroupStore_WriteServer) error {
+	// NOTE: Each of these streams is synchronized req1, resp1, req2, resp2.
+	// But it doesn't have to be that way, it was just simpler to code. Each
+	// client/server pair will have a stream for each request/response type, so
+	// there's a pretty good amount of concurrency going on there already.
+	// Perhaps later we can experiment with intrastream concurrency and see if
+	// the complexity is worth it.
+	//
+	// The main reason for using streams over unary grpc requests was
+	// benchmarked speed gains. I suspect it is because unary requests actually
+	// set up and tear down streams for each request, but that's just a guess.
+	// We stopped looking into it once we noticed the speed gains from
+	// switching to streaming.
 	var resp groupproto.WriteResponse
 	for {
 		req, err := stream.Recv()
