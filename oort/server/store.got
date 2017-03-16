@@ -23,7 +23,7 @@ import (
 
 type {{.T}}Store struct {
 	sync.RWMutex
-	wait{{.T}}         *sync.WaitGroup
+	waitGroup          *sync.WaitGroup
 	shutdownChan       chan struct{}
 	started            bool
 	{{.t}}Store        store.{{.T}}Store
@@ -71,7 +71,7 @@ func resolve{{.T}}StoreConfig(c *{{.T}}StoreConfig) *{{.T}}StoreConfig {
 func New{{.T}}Store(cfg *{{.T}}StoreConfig) (*{{.T}}Store, chan error, error) {
     cfg = resolve{{.T}}StoreConfig(cfg)
 	s := &{{.T}}Store{
-		wait{{.T}}:       &sync.WaitGroup{},
+		waitGroup:        &sync.WaitGroup{},
 		grpcAddressIndex: cfg.GRPCAddressIndex,
 		grpcCertFile:     cfg.GRPCCertFile,
 		grpcKeyFile:      cfg.GRPCKeyFile,
@@ -632,16 +632,16 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
             }
         }
 	}()
-	s.wait{{.T}}.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		s.{{.t}}StoreMsgRing.Listen()
-		s.wait{{.T}}.Done()
+		s.waitGroup.Done()
 	}()
-	s.wait{{.T}}.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		<-s.shutdownChan
 		s.{{.t}}StoreMsgRing.Shutdown()
-		s.wait{{.T}}.Done()
+		s.waitGroup.Done()
 	}()
 	ln := s.{{.t}}StoreMsgRing.Ring().LocalNode()
 	if ln == nil {
@@ -671,21 +671,21 @@ func (s *{{.T}}Store) Startup(ctx context.Context) error {
 	{{.t}}proto.Register{{.T}}StoreServer(s.grpcServer, s)
     grpc_prometheus.Register(s.grpcServer)
 
-	s.wait{{.T}}.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		err := s.grpcServer.Serve(lis)
 		if err != nil {
 			s.logger.Debug("grpcServer.Serve error", zap.Error(err))
 		}
 		lis.Close()
-		s.wait{{.T}}.Done()
+		s.waitGroup.Done()
 	}()
-	s.wait{{.T}}.Add(1)
+	s.waitGroup.Add(1)
 	go func() {
 		<-s.shutdownChan
 		s.grpcServer.Stop()
 		lis.Close()
-		s.wait{{.T}}.Done()
+		s.waitGroup.Done()
 	}()
 	return nil
 }
@@ -697,11 +697,23 @@ func (s *{{.T}}Store) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	close(s.shutdownChan)
-	s.wait{{.T}}.Wait()
+	s.waitGroup.Wait()
 	return s.{{.t}}Store.Shutdown(ctx)
 }
 
 func (s *{{.T}}Store) Write(stream {{.t}}proto.{{.T}}Store_WriteServer) error {
+    // NOTE: Each of these streams is synchronized req1, resp1, req2, resp2.
+    // But it doesn't have to be that way, it was just simpler to code. Each
+    // client/server pair will have a stream for each request/response type, so
+    // there's a pretty good amount of concurrency going on there already.
+    // Perhaps later we can experiment with intrastream concurrency and see if
+    // the complexity is worth it.
+    //
+    // The main reason for using streams over unary grpc requests was
+    // benchmarked speed gains. I suspect it is because unary requests actually
+    // set up and tear down streams for each request, but that's just a guess.
+    // We stopped looking into it once we noticed the speed gains from
+    // switching to streaming.
 	var resp {{.t}}proto.WriteResponse
 	for {
 		req, err := stream.Recv()
