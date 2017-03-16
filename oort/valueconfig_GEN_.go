@@ -1,4 +1,4 @@
-package api
+package oort
 
 import (
 	"crypto/rand"
@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// ValueStoreConfig defines the settings when calling NewValueStore.
+// ValueStoreConfig defines the settings when creating new stores, such as NewReplValueStore.
 type ValueStoreConfig struct {
 	// Logger defines where log output will go. If not set, the logger will
 	// default to zap.New(zap.NewJSONEncoder()).

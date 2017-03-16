@@ -1,4 +1,4 @@
-package api
+package oort
 
 import (
 	"errors"
@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	"github.com/getcfs/megacfs/ftls"
-	pb "github.com/getcfs/megacfs/oort/api/groupproto"
-	"github.com/getcfs/megacfs/oort/api/proto"
+	pb "github.com/getcfs/megacfs/oort/groupproto"
+	"github.com/getcfs/megacfs/oort/proto"
 	"github.com/gholt/store"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -49,7 +49,7 @@ type groupStore struct {
 
 // NewGroupStore creates a GroupStore connection via grpc to the given
 // address.
-func NewGroupStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.GroupStore {
+func newGroupStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.GroupStore {
 	stor := &groupStore{
 		addr:             addr,
 		ftlsc:            ftlsConfig,

@@ -1,4 +1,4 @@
-package api
+package oort
 
 import (
     "errors"
@@ -7,8 +7,8 @@ import (
 
     "github.com/gholt/store"
     "github.com/getcfs/megacfs/ftls"
-    "github.com/getcfs/megacfs/oort/api/proto"
-    pb "github.com/getcfs/megacfs/oort/api/{{.t}}proto"
+    "github.com/getcfs/megacfs/oort/proto"
+    pb "github.com/getcfs/megacfs/oort/{{.t}}proto"
     "golang.org/x/net/context"
     "google.golang.org/grpc"
 )
@@ -30,7 +30,7 @@ type {{.t}}Store struct {
 
 // New{{.T}}Store creates a {{.T}}Store connection via grpc to the given
 // address.
-func New{{.T}}Store(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.{{.T}}Store {
+func new{{.T}}Store(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.{{.T}}Store {
     stor := &{{.t}}Store{
         addr:               addr,
         ftlsc:              ftlsConfig,

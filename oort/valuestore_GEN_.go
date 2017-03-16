@@ -1,4 +1,4 @@
-package api
+package oort
 
 import (
 	"errors"
@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	"github.com/getcfs/megacfs/ftls"
-	"github.com/getcfs/megacfs/oort/api/proto"
-	pb "github.com/getcfs/megacfs/oort/api/valueproto"
+	"github.com/getcfs/megacfs/oort/proto"
+	pb "github.com/getcfs/megacfs/oort/valueproto"
 	"github.com/gholt/store"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -41,7 +41,7 @@ type valueStore struct {
 
 // NewValueStore creates a ValueStore connection via grpc to the given
 // address.
-func NewValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.ValueStore {
+func newValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.ValueStore {
 	stor := &valueStore{
 		addr:             addr,
 		ftlsc:            ftlsConfig,

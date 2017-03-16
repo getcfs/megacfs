@@ -1,4 +1,4 @@
-package api
+package oort
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-type PoolValueStore struct {
+type poolValueStore struct {
 	addr        string
 	size        int
 	concurrency int
@@ -19,8 +19,8 @@ type PoolValueStore struct {
 	storeChan   chan store.ValueStore
 }
 
-func NewPoolValueStore(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *PoolValueStore {
-	ps := &PoolValueStore{
+func newPoolValueStore(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *poolValueStore {
+	ps := &poolValueStore{
 		addr:        addr,
 		size:        size,
 		concurrency: concurrency,
@@ -30,13 +30,13 @@ func NewPoolValueStore(addr string, size int, concurrency int, ftlsConfig *ftls.
 		storeChan:   make(chan store.ValueStore, size),
 	}
 	for i := 0; i < ps.size; i++ {
-		ps.stores[i] = NewValueStore(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
+		ps.stores[i] = newValueStore(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
 		ps.storeChan <- ps.stores[i]
 	}
 	return ps
 }
 
-func (ps *PoolValueStore) Startup(ctx context.Context) error {
+func (ps *poolValueStore) Startup(ctx context.Context) error {
 	for i := 0; i < ps.size; i++ {
 		ps.stores[i].Startup(ctx)
 		select {
@@ -48,7 +48,7 @@ func (ps *PoolValueStore) Startup(ctx context.Context) error {
 	return nil
 }
 
-func (ps *PoolValueStore) Shutdown(ctx context.Context) error {
+func (ps *poolValueStore) Shutdown(ctx context.Context) error {
 	for i := 0; i < ps.size; i++ {
 		ps.stores[i].Shutdown(ctx)
 		select {
@@ -60,36 +60,36 @@ func (ps *PoolValueStore) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (ps *PoolValueStore) EnableWrites(ctx context.Context) error {
+func (ps *poolValueStore) EnableWrites(ctx context.Context) error {
 	// TODO: Should actually implement this feature.
 	return nil
 }
 
-func (ps *PoolValueStore) DisableWrites(ctx context.Context) error {
+func (ps *poolValueStore) DisableWrites(ctx context.Context) error {
 	return nil
 }
 
-func (ps *PoolValueStore) Flush(ctx context.Context) error {
+func (ps *poolValueStore) Flush(ctx context.Context) error {
 	// TODO: NOP for now
 	return nil
 }
 
-func (ps *PoolValueStore) AuditPass(ctx context.Context) error {
+func (ps *poolValueStore) AuditPass(ctx context.Context) error {
 	// TODO: NOP for now
 	return nil
 }
 
-func (ps *PoolValueStore) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
+func (ps *poolValueStore) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
 	// TODO: NOP for now
 	return nil, nil
 }
 
-func (ps *PoolValueStore) ValueCap(ctx context.Context) (uint32, error) {
+func (ps *poolValueStore) ValueCap(ctx context.Context) (uint32, error) {
 	// TODO: NOP for now
 	return 0xffffffff, nil
 }
 
-func (ps *PoolValueStore) Lookup(ctx context.Context, keyA uint64, keyB uint64) (int64, uint32, error) {
+func (ps *poolValueStore) Lookup(ctx context.Context, keyA uint64, keyB uint64) (int64, uint32, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b, c := s.Lookup(ctx, keyA, keyB)
@@ -100,7 +100,7 @@ func (ps *PoolValueStore) Lookup(ctx context.Context, keyA uint64, keyB uint64) 
 	}
 }
 
-func (ps *PoolValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, value []byte) (int64, []byte, error) {
+func (ps *poolValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, value []byte) (int64, []byte, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b, c := s.Read(ctx, keyA, keyB, value)
@@ -111,7 +111,7 @@ func (ps *PoolValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, va
 	}
 }
 
-func (ps *PoolValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64, value []byte) (int64, error) {
+func (ps *poolValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64, value []byte) (int64, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b := s.Write(ctx, keyA, keyB, timestampMicro, value)
@@ -122,7 +122,7 @@ func (ps *PoolValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, t
 	}
 }
 
-func (ps *PoolValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64) (int64, error) {
+func (ps *poolValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64) (int64, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b := s.Delete(ctx, keyA, keyB, timestampMicro)

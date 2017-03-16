@@ -1,4 +1,4 @@
-package api
+package oort
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-type PoolGroupStore struct {
+type poolGroupStore struct {
 	addr        string
 	size        int
 	concurrency int
@@ -19,8 +19,8 @@ type PoolGroupStore struct {
 	storeChan   chan store.GroupStore
 }
 
-func NewPoolGroupStore(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *PoolGroupStore {
-	ps := &PoolGroupStore{
+func newPoolGroupStore(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *poolGroupStore {
+	ps := &poolGroupStore{
 		addr:        addr,
 		size:        size,
 		concurrency: concurrency,
@@ -30,13 +30,13 @@ func NewPoolGroupStore(addr string, size int, concurrency int, ftlsConfig *ftls.
 		storeChan:   make(chan store.GroupStore, size),
 	}
 	for i := 0; i < ps.size; i++ {
-		ps.stores[i] = NewGroupStore(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
+		ps.stores[i] = newGroupStore(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
 		ps.storeChan <- ps.stores[i]
 	}
 	return ps
 }
 
-func (ps *PoolGroupStore) Startup(ctx context.Context) error {
+func (ps *poolGroupStore) Startup(ctx context.Context) error {
 	for i := 0; i < ps.size; i++ {
 		ps.stores[i].Startup(ctx)
 		select {
@@ -48,7 +48,7 @@ func (ps *PoolGroupStore) Startup(ctx context.Context) error {
 	return nil
 }
 
-func (ps *PoolGroupStore) Shutdown(ctx context.Context) error {
+func (ps *poolGroupStore) Shutdown(ctx context.Context) error {
 	for i := 0; i < ps.size; i++ {
 		ps.stores[i].Shutdown(ctx)
 		select {
@@ -60,36 +60,36 @@ func (ps *PoolGroupStore) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (ps *PoolGroupStore) EnableWrites(ctx context.Context) error {
+func (ps *poolGroupStore) EnableWrites(ctx context.Context) error {
 	// TODO: Should actually implement this feature.
 	return nil
 }
 
-func (ps *PoolGroupStore) DisableWrites(ctx context.Context) error {
+func (ps *poolGroupStore) DisableWrites(ctx context.Context) error {
 	return nil
 }
 
-func (ps *PoolGroupStore) Flush(ctx context.Context) error {
+func (ps *poolGroupStore) Flush(ctx context.Context) error {
 	// TODO: NOP for now
 	return nil
 }
 
-func (ps *PoolGroupStore) AuditPass(ctx context.Context) error {
+func (ps *poolGroupStore) AuditPass(ctx context.Context) error {
 	// TODO: NOP for now
 	return nil
 }
 
-func (ps *PoolGroupStore) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
+func (ps *poolGroupStore) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
 	// TODO: NOP for now
 	return nil, nil
 }
 
-func (ps *PoolGroupStore) ValueCap(ctx context.Context) (uint32, error) {
+func (ps *poolGroupStore) ValueCap(ctx context.Context) (uint32, error) {
 	// TODO: NOP for now
 	return 0xffffffff, nil
 }
 
-func (ps *PoolGroupStore) Lookup(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64) (int64, uint32, error) {
+func (ps *poolGroupStore) Lookup(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64) (int64, uint32, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b, c := s.Lookup(ctx, keyA, keyB, childKeyA, childKeyB)
@@ -100,7 +100,7 @@ func (ps *PoolGroupStore) Lookup(ctx context.Context, keyA uint64, keyB uint64, 
 	}
 }
 
-func (ps *PoolGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, value []byte) (int64, []byte, error) {
+func (ps *poolGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, value []byte) (int64, []byte, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b, c := s.Read(ctx, keyA, keyB, childKeyA, childKeyB, value)
@@ -111,7 +111,7 @@ func (ps *PoolGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, ch
 	}
 }
 
-func (ps *PoolGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, timestampMicro int64, value []byte) (int64, error) {
+func (ps *poolGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, timestampMicro int64, value []byte) (int64, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b := s.Write(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro, value)
@@ -122,7 +122,7 @@ func (ps *PoolGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, c
 	}
 }
 
-func (ps *PoolGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, timestampMicro int64) (int64, error) {
+func (ps *poolGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, childKeyA uint64, childKeyB uint64, timestampMicro int64) (int64, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b := s.Delete(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro)
@@ -133,7 +133,7 @@ func (ps *PoolGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 	}
 }
 
-func (ps *PoolGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.LookupGroupItem, error) {
+func (ps *poolGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.LookupGroupItem, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b := s.LookupGroup(ctx, parentKeyA, parentKeyB)
@@ -144,7 +144,7 @@ func (ps *PoolGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKey
 	}
 }
 
-func (ps *PoolGroupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.ReadGroupItem, error) {
+func (ps *poolGroupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.ReadGroupItem, error) {
 	select {
 	case s := <-ps.storeChan:
 		a, b := s.ReadGroup(ctx, parentKeyA, parentKeyB)

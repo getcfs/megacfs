@@ -1,4 +1,13 @@
-package api
+// Package oort provides a client for accessing an Oort server cluster.
+//
+// Note that errors in this package may be of the types Repl*StoreError,
+// Repl*StoreErrorNotFound, and Repl*StoreErrorSlice. These error types pair
+// the store and specific error from that store into an overall error type
+// since this package's Store implementations will behave like a single store,
+// but in reality are communicating with multiple stores in a cluster.
+// Generally speaking, the overall error is what is important, but the
+// encapsulated errors can be very beneficial with troubleshooting.
+package oort
 
 import "errors"
 

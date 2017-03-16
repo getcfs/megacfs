@@ -1,3 +1,5 @@
+// Package server provides a server implementation of a single node of
+// an Oort cluster.
 package server
 
 // got is at https://github.com/gholt/got

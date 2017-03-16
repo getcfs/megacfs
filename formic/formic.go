@@ -15,7 +15,7 @@ import (
 
 	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/ftls"
-	"github.com/getcfs/megacfs/oort/api"
+	"github.com/getcfs/megacfs/oort"
 	"github.com/gholt/ring"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 )
@@ -89,7 +89,7 @@ func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 	}
 
 	oortLogger := logger.With(zap.String("name", "cfsd.formic.oort"))
-	vstore := api.NewReplValueStore(&api.ValueStoreConfig{
+	vstore := oort.NewReplValueStore(&oort.ValueStoreConfig{
 		Logger:          oortLogger,
 		AddressIndex:    cfg.ValueAddressIndex,
 		StoreFTLSConfig: ftls.DefaultClientFTLSConf(cfg.CertFile, cfg.KeyFile, cfg.CAFile),
@@ -97,7 +97,7 @@ func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 		RingClientID:    cfg.IpAddr,
 	})
 
-	gstore := api.NewReplGroupStore(&api.GroupStoreConfig{
+	gstore := oort.NewReplGroupStore(&oort.GroupStoreConfig{
 		Logger:          oortLogger,
 		AddressIndex:    cfg.GroupAddressIndex,
 		StoreFTLSConfig: ftls.DefaultClientFTLSConf(cfg.CertFile, cfg.KeyFile, cfg.CAFile),
