@@ -1,7 +1,8 @@
-// Flother is an implementation of Twitter's Snowflake 64-bit ID generation
+// Package flother is an implementation of Twitter's Snowflake 64-bit ID
+// generation.
+//
 // See: https://blog.twitter.com/2010/announcing-snowflake
 //  or: http://instagram-engineering.tumblr.com/post/10853187575/sharding-ids-at-instagram
-
 package flother
 
 import (

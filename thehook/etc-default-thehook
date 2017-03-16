@@ -1,4 +1,0 @@
-THEHOOK_API_KEY=ARANDOMKEYGOESHERE
-THEHOOK_SLACK_URL="https://hooks.slack.com/services/yourslackurlgoeshere"
-THEHOOK_CMDS="commands,go,here"
-

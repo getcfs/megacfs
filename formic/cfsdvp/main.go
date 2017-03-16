@@ -1,3 +1,5 @@
+// Package main builds a 'cfsdvp' executable for use as a Docker driver;
+// EXPERIMENTAL.
 package main
 
 import (

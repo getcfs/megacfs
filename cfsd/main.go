@@ -1,3 +1,5 @@
+// Package main builds a 'cfsd' executable that is a single node server
+// application within a CFS cluster.
 package main
 
 import (

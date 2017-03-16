@@ -1,3 +1,6 @@
+// Package main builds a 'ring' executable for the CFS project.
+//
+// Should be identical to github.com/gholt/ring/ring
 package main
 
 import (

@@ -1,3 +1,5 @@
+// Package main builds a 'cfs' executable that is the client application for
+// CFS.
 package main
 
 import (

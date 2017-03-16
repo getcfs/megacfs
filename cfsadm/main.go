@@ -1,3 +1,5 @@
+// Package main builds a 'cfsadm' executable that allows for administration of
+// a CFS cluster.
 package main
 
 import (
