@@ -1,4 +1,4 @@
-package api
+package oort
 
 import (
     "fmt"
@@ -9,7 +9,7 @@ import (
     "google.golang.org/grpc"
 )
 
-type Pool{{.T}}Store struct {
+type pool{{.T}}Store struct {
     addr            string
     size            int
     concurrency     int
@@ -19,8 +19,8 @@ type Pool{{.T}}Store struct {
     storeChan       chan store.{{.T}}Store
 }
 
-func NewPool{{.T}}Store(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *Pool{{.T}}Store {
-    ps := &Pool{{.T}}Store{
+func newPool{{.T}}Store(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *pool{{.T}}Store {
+    ps := &pool{{.T}}Store{
         addr:           addr,
         size:           size,
         concurrency:    concurrency,
@@ -30,13 +30,13 @@ func NewPool{{.T}}Store(addr string, size int, concurrency int, ftlsConfig *ftls
         storeChan:      make(chan store.{{.T}}Store, size),
     }
     for i := 0; i < ps.size; i++ {
-        ps.stores[i] = New{{.T}}Store(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
+        ps.stores[i] = new{{.T}}Store(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
         ps.storeChan <- ps.stores[i]
     }
     return ps
 }
 
-func (ps *Pool{{.T}}Store) Startup(ctx context.Context) error {
+func (ps *pool{{.T}}Store) Startup(ctx context.Context) error {
     for i := 0; i < ps.size; i++ {
         ps.stores[i].Startup(ctx)
         select {
@@ -48,7 +48,7 @@ func (ps *Pool{{.T}}Store) Startup(ctx context.Context) error {
     return nil
 }
 
-func (ps *Pool{{.T}}Store) Shutdown(ctx context.Context) error {
+func (ps *pool{{.T}}Store) Shutdown(ctx context.Context) error {
     for i := 0; i < ps.size; i++ {
         ps.stores[i].Shutdown(ctx)
         select {
@@ -60,36 +60,36 @@ func (ps *Pool{{.T}}Store) Shutdown(ctx context.Context) error {
     return nil
 }
 
-func (ps *Pool{{.T}}Store) EnableWrites(ctx context.Context) error {
+func (ps *pool{{.T}}Store) EnableWrites(ctx context.Context) error {
     // TODO: Should actually implement this feature.
     return nil
 }
 
-func (ps *Pool{{.T}}Store) DisableWrites(ctx context.Context) error {
+func (ps *pool{{.T}}Store) DisableWrites(ctx context.Context) error {
     return nil
 }
 
-func (ps *Pool{{.T}}Store) Flush(ctx context.Context) error {
+func (ps *pool{{.T}}Store) Flush(ctx context.Context) error {
     // TODO: NOP for now
     return nil
 }
 
-func (ps *Pool{{.T}}Store) AuditPass(ctx context.Context) error {
+func (ps *pool{{.T}}Store) AuditPass(ctx context.Context) error {
     // TODO: NOP for now
     return nil
 }
 
-func (ps *Pool{{.T}}Store) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
+func (ps *pool{{.T}}Store) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
     // TODO: NOP for now
     return nil, nil
 }
 
-func (ps *Pool{{.T}}Store) ValueCap(ctx context.Context) (uint32, error) {
+func (ps *pool{{.T}}Store) ValueCap(ctx context.Context) (uint32, error) {
     // TODO: NOP for now
     return 0xffffffff, nil
 }
 
-func (ps *Pool{{.T}}Store) Lookup(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}) (int64, uint32, error) {
+func (ps *pool{{.T}}Store) Lookup(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}) (int64, uint32, error) {
     select {
     case s := <-ps.storeChan:
         a, b, c := s.Lookup(ctx, keyA, keyB{{if eq .t "group"}}, childKeyA, childKeyB{{end}})
@@ -100,7 +100,7 @@ func (ps *Pool{{.T}}Store) Lookup(ctx context.Context, keyA uint64, keyB uint64{
     }
 }
 
-func (ps *Pool{{.T}}Store) Read(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}, value []byte) (int64, []byte, error) {
+func (ps *pool{{.T}}Store) Read(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}, value []byte) (int64, []byte, error) {
     select {
     case s := <-ps.storeChan:
         a, b, c := s.Read(ctx, keyA, keyB{{if eq .t "group"}}, childKeyA, childKeyB{{end}}, value)
@@ -111,7 +111,7 @@ func (ps *Pool{{.T}}Store) Read(ctx context.Context, keyA uint64, keyB uint64{{i
     }
 }
 
-func (ps *Pool{{.T}}Store) Write(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}, timestampMicro int64, value []byte) (int64, error) {
+func (ps *pool{{.T}}Store) Write(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}, timestampMicro int64, value []byte) (int64, error) {
     select {
     case s := <-ps.storeChan:
         a, b := s.Write(ctx, keyA, keyB{{if eq .t "group"}}, childKeyA, childKeyB{{end}}, timestampMicro, value)
@@ -122,7 +122,7 @@ func (ps *Pool{{.T}}Store) Write(ctx context.Context, keyA uint64, keyB uint64{{
     }
 }
 
-func (ps *Pool{{.T}}Store) Delete(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}, timestampMicro int64) (int64, error) {
+func (ps *pool{{.T}}Store) Delete(ctx context.Context, keyA uint64, keyB uint64{{if eq .t "group"}}, childKeyA uint64, childKeyB uint64{{end}}, timestampMicro int64) (int64, error) {
     select {
     case s := <-ps.storeChan:
         a, b := s.Delete(ctx, keyA, keyB{{if eq .t "group"}}, childKeyA, childKeyB{{end}}, timestampMicro)
@@ -134,7 +134,7 @@ func (ps *Pool{{.T}}Store) Delete(ctx context.Context, keyA uint64, keyB uint64{
 }
 
 {{if eq .t "group"}}
-func (ps *PoolGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.LookupGroupItem, error) {
+func (ps *poolGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.LookupGroupItem, error) {
     select {
     case s := <-ps.storeChan:
         a, b := s.LookupGroup(ctx, parentKeyA, parentKeyB)
@@ -145,7 +145,7 @@ func (ps *PoolGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKey
     }
 }
 
-func (ps *PoolGroupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.ReadGroupItem, error) {
+func (ps *poolGroupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.ReadGroupItem, error) {
     select {
     case s := <-ps.storeChan:
         a, b := s.ReadGroup(ctx, parentKeyA, parentKeyB)

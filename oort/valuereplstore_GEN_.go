@@ -1,4 +1,4 @@
-package api
+package oort
 
 import (
 	"errors"
@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-type ReplGroupStore struct {
+type ReplValueStore struct {
 	logger                     *zap.Logger
 	addressIndex               int
 	valueCap                   int
@@ -33,12 +33,12 @@ type ReplGroupStore struct {
 	ringClientID  string
 
 	storesLock sync.RWMutex
-	stores     map[string]store.GroupStore
+	stores     map[string]store.ValueStore
 }
 
-func NewReplGroupStore(c *GroupStoreConfig) *ReplGroupStore {
-	cfg := resolveGroupStoreConfig(c)
-	rs := &ReplGroupStore{
+func NewReplValueStore(c *ValueStoreConfig) *ReplValueStore {
+	cfg := resolveValueStoreConfig(c)
+	rs := &ReplValueStore{
 		logger:                     cfg.Logger,
 		addressIndex:               cfg.AddressIndex,
 		valueCap:                   int(cfg.ValueCap),
@@ -47,7 +47,7 @@ func NewReplGroupStore(c *GroupStoreConfig) *ReplGroupStore {
 		failedConnectRetryDelay:    cfg.FailedConnectRetryDelay,
 		ftlsConfig:                 cfg.StoreFTLSConfig,
 		grpcOpts:                   cfg.GRPCOpts,
-		stores:                     make(map[string]store.GroupStore),
+		stores:                     make(map[string]store.ValueStore),
 		ringCachePath:              cfg.RingCachePath,
 		ringClientID:               cfg.RingClientID,
 	}
@@ -72,7 +72,7 @@ func NewReplGroupStore(c *GroupStoreConfig) *ReplGroupStore {
 	return rs
 }
 
-func (rs *ReplGroupStore) Ring(ctx context.Context) ring.Ring {
+func (rs *ReplValueStore) Ring(ctx context.Context) ring.Ring {
 	var r ring.Ring
 	rs.ringLock.RLock()
 	r = rs.ring
@@ -90,7 +90,7 @@ func (rs *ReplGroupStore) Ring(ctx context.Context) ring.Ring {
 	return r
 }
 
-func (rs *ReplGroupStore) SetRing(r ring.Ring) {
+func (rs *ReplValueStore) SetRing(r ring.Ring) {
 	if r == nil {
 		return
 	}
@@ -131,7 +131,7 @@ func (rs *ReplGroupStore) SetRing(r ring.Ring) {
 	}
 	rs.storesLock.RUnlock()
 	if len(shutdownAddrs) > 0 {
-		shutdownStores := make([]store.GroupStore, len(shutdownAddrs))
+		shutdownStores := make([]store.ValueStore, len(shutdownAddrs))
 		rs.storesLock.Lock()
 		for i, a := range shutdownAddrs {
 			shutdownStores[i] = rs.stores[a]
@@ -147,7 +147,7 @@ func (rs *ReplGroupStore) SetRing(r ring.Ring) {
 	rs.ringLock.Unlock()
 }
 
-func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]store.GroupStore, error) {
+func (rs *ReplValueStore) storesFor(ctx context.Context, keyA uint64) ([]store.ValueStore, error) {
 	r := rs.Ring(ctx)
 	select {
 	case <-ctx.Done():
@@ -171,7 +171,7 @@ func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]store.G
 			as = append(as, a)
 		}
 	}
-	ss := make([]store.GroupStore, len(as))
+	ss := make([]store.ValueStore, len(as))
 	var someNil bool
 	rs.storesLock.RLock()
 	for i := len(ss) - 1; i >= 0; i-- {
@@ -198,7 +198,7 @@ func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]store.G
 			if ss[i] == nil {
 				ss[i] = rs.stores[as[i]]
 				if ss[i] == nil {
-					ss[i] = NewPoolGroupStore(as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
+					ss[i] = newPoolValueStore(as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
 					rs.stores[as[i]] = ss[i]
 					select {
 					case <-ctx.Done():
@@ -214,16 +214,16 @@ func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]store.G
 	return ss, nil
 }
 
-// Startup is not required to use the ReplGroupStore; it will automatically
+// Startup is not required to use the ReplValueStore; it will automatically
 // connect to backend stores as needed.
-func (rs *ReplGroupStore) Startup(ctx context.Context) error {
+func (rs *ReplValueStore) Startup(ctx context.Context) error {
 	return nil
 }
 
 // Shutdown will close all connections to backend stores. Note that the
-// ReplGroupStore can still be used after Shutdown, it will just start
+// ReplValueStore can still be used after Shutdown, it will just start
 // reconnecting to backends again.
-func (rs *ReplGroupStore) Shutdown(ctx context.Context) error {
+func (rs *ReplValueStore) Shutdown(ctx context.Context) error {
 	rs.storesLock.Lock()
 	for addr, s := range rs.stores {
 		if err := s.Shutdown(ctx); err != nil {
@@ -241,35 +241,35 @@ func (rs *ReplGroupStore) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (rs *ReplGroupStore) EnableWrites(ctx context.Context) error {
+func (rs *ReplValueStore) EnableWrites(ctx context.Context) error {
 	return nil
 }
 
-func (rs *ReplGroupStore) DisableWrites(ctx context.Context) error {
+func (rs *ReplValueStore) DisableWrites(ctx context.Context) error {
 	return errors.New("cannot disable writes with this client at this time")
 }
 
-func (rs *ReplGroupStore) Flush(ctx context.Context) error {
+func (rs *ReplValueStore) Flush(ctx context.Context) error {
 	return nil
 }
 
-func (rs *ReplGroupStore) AuditPass(ctx context.Context) error {
+func (rs *ReplValueStore) AuditPass(ctx context.Context) error {
 	return errors.New("audit passes not available with this client at this time")
 }
 
-func (rs *ReplGroupStore) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
+func (rs *ReplValueStore) Stats(ctx context.Context, debug bool) (fmt.Stringer, error) {
 	return noStats, nil
 }
 
-func (rs *ReplGroupStore) ValueCap(ctx context.Context) (uint32, error) {
+func (rs *ReplValueStore) ValueCap(ctx context.Context) (uint32, error) {
 	return uint32(rs.valueCap), nil
 }
 
-func (rs *ReplGroupStore) Lookup(ctx context.Context, keyA, keyB uint64, childKeyA, childKeyB uint64) (int64, uint32, error) {
+func (rs *ReplValueStore) Lookup(ctx context.Context, keyA, keyB uint64) (int64, uint32, error) {
 	type rettype struct {
 		timestampMicro int64
 		length         uint32
-		err            ReplGroupStoreError
+		err            ReplValueStoreError
 	}
 	ec := make(chan *rettype)
 	stores, err := rs.storesFor(ctx, keyA)
@@ -277,12 +277,12 @@ func (rs *ReplGroupStore) Lookup(ctx context.Context, keyA, keyB uint64, childKe
 		return 0, 0, err
 	}
 	for _, s := range stores {
-		go func(s store.GroupStore) {
+		go func(s store.ValueStore) {
 			ret := &rettype{}
 			var err error
-			ret.timestampMicro, ret.length, err = s.Lookup(ctx, keyA, keyB, childKeyA, childKeyB)
+			ret.timestampMicro, ret.length, err = s.Lookup(ctx, keyA, keyB)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s, err: err}
+				ret.err = &replValueStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -290,7 +290,7 @@ func (rs *ReplGroupStore) Lookup(ctx context.Context, keyA, keyB uint64, childKe
 	var timestampMicro int64
 	var length uint32
 	var hadNotFoundErr bool
-	var errs ReplGroupStoreErrorSlice
+	var errs ReplValueStoreErrorSlice
 	for _ = range stores {
 		ret := <-ec
 		if ret.timestampMicro > timestampMicro || timestampMicro == 0 {
@@ -303,7 +303,7 @@ func (rs *ReplGroupStore) Lookup(ctx context.Context, keyA, keyB uint64, childKe
 		}
 	}
 	if hadNotFoundErr {
-		nferrs := make(ReplGroupStoreErrorNotFound, len(errs))
+		nferrs := make(ReplValueStoreErrorNotFound, len(errs))
 		for i, v := range errs {
 			nferrs[i] = v
 		}
@@ -321,25 +321,25 @@ func (rs *ReplGroupStore) Lookup(ctx context.Context, keyA, keyB uint64, childKe
 	return timestampMicro, length, errs
 }
 
-func (rs *ReplGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, childKeyA, childKeyB uint64, value []byte) (int64, []byte, error) {
+func (rs *ReplValueStore) Read(ctx context.Context, keyA uint64, keyB uint64, value []byte) (int64, []byte, error) {
 	type rettype struct {
 		timestampMicro int64
 		value          []byte
-		err            ReplGroupStoreError
+		err            ReplValueStoreError
 	}
 	ec := make(chan *rettype)
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
-		rs.logger.Debug("Read error from storesFor", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Error(err))
+		rs.logger.Debug("Read error from storesFor", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Error(err))
 		return 0, nil, err
 	}
 	for _, s := range stores {
-		go func(s store.GroupStore) {
+		go func(s store.ValueStore) {
 			ret := &rettype{}
 			var err error
-			ret.timestampMicro, ret.value, err = s.Read(ctx, keyA, keyB, childKeyA, childKeyB, nil)
+			ret.timestampMicro, ret.value, err = s.Read(ctx, keyA, keyB, nil)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s, err: err}
+				ret.err = &replValueStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
@@ -347,7 +347,7 @@ func (rs *ReplGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, ch
 	var timestampMicro int64
 	var rvalue []byte
 	var hadNotFoundErr bool
-	var errs ReplGroupStoreErrorSlice
+	var errs ReplValueStoreErrorSlice
 	for _ = range stores {
 		ret := <-ec
 		if ret.timestampMicro > timestampMicro || timestampMicro == 0 {
@@ -363,62 +363,62 @@ func (rs *ReplGroupStore) Read(ctx context.Context, keyA uint64, keyB uint64, ch
 		rvalue = append(value, rvalue...)
 	}
 	for _, err := range errs {
-		rs.logger.Debug("Read error", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Error(err))
+		rs.logger.Debug("Read error", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Error(err))
 	}
 	if hadNotFoundErr {
-		nferrs := make(ReplGroupStoreErrorNotFound, len(errs))
+		nferrs := make(ReplValueStoreErrorNotFound, len(errs))
 		for i, v := range errs {
 			nferrs[i] = v
 		}
-		rs.logger.Debug("Read: returning at point1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(rvalue)), zap.Error(nferrs))
+		rs.logger.Debug("Read: returning at point1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(rvalue)), zap.Error(nferrs))
 		return timestampMicro, rvalue, nferrs
 	}
 	if len(errs) < len(stores) {
 		errs = nil
 	}
 	if errs == nil {
-		rs.logger.Debug("Read: returning at point2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(rvalue)))
+		rs.logger.Debug("Read: returning at point2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(rvalue)))
 		return timestampMicro, rvalue, nil
 	}
-	rs.logger.Debug("Read: returning at point3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestmapMicro", timestampMicro), zap.Int("len", len(rvalue)), zap.Error(errs))
+	rs.logger.Debug("Read: returning at point3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestmapMicro", timestampMicro), zap.Int("len", len(rvalue)), zap.Error(errs))
 	return timestampMicro, rvalue, errs
 }
 
-func (rs *ReplGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, childKeyA, childKeyB uint64, timestampMicro int64, value []byte) (int64, error) {
-	rs.logger.Debug("Write", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)))
+func (rs *ReplValueStore) Write(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64, value []byte) (int64, error) {
+	rs.logger.Debug("Write", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)))
 	if len(value) == 0 {
-		rs.logger.Fatal("REMOVEME ReplGroupStore asked to Write a zlv")
+		rs.logger.Fatal("REMOVEME ReplValueStore asked to Write a zlv")
 	}
 	if len(value) > rs.valueCap {
-		rs.logger.Debug("Write return point 1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int("valueCap", rs.valueCap))
+		rs.logger.Debug("Write return point 1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int("valueCap", rs.valueCap))
 		return 0, fmt.Errorf("value length of %d > %d", len(value), rs.valueCap)
 	}
 	type rettype struct {
 		oldTimestampMicro int64
-		err               ReplGroupStoreError
+		err               ReplValueStoreError
 	}
 	ec := make(chan *rettype)
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
-		rs.logger.Debug("Write return point 2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Error(err))
+		rs.logger.Debug("Write return point 2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Error(err))
 		return 0, err
 	}
 	for _, s := range stores {
-		go func(s store.GroupStore) {
+		go func(s store.ValueStore) {
 			ret := &rettype{}
 			var err error
 			if len(value) == 0 {
-				rs.logger.Fatal("REMOVEME inside ReplGroupStore asked to Write a zlv")
+				rs.logger.Fatal("REMOVEME inside ReplValueStore asked to Write a zlv")
 			}
-			ret.oldTimestampMicro, err = s.Write(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro, value)
+			ret.oldTimestampMicro, err = s.Write(ctx, keyA, keyB, timestampMicro, value)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s, err: err}
+				ret.err = &replValueStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
 	}
 	var oldTimestampMicro int64
-	var errs ReplGroupStoreErrorSlice
+	var errs ReplValueStoreErrorSlice
 	for _ = range stores {
 		ret := <-ec
 		if ret.err != nil {
@@ -434,38 +434,38 @@ func (rs *ReplGroupStore) Write(ctx context.Context, keyA uint64, keyB uint64, c
 		errs = nil
 	}
 	if errs == nil {
-		rs.logger.Debug("Write return point 3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int64("oldTimestampMicro", oldTimestampMicro))
+		rs.logger.Debug("Write return point 3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int64("oldTimestampMicro", oldTimestampMicro))
 		return oldTimestampMicro, nil
 	}
-	rs.logger.Debug("Write return point 4", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int64("oldTimestampMicro", oldTimestampMicro), zap.Int("lenErrs", len(errs)))
+	rs.logger.Debug("Write return point 4", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int("len", len(value)), zap.Int64("oldTimestampMicro", oldTimestampMicro), zap.Int("lenErrs", len(errs)))
 	return oldTimestampMicro, errs
 }
 
-func (rs *ReplGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, childKeyA, childKeyB uint64, timestampMicro int64) (int64, error) {
-	rs.logger.Debug("Delete", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro))
+func (rs *ReplValueStore) Delete(ctx context.Context, keyA uint64, keyB uint64, timestampMicro int64) (int64, error) {
+	rs.logger.Debug("Delete", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro))
 	type rettype struct {
 		oldTimestampMicro int64
-		err               ReplGroupStoreError
+		err               ReplValueStoreError
 	}
 	ec := make(chan *rettype)
 	stores, err := rs.storesFor(ctx, keyA)
 	if err != nil {
-		rs.logger.Debug("Delete return point 1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro), zap.Error(err))
+		rs.logger.Debug("Delete return point 1", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Error(err))
 		return 0, err
 	}
 	for _, s := range stores {
-		go func(s store.GroupStore) {
+		go func(s store.ValueStore) {
 			ret := &rettype{}
 			var err error
-			ret.oldTimestampMicro, err = s.Delete(ctx, keyA, keyB, childKeyA, childKeyB, timestampMicro)
+			ret.oldTimestampMicro, err = s.Delete(ctx, keyA, keyB, timestampMicro)
 			if err != nil {
-				ret.err = &replGroupStoreError{store: s, err: err}
+				ret.err = &replValueStoreError{store: s, err: err}
 			}
 			ec <- ret
 		}(s)
 	}
 	var oldTimestampMicro int64
-	var errs ReplGroupStoreErrorSlice
+	var errs ReplValueStoreErrorSlice
 	for _ = range stores {
 		ret := <-ec
 		if ret.err != nil {
@@ -481,104 +481,22 @@ func (rs *ReplGroupStore) Delete(ctx context.Context, keyA uint64, keyB uint64, 
 		errs = nil
 	}
 	if errs == nil {
-		rs.logger.Debug("Delete return point 2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro))
+		rs.logger.Debug("Delete return point 2", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro))
 		return oldTimestampMicro, nil
 	}
-	rs.logger.Debug("Delete return point 3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Uint64("childKeyA", childKeyA), zap.Uint64("childKeyB", childKeyB), zap.Int64("timestampMicro", timestampMicro), zap.Int64("oldTimestampMicro", oldTimestampMicro), zap.Int("lenErrs", len(errs)))
+	rs.logger.Debug("Delete return point 3", zap.Uint64("keyA", keyA), zap.Uint64("keyB", keyB), zap.Int64("timestampMicro", timestampMicro), zap.Int64("oldTimestampMicro", oldTimestampMicro), zap.Int("lenErrs", len(errs)))
 	return oldTimestampMicro, errs
 }
 
-func (rs *ReplGroupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.LookupGroupItem, error) {
-	type rettype struct {
-		items []store.LookupGroupItem
-		err   ReplGroupStoreError
-	}
-	ec := make(chan *rettype)
-	stores, err := rs.storesFor(ctx, parentKeyA)
-	if err != nil {
-		return nil, err
-	}
-	for _, s := range stores {
-		go func(s store.GroupStore) {
-			ret := &rettype{}
-			var err error
-			ret.items, err = s.LookupGroup(ctx, parentKeyA, parentKeyB)
-			if err != nil {
-				ret.err = &replGroupStoreError{store: s, err: err}
-			}
-			ec <- ret
-		}(s)
-	}
-	var items []store.LookupGroupItem
-	var errs ReplGroupStoreErrorSlice
-	for _ = range stores {
-		ret := <-ec
-		if ret.err != nil {
-			errs = append(errs, ret.err)
-		} else if len(ret.items) > len(items) {
-			items = ret.items
-		}
-	}
-	if len(errs) == len(stores) {
-		return items, errs
-	} else {
-		for _, err := range errs {
-			rs.logger.Debug("error during lookup group", zap.Error(err))
-		}
-	}
-	return items, nil
-}
-
-func (rs *ReplGroupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB uint64) ([]store.ReadGroupItem, error) {
-	type rettype struct {
-		items []store.ReadGroupItem
-		err   ReplGroupStoreError
-	}
-	ec := make(chan *rettype)
-	stores, err := rs.storesFor(ctx, parentKeyA)
-	if err != nil {
-		return nil, err
-	}
-	for _, s := range stores {
-		go func(s store.GroupStore) {
-			ret := &rettype{}
-			var err error
-			ret.items, err = s.ReadGroup(ctx, parentKeyA, parentKeyB)
-			if err != nil {
-				ret.err = &replGroupStoreError{store: s, err: err}
-			}
-			ec <- ret
-		}(s)
-	}
-	var items []store.ReadGroupItem
-	var errs ReplGroupStoreErrorSlice
-	for _ = range stores {
-		ret := <-ec
-		if ret.err != nil {
-			errs = append(errs, ret.err)
-		} else if len(ret.items) > len(items) {
-			items = ret.items
-		}
-	}
-	if len(errs) == len(stores) {
-		return items, errs
-	} else {
-		for _, err := range errs {
-			rs.logger.Debug("error during read group", zap.Error(err))
-		}
-	}
-	return items, nil
-}
-
-type ReplGroupStoreError interface {
+type ReplValueStoreError interface {
 	error
-	Store() store.GroupStore
+	Store() store.ValueStore
 	Err() error
 }
 
-type ReplGroupStoreErrorSlice []ReplGroupStoreError
+type ReplValueStoreErrorSlice []ReplValueStoreError
 
-func (es ReplGroupStoreErrorSlice) Error() string {
+func (es ReplValueStoreErrorSlice) Error() string {
 	if len(es) <= 0 {
 		return "unknown error"
 	} else if len(es) == 1 {
@@ -587,9 +505,9 @@ func (es ReplGroupStoreErrorSlice) Error() string {
 	return fmt.Sprintf("%d errors, first is: %s", len(es), es[0])
 }
 
-type ReplGroupStoreErrorNotFound ReplGroupStoreErrorSlice
+type ReplValueStoreErrorNotFound ReplValueStoreErrorSlice
 
-func (e ReplGroupStoreErrorNotFound) Error() string {
+func (e ReplValueStoreErrorNotFound) Error() string {
 	if len(e) <= 0 {
 		return "not found"
 	} else if len(e) == 1 {
@@ -598,26 +516,26 @@ func (e ReplGroupStoreErrorNotFound) Error() string {
 	return fmt.Sprintf("%d errors, first is: %s", len(e), e[0])
 }
 
-func (e ReplGroupStoreErrorNotFound) ErrNotFound() string {
+func (e ReplValueStoreErrorNotFound) ErrNotFound() string {
 	return e.Error()
 }
 
-type replGroupStoreError struct {
-	store store.GroupStore
+type replValueStoreError struct {
+	store store.ValueStore
 	err   error
 }
 
-func (e *replGroupStoreError) Error() string {
+func (e *replValueStoreError) Error() string {
 	if e.err == nil {
 		return "unknown error"
 	}
 	return e.err.Error()
 }
 
-func (e *replGroupStoreError) Store() store.GroupStore {
+func (e *replValueStoreError) Store() store.ValueStore {
 	return e.store
 }
 
-func (e *replGroupStoreError) Err() error {
+func (e *replValueStoreError) Err() error {
 	return e.err
 }

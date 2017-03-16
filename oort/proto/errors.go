@@ -1,3 +1,5 @@
+// Package proto contains code commonly used for both clients and servers of
+// the Oort services.
 package proto
 
 import (

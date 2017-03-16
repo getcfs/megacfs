@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/getcfs/megacfs/ftls"
-	"github.com/getcfs/megacfs/oort/api/groupproto"
-	"github.com/getcfs/megacfs/oort/api/proto"
+	"github.com/getcfs/megacfs/oort/proto"
+	"github.com/getcfs/megacfs/oort/valueproto"
 	"github.com/gholt/ring"
 	"github.com/gholt/store"
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -21,13 +21,13 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-type GroupStore struct {
+type ValueStore struct {
 	sync.RWMutex
-	waitGroup         *sync.WaitGroup
+	waitValue         *sync.WaitGroup
 	shutdownChan      chan struct{}
 	started           bool
-	groupStore        store.GroupStore
-	groupStoreMsgRing *ring.TCPMsgRing
+	valueStore        store.ValueStore
+	valueStoreMsgRing *ring.TCPMsgRing
 	grpcServer        *grpc.Server
 	grpcAddressIndex  int
 	grpcDefaultPort   int
@@ -39,7 +39,7 @@ type GroupStore struct {
 	logger            *zap.Logger
 }
 
-type GroupStoreConfig struct {
+type ValueStoreConfig struct {
 	GRPCAddressIndex int
 	ReplAddressIndex int
 	GRPCCertFile     string
@@ -53,8 +53,8 @@ type GroupStoreConfig struct {
 	Logger           *zap.Logger
 }
 
-func resolveGroupStoreConfig(c *GroupStoreConfig) *GroupStoreConfig {
-	cfg := &GroupStoreConfig{}
+func resolveValueStoreConfig(c *ValueStoreConfig) *ValueStoreConfig {
+	cfg := &ValueStoreConfig{}
 	if c != nil {
 		*cfg = *c
 	}
@@ -68,10 +68,10 @@ func resolveGroupStoreConfig(c *GroupStoreConfig) *GroupStoreConfig {
 	return cfg
 }
 
-func NewGroupStore(cfg *GroupStoreConfig) (*GroupStore, chan error, error) {
-	cfg = resolveGroupStoreConfig(cfg)
-	s := &GroupStore{
-		waitGroup:        &sync.WaitGroup{},
+func NewValueStore(cfg *ValueStoreConfig) (*ValueStore, chan error, error) {
+	cfg = resolveValueStoreConfig(cfg)
+	s := &ValueStore{
+		waitValue:        &sync.WaitGroup{},
 		grpcAddressIndex: cfg.GRPCAddressIndex,
 		grpcCertFile:     cfg.GRPCCertFile,
 		grpcKeyFile:      cfg.GRPCKeyFile,
@@ -81,29 +81,29 @@ func NewGroupStore(cfg *GroupStoreConfig) (*GroupStore, chan error, error) {
 		logger:           cfg.Logger,
 	}
 	var err error
-	s.groupStoreMsgRing, err = ring.NewTCPMsgRing(&ring.TCPMsgRingConfig{
+	s.valueStoreMsgRing, err = ring.NewTCPMsgRing(&ring.TCPMsgRingConfig{
 		AddressIndex: cfg.ReplAddressIndex,
 		UseTLS:       true,
 		MutualTLS:    true,
 		CertFile:     s.replCertFile,
 		KeyFile:      s.replKeyFile,
 		CAFile:       s.caFile,
-		DefaultPort:  12311,
+		DefaultPort:  12321,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	s.groupStoreMsgRing.SetRing(cfg.Ring)
-	var groupStoreRestartChan chan error
-	s.groupStore, groupStoreRestartChan = store.NewGroupStore(&store.GroupStoreConfig{
+	s.valueStoreMsgRing.SetRing(cfg.Ring)
+	var valueStoreRestartChan chan error
+	s.valueStore, valueStoreRestartChan = store.NewValueStore(&store.ValueStoreConfig{
 		Scale:   cfg.Scale,
 		Path:    cfg.Path,
-		MsgRing: s.groupStoreMsgRing,
+		MsgRing: s.valueStoreMsgRing,
 	})
-	return s, groupStoreRestartChan, nil
+	return s, valueStoreRestartChan, nil
 }
 
-func (s *GroupStore) Startup(ctx context.Context) error {
+func (s *ValueStore) Startup(ctx context.Context) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.started {
@@ -111,357 +111,325 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 	}
 	s.started = true
 	s.shutdownChan = make(chan struct{})
-	err := s.groupStore.Startup(ctx)
+	err := s.valueStore.Startup(ctx)
 	if err != nil {
 		return err
 	}
 	go func() {
 		mRingChanges := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "RingChanges",
 			Help:      "Number of received ring changes.",
 		})
 		mRingChangeCloses := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "RingChangeCloses",
 			Help:      "Number of connections closed due to ring changes.",
 		})
 		mMsgToNodes := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgToNodes",
 			Help:      "Number of times MsgToNode function has been called; single message to single node.",
 		})
 		mMsgToNodeNoRings := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgToNodeNoRings",
 			Help:      "Number of times MsgToNode function has been called with no ring yet available.",
 		})
 		mMsgToNodeNoNodes := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgToNodeNoNodes",
 			Help:      "Number of times MsgToNode function has been called with no matching node.",
 		})
 		mMsgToOtherReplicas := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgToOtherReplicas",
 			Help:      "Number of times MsgToOtherReplicas function has been called; single message to all replicas, excluding the local replica if responsible.",
 		})
 		mMsgToOtherReplicasNoRings := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgToOtherReplicasNoRings",
 			Help:      "Number of times MsgToOtherReplicas function has been called with no ring yet available.",
 		})
 		mListenErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "ListenErrors",
 			Help:      "Number of errors trying to establish a TCP listener.",
 		})
 		mIncomingConnections := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "IncomingConnections",
 			Help:      "Number of incoming TCP connections made.",
 		})
 		mDials := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "Dials",
 			Help:      "Number of attempts to establish outgoing TCP connections.",
 		})
 		mDialErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "DialErrors",
 			Help:      "Number of errors trying to establish outgoing TCP connections.",
 		})
 		mOutgoingConnections := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "OutgoingConnections",
 			Help:      "Number of outgoing TCP connections established.",
 		})
 		mMsgChanCreations := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgChanCreations",
 			Help:      "Number of internal message channels created.",
 		})
 		mMsgToAddrs := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "MsgToAddrsTCPMsgRing",
 			Help:      "Number times internal function msgToAddr has been called.",
 		})
 		mMsgToAddrQueues := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgToAddrQueues",
 			Help:      "Number of messages msgToAddr successfully queued.",
 		})
 		mMsgToAddrTimeoutDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgToAddrTimeoutDrops",
 			Help:      "Number of messages msgToAddr dropped after timeout.",
 		})
 		mMsgToAddrShutdownDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgToAddrShutdownDrops",
 			Help:      "Number of messages msgToAddr dropped due to a shutdown.",
 		})
 		mMsgReads := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgReads",
 			Help:      "Number of incoming messages read.",
 		})
 		mMsgReadErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgReadErrors",
 			Help:      "Number of errors reading incoming messages.",
 		})
 		mMsgWrites := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgWrites",
 			Help:      "Number of outgoing messages written.",
 		})
 		mMsgWriteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStoreTCPMsgRing",
+			Namespace: "ValueStoreTCPMsgRing",
 			Name:      "MsgWriteErrors",
 			Help:      "Number of errors writing outgoing messages.",
 		})
 		mValues := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "Values",
 			Help:      "Current number of values stored.",
 		})
 		mValueBytes := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "ValueBytes",
 			Help:      "Current number of bytes for the values stored.",
 		})
 		mLookups := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "Lookups",
 			Help:      "Count of lookup requests executed.",
 		})
 		mLookupErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "LookupErrors",
 			Help:      "Count of lookup requests executed resulting in errors.",
 		})
 
-		mLookupGroups := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
-			Name:      "LookupGroups",
-			Help:      "Count of lookup-group requests executed.",
-		})
-		mLookupGroupItems := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
-			Name:      "LookupGroupItems",
-			Help:      "Count of items lookup-group requests have returned.",
-		})
-		mLookupGroupErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
-			Name:      "LookupGroupErrors",
-			Help:      "Count of errors lookup-group requests have returned.",
-		})
-
 		mReads := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "Reads",
 			Help:      "Count of read requests executed.",
 		})
 		mReadErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "ReadErrors",
 			Help:      "Count of read requests executed resulting in errors.",
 		})
 
-		mReadGroups := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
-			Name:      "ReadGroups",
-			Help:      "Count of read-group requests executed.",
-		})
-		mReadGroupItems := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
-			Name:      "ReadGroupItems",
-			Help:      "Count of items read-group requests have returned.",
-		})
-		mReadGroupErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
-			Name:      "ReadGroupErrors",
-			Help:      "Count of errors read-group requests have returned.",
-		})
-
 		mWrites := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "Writes",
 			Help:      "Count of write requests executed.",
 		})
 		mWriteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "WriteErrors",
 			Help:      "Count of write requests executed resulting in errors.",
 		})
 		mWritesOverridden := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "WritesOverridden",
 			Help:      "Count of write requests that were outdated or repeated.",
 		})
 		mDeletes := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "Deletes",
 			Help:      "Count of delete requests executed.",
 		})
 		mDeleteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "DeleteErrors",
 			Help:      "Count of delete requests executed resulting in errors.",
 		})
 		mDeletesOverridden := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "DeletesOverridden",
 			Help:      "Count of delete requests that were outdated or repeated.",
 		})
 		mOutBulkSets := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "OutBulkSets",
 			Help:      "Count of outgoing bulk-set messages in response to incoming pull replication messages.",
 		})
 		mOutBulkSetValues := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "OutBulkSetValues",
 			Help:      "Count of values in outgoing bulk-set messages; these bulk-set messages are those in response to incoming pull-replication messages.",
 		})
 		mOutBulkSetPushes := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "OutBulkSetPushes",
 			Help:      "Count of outgoing bulk-set messages due to push replication.",
 		})
 		mOutBulkSetPushValues := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "OutBulkSetPushValues",
 			Help:      "Count of values in outgoing bulk-set messages; these bulk-set messages are those due to push replication.",
 		})
 		mOutPushReplicationSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "OutPushReplicationSeconds",
 			Help:      "How long the last out push replication pass took.",
 		})
 		mInBulkSets := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSets",
 			Help:      "Count of incoming bulk-set messages.",
 		})
 		mInBulkSetDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetDrops",
 			Help:      "Count of incoming bulk-set messages dropped due to the local system being overworked at the time.",
 		})
 		mInBulkSetInvalids := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetInvalids",
 			Help:      "Count of incoming bulk-set messages that couldn't be parsed.",
 		})
 		mInBulkSetWrites := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetWrites",
 			Help:      "Count of writes due to incoming bulk-set messages.",
 		})
 		mInBulkSetWriteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetWriteErrors",
 			Help:      "Count of errors returned from writes due to incoming bulk-set messages.",
 		})
 		mInBulkSetWritesOverridden := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetWritesOverridden",
 			Help:      "Count of writes from incoming bulk-set messages that result in no change.",
 		})
 		mOutBulkSetAcks := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "OutBulkSetAcks",
 			Help:      "Count of outgoing bulk-set-ack messages.",
 		})
 		mInBulkSetAcks := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetAcks",
 			Help:      "Count of incoming bulk-set-ack messages.",
 		})
 		mInBulkSetAckDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetAckDrops",
 			Help:      "Count of incoming bulk-set-ack messages dropped due to the local system being overworked at the time.",
 		})
 		mInBulkSetAckInvalids := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetAckInvalids",
 			Help:      "Count of incoming bulk-set-ack messages that couldn't be parsed.",
 		})
 		mInBulkSetAckWrites := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetAckWrites",
 			Help:      "Count of writes (for local removal) due to incoming bulk-set-ack messages.",
 		})
 		mInBulkSetAckWriteErrors := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetAckWriteErrors",
 			Help:      "Count of errors returned from writes due to incoming bulk-set-ack messages.",
 		})
 		mInBulkSetAckWritesOverridden := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InBulkSetAckWritesOverridden",
 			Help:      "Count of writes from incoming bulk-set-ack messages that result in no change.",
 		})
 		mOutPullReplications := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "OutPullReplications",
 			Help:      "Count of outgoing pull-replication messages.",
 		})
 		mOutPullReplicationSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "OutPullReplicationSeconds",
 			Help:      "How long the last out pull replication pass took.",
 		})
 		mInPullReplications := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InPullReplications",
 			Help:      "Count of incoming pull-replication messages.",
 		})
 		mInPullReplicationDrops := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InPullReplicationDrops",
 			Help:      "Count of incoming pull-replication messages droppped due to the local system being overworked at the time.",
 		})
 		mInPullReplicationInvalids := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "InPullReplicationInvalids",
 			Help:      "Count of incoming pull-replication messages that couldn't be parsed.",
 		})
 		mExpiredDeletions := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "ExpiredDeletions",
 			Help:      "Count of recent deletes that have become old enough to be completely discarded.",
 		})
 		mTombstoneDiscardSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "TombstoneDiscardSeconds",
 			Help:      "How long the last tombstone discard pass took.",
 		})
 		mCompactionSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "CompactionSeconds",
 			Help:      "How long the last compaction pass took.",
 		})
 		mCompactions := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "Compactions",
 			Help:      "Count of disk file sets compacted due to their contents exceeding a staleness threshold. For example, this happens when enough of the values have been overwritten or deleted in more recent operations.",
 		})
 		mSmallFileCompactions := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "SmallFileCompactions",
 			Help:      "Count of disk file sets compacted due to the entire file size being too small. For example, this may happen when the store is shutdown and restarted.",
 		})
 		mReadOnly := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "ReadOnly",
 			Help:      "Indicates when the store has been put in read-only mode, whether by an operator or automatically by the watcher.",
 		})
 		mAuditSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "GroupStore",
+			Namespace: "ValueStore",
 			Name:      "AuditSeconds",
 			Help:      "How long the last audit pass took.",
 		})
@@ -491,16 +459,8 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 		prometheus.Register(mLookups)
 		prometheus.Register(mLookupErrors)
 
-		prometheus.Register(mLookupGroups)
-		prometheus.Register(mLookupGroupItems)
-		prometheus.Register(mLookupGroupErrors)
-
 		prometheus.Register(mReads)
 		prometheus.Register(mReadErrors)
-
-		prometheus.Register(mReadGroups)
-		prometheus.Register(mReadGroupItems)
-		prometheus.Register(mReadGroupErrors)
 
 		prometheus.Register(mWrites)
 		prometheus.Register(mWriteErrors)
@@ -538,13 +498,13 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 		prometheus.Register(mSmallFileCompactions)
 		prometheus.Register(mReadOnly)
 		prometheus.Register(mAuditSeconds)
-		tcpMsgRingStats := s.groupStoreMsgRing.Stats(false)
+		tcpMsgRingStats := s.valueStoreMsgRing.Stats(false)
 		for {
 			select {
 			case <-s.shutdownChan:
 				return
 			case <-time.After(time.Minute):
-				tcpMsgRingStats = s.groupStoreMsgRing.Stats(false)
+				tcpMsgRingStats = s.valueStoreMsgRing.Stats(false)
 				mRingChanges.Add(float64(tcpMsgRingStats.RingChanges))
 				mRingChangeCloses.Add(float64(tcpMsgRingStats.RingChangeCloses))
 				mMsgToNodes.Add(float64(tcpMsgRingStats.MsgToNodes))
@@ -566,25 +526,17 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 				mMsgReadErrors.Add(float64(tcpMsgRingStats.MsgReadErrors))
 				mMsgWrites.Add(float64(tcpMsgRingStats.MsgWrites))
 				mMsgWriteErrors.Add(float64(tcpMsgRingStats.MsgWriteErrors))
-				stats, err := s.groupStore.Stats(context.Background(), false)
+				stats, err := s.valueStore.Stats(context.Background(), false)
 				if err != nil {
 					s.logger.Debug("stats error", zap.Error(err))
-				} else if sstats, ok := stats.(*store.GroupStoreStats); ok {
+				} else if sstats, ok := stats.(*store.ValueStoreStats); ok {
 					mValues.Set(float64(sstats.Values))
 					mValueBytes.Set(float64(sstats.ValueBytes))
 					mLookups.Add(float64(sstats.Lookups))
 					mLookupErrors.Add(float64(sstats.LookupErrors))
 
-					mLookupGroups.Add(float64(sstats.LookupGroups))
-					mLookupGroupItems.Add(float64(sstats.LookupGroupItems))
-					mLookupGroupErrors.Add(float64(sstats.LookupGroupErrors))
-
 					mReads.Add(float64(sstats.Reads))
 					mReadErrors.Add(float64(sstats.ReadErrors))
-
-					mReadGroups.Add(float64(sstats.ReadGroups))
-					mReadGroupItems.Add(float64(sstats.ReadGroupItems))
-					mReadGroupErrors.Add(float64(sstats.ReadGroupErrors))
 
 					mWrites.Add(float64(sstats.Writes))
 					mWriteErrors.Add(float64(sstats.WriteErrors))
@@ -632,18 +584,18 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 			}
 		}
 	}()
-	s.waitGroup.Add(1)
+	s.waitValue.Add(1)
 	go func() {
-		s.groupStoreMsgRing.Listen()
-		s.waitGroup.Done()
+		s.valueStoreMsgRing.Listen()
+		s.waitValue.Done()
 	}()
-	s.waitGroup.Add(1)
+	s.waitValue.Add(1)
 	go func() {
 		<-s.shutdownChan
-		s.groupStoreMsgRing.Shutdown()
-		s.waitGroup.Done()
+		s.valueStoreMsgRing.Shutdown()
+		s.waitValue.Done()
 	}()
-	ln := s.groupStoreMsgRing.Ring().LocalNode()
+	ln := s.valueStoreMsgRing.Ring().LocalNode()
 	if ln == nil {
 		return errors.New("no local node set")
 	}
@@ -651,7 +603,7 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 	if grpcAddr == "" {
 		return fmt.Errorf("no local node address index %d", s.grpcAddressIndex)
 	}
-	grpcHostPort, err := ring.CanonicalHostPort(grpcAddr, 12310)
+	grpcHostPort, err := ring.CanonicalHostPort(grpcAddr, 12320)
 	if err != nil {
 		return err
 	}
@@ -668,41 +620,41 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
 		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
 	)
-	groupproto.RegisterGroupStoreServer(s.grpcServer, s)
+	valueproto.RegisterValueStoreServer(s.grpcServer, s)
 	grpc_prometheus.Register(s.grpcServer)
 
-	s.waitGroup.Add(1)
+	s.waitValue.Add(1)
 	go func() {
 		err := s.grpcServer.Serve(lis)
 		if err != nil {
 			s.logger.Debug("grpcServer.Serve error", zap.Error(err))
 		}
 		lis.Close()
-		s.waitGroup.Done()
+		s.waitValue.Done()
 	}()
-	s.waitGroup.Add(1)
+	s.waitValue.Add(1)
 	go func() {
 		<-s.shutdownChan
 		s.grpcServer.Stop()
 		lis.Close()
-		s.waitGroup.Done()
+		s.waitValue.Done()
 	}()
 	return nil
 }
 
-func (s *GroupStore) Shutdown(ctx context.Context) error {
+func (s *ValueStore) Shutdown(ctx context.Context) error {
 	s.Lock()
 	defer s.Unlock()
 	if !s.started {
 		return nil
 	}
 	close(s.shutdownChan)
-	s.waitGroup.Wait()
-	return s.groupStore.Shutdown(ctx)
+	s.waitValue.Wait()
+	return s.valueStore.Shutdown(ctx)
 }
 
-func (s *GroupStore) Write(stream groupproto.GroupStore_WriteServer) error {
-	var resp groupproto.WriteResponse
+func (s *ValueStore) Write(stream valueproto.ValueStore_WriteServer) error {
+	var resp valueproto.WriteResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -713,7 +665,7 @@ func (s *GroupStore) Write(stream groupproto.GroupStore_WriteServer) error {
 		}
 		resp.Reset()
 		resp.Rpcid = req.Rpcid
-		resp.TimestampMicro, err = s.groupStore.Write(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, req.TimestampMicro, req.Value)
+		resp.TimestampMicro, err = s.valueStore.Write(stream.Context(), req.KeyA, req.KeyB, req.TimestampMicro, req.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
 		}
@@ -723,8 +675,8 @@ func (s *GroupStore) Write(stream groupproto.GroupStore_WriteServer) error {
 	}
 }
 
-func (s *GroupStore) Read(stream groupproto.GroupStore_ReadServer) error {
-	var resp groupproto.ReadResponse
+func (s *ValueStore) Read(stream valueproto.ValueStore_ReadServer) error {
+	var resp valueproto.ReadResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -735,7 +687,7 @@ func (s *GroupStore) Read(stream groupproto.GroupStore_ReadServer) error {
 		}
 		resp.Reset()
 		resp.Rpcid = req.Rpcid
-		resp.TimestampMicro, resp.Value, err = s.groupStore.Read(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, resp.Value)
+		resp.TimestampMicro, resp.Value, err = s.valueStore.Read(stream.Context(), req.KeyA, req.KeyB, resp.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
 		}
@@ -745,8 +697,8 @@ func (s *GroupStore) Read(stream groupproto.GroupStore_ReadServer) error {
 	}
 }
 
-func (s *GroupStore) Lookup(stream groupproto.GroupStore_LookupServer) error {
-	var resp groupproto.LookupResponse
+func (s *ValueStore) Lookup(stream valueproto.ValueStore_LookupServer) error {
+	var resp valueproto.LookupResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -757,7 +709,7 @@ func (s *GroupStore) Lookup(stream groupproto.GroupStore_LookupServer) error {
 		}
 		resp.Reset()
 		resp.Rpcid = req.Rpcid
-		resp.TimestampMicro, resp.Length, err = s.groupStore.Lookup(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB)
+		resp.TimestampMicro, resp.Length, err = s.valueStore.Lookup(stream.Context(), req.KeyA, req.KeyB)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
 		}
@@ -767,8 +719,8 @@ func (s *GroupStore) Lookup(stream groupproto.GroupStore_LookupServer) error {
 	}
 }
 
-func (s *GroupStore) LookupGroup(stream groupproto.GroupStore_LookupGroupServer) error {
-	var resp groupproto.LookupGroupResponse
+func (s *ValueStore) Delete(stream valueproto.ValueStore_DeleteServer) error {
+	var resp valueproto.DeleteResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -779,75 +731,7 @@ func (s *GroupStore) LookupGroup(stream groupproto.GroupStore_LookupGroupServer)
 		}
 		resp.Reset()
 		resp.Rpcid = req.Rpcid
-		items, err := s.groupStore.LookupGroup(stream.Context(), req.KeyA, req.KeyB)
-		if err != nil {
-			resp.Err = proto.TranslateError(err)
-		} else {
-			for _, v := range items {
-				g := groupproto.LookupGroupItem{}
-				g.Length = v.Length
-				g.ChildKeyA = v.ChildKeyA
-				g.ChildKeyB = v.ChildKeyB
-				g.TimestampMicro = v.TimestampMicro
-				resp.Items = append(resp.Items, &g)
-			}
-		}
-		if err := stream.Send(&resp); err != nil {
-			return err
-		}
-	}
-}
-
-func (s *GroupStore) ReadGroup(stream groupproto.GroupStore_ReadGroupServer) error {
-	var resp groupproto.ReadGroupResponse
-	for {
-		req, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		resp.Reset()
-		resp.Rpcid = req.Rpcid
-		lgis, err := s.groupStore.LookupGroup(stream.Context(), req.KeyA, req.KeyB)
-		if err != nil {
-			resp.Err = proto.TranslateError(err)
-		} else {
-			resp.Items = make([]*groupproto.ReadGroupItem, len(lgis))
-			itemCount := 0
-			for i, lgi := range lgis {
-				g := groupproto.ReadGroupItem{}
-				g.TimestampMicro, g.Value, err = s.groupStore.Read(stream.Context(), req.KeyA, req.KeyB, lgi.ChildKeyA, lgi.ChildKeyB, nil)
-				if err != nil {
-					continue
-				}
-				g.ChildKeyA = lgi.ChildKeyA
-				g.ChildKeyB = lgi.ChildKeyB
-				resp.Items[i] = &g
-				itemCount++
-			}
-			resp.Items = resp.Items[:itemCount]
-		}
-		if err := stream.Send(&resp); err != nil {
-			return err
-		}
-	}
-}
-
-func (s *GroupStore) Delete(stream groupproto.GroupStore_DeleteServer) error {
-	var resp groupproto.DeleteResponse
-	for {
-		req, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		resp.Reset()
-		resp.Rpcid = req.Rpcid
-		resp.TimestampMicro, err = s.groupStore.Delete(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, req.TimestampMicro)
+		resp.TimestampMicro, err = s.valueStore.Delete(stream.Context(), req.KeyA, req.KeyB, req.TimestampMicro)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
 		}
@@ -857,8 +741,8 @@ func (s *GroupStore) Delete(stream groupproto.GroupStore_DeleteServer) error {
 	}
 }
 
-func (s *GroupStore) Stats() []byte {
-	stats, err := s.groupStore.Stats(context.Background(), true)
+func (s *ValueStore) Stats() []byte {
+	stats, err := s.valueStore.Stats(context.Background(), true)
 	if err != nil {
 		return nil
 	}
@@ -866,4 +750,4 @@ func (s *GroupStore) Stats() []byte {
 }
 
 // Wait isn't implemented yet, need graceful shutdowns in grpc
-func (s *GroupStore) Wait() {}
+func (s *ValueStore) Wait() {}

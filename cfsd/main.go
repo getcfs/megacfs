@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/getcfs/megacfs/formic"
-	"github.com/getcfs/megacfs/oort/api/server"
+	"github.com/getcfs/megacfs/oort/server"
 	"github.com/gholt/brimtext"
 	"github.com/gholt/ring"
 	"github.com/prometheus/client_golang/prometheus"

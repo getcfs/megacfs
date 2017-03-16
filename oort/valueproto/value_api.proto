@@ -10,57 +10,57 @@ service ValueStore {
 
 
 message DeleteRequest {
-    uint32 rpcid = 1;
-    uint64 keyA = 2;
-    uint64 keyB = 3;
+    uint32 rpcid          = 1;
+    uint64 keyA           = 2;
+    uint64 keyB           = 3;
     int64  timestampMicro = 4;
 }
 
 message DeleteResponse {
-    uint32 rpcid = 1;
+    uint32 rpcid          = 1;
     int64  timestampMicro = 2;
-    string err = 3;
+    string err            = 3;
 }
 
 
 message LookupRequest {
     uint32 rpcid = 1;
-    uint64 keyA = 2;
-    uint64 keyB = 3;
+    uint64 keyA  = 2;
+    uint64 keyB  = 3;
 }
 
 message LookupResponse {
-    uint32 rpcid = 1;
+    uint32 rpcid          = 1;
     int64  timestampMicro = 2;
-    uint32 length = 3;
-    string err = 4;
+    uint32 length         = 3;
+    string err            = 4;
 }
 
 
 message ReadRequest {
     uint32 rpcid = 1;
-    uint64 keyA = 2;
-    uint64 keyB = 3;
+    uint64 keyA  = 2;
+    uint64 keyB  = 3;
 }
 
 message ReadResponse {
-    uint32 rpcid = 1;
+    uint32 rpcid          = 1;
     int64  timestampMicro = 2;
-    bytes  value = 3;
-    string err = 4;
+    bytes  value          = 3;
+    string err            = 4;
 }
 
 
 message WriteRequest {
-    uint32 rpcid = 1;
-    uint64 keyA = 2;
-    uint64 keyB = 3;
-    bytes  value = 4;
+    uint32 rpcid          = 1;
+    uint64 keyA           = 2;
+    uint64 keyB           = 3;
+    bytes  value          = 4;
     int64  timestampMicro = 5;
 }
 
 message WriteResponse {
-    uint32 rpcid = 1;
+    uint32 rpcid          = 1;
     int64  timestampMicro = 2;
-    string err = 3;
+    string err            = 3;
 }
