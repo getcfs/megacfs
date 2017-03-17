@@ -30,7 +30,6 @@ type {{.T}}Store struct {
 	{{.t}}StoreMsgRing *ring.TCPMsgRing
 	grpcServer         *grpc.Server
 	grpcAddressIndex   int
-    grpcDefaultPort    int
 	grpcCertFile       string
 	grpcKeyFile        string
 	replCertFile       string

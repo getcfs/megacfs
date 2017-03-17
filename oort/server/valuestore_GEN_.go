@@ -30,7 +30,6 @@ type ValueStore struct {
 	valueStoreMsgRing *ring.TCPMsgRing
 	grpcServer        *grpc.Server
 	grpcAddressIndex  int
-	grpcDefaultPort   int
 	grpcCertFile      string
 	grpcKeyFile       string
 	replCertFile      string
