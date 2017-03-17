@@ -30,7 +30,6 @@ type GroupStore struct {
 	groupStoreMsgRing *ring.TCPMsgRing
 	grpcServer        *grpc.Server
 	grpcAddressIndex  int
-	grpcDefaultPort   int
 	grpcCertFile      string
 	grpcKeyFile       string
 	replCertFile      string
@@ -115,6 +114,7 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.waitGroup.Add(1)
 	go func() {
 		mRingChanges := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "GroupStoreTCPMsgRing",
@@ -542,6 +542,7 @@ func (s *GroupStore) Startup(ctx context.Context) error {
 		for {
 			select {
 			case <-s.shutdownChan:
+				s.waitGroup.Done()
 				return
 			case <-time.After(time.Minute):
 				tcpMsgRingStats = s.groupStoreMsgRing.Stats(false)
