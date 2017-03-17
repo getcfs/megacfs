@@ -11,6 +11,7 @@ import (
 	"bazil.org/fuse"
 
 	pb "github.com/getcfs/megacfs/formic/formicproto"
+	"github.com/getcfs/megacfs/formic/newproto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
 	"github.com/spaolacci/murmur3"
@@ -31,6 +32,8 @@ const (
 
 // FileService ...
 type FileService interface {
+	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
+
 	InitFs(ctx context.Context, fsid []byte) error
 	GetAttr(ctx context.Context, id []byte) (*pb.Attr, error)
 	SetAttr(ctx context.Context, id []byte, attr *pb.Attr, valid uint32) (*pb.Attr, error)
@@ -264,6 +267,84 @@ func (o *OortFS) GetAttr(ctx context.Context, id []byte) (*pb.Attr, error) {
 		return &pb.Attr{}, err
 	}
 	return n.Attr, nil
+}
+
+func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, resp *newproto.SetAttrResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	id := fsid.Bytes()
+	attr := req.Attr
+	valid := fuse.SetattrValid(req.Valid)
+	n, err := o.GetInode(ctx, id)
+	if err != nil {
+		return err
+	}
+	if valid.Mode() {
+		n.Attr.Mode = attr.Mode
+	}
+	if valid.Size() {
+		if attr.Size < n.Attr.Size {
+			// We need to mark this file as dirty to clean up unused blocks
+			tsm := brimtime.TimeToUnixMicro(time.Now())
+			d := &pb.Dirty{
+				Dtime:  tsm,
+				Qtime:  tsm,
+				FsId:   id,
+				Blocks: n.Blocks,
+				Inode:  n.Inode,
+			}
+			b, err := Marshal(d)
+			if err != nil {
+				return err
+			}
+			err = o.comms.WriteGroupTS(ctx, GetDirtyID(id), []byte(fmt.Sprintf("%d", d.Inode)), b, tsm)
+			if err != nil {
+				return err
+			}
+			o.dirtyChan <- &DirtyItem{dirty: d}
+		}
+		// TODO: Ask creiht about this, not sure why it's before the update and
+		// not after.
+		if n.Attr.Size == 0 {
+			n.Blocks = 0
+		}
+		n.Attr.Size = attr.Size
+	}
+	if valid.Mtime() {
+		n.Attr.Mtime = attr.Mtime
+	}
+	if valid.Atime() {
+		n.Attr.Atime = attr.Atime
+	}
+	if valid.Uid() {
+		n.Attr.Uid = attr.Uid
+	}
+	if valid.Gid() {
+		n.Attr.Gid = attr.Gid
+	}
+	b, err := Marshal(n)
+	if err != nil {
+		return err
+	}
+	err = o.WriteChunk(ctx, id, b)
+	if err != nil {
+		return err
+	}
+	// TODO: Set everything explicitly for now since the structs are different
+	// until the newproto becomes theproto.
+	resp.Attr.Inode = n.Attr.Inode
+	resp.Attr.Atime = n.Attr.Atime
+	resp.Attr.Mtime = n.Attr.Mtime
+	resp.Attr.Ctime = n.Attr.Ctime
+	resp.Attr.Crtime = n.Attr.Crtime
+	resp.Attr.Mode = n.Attr.Mode
+	resp.Attr.Valid = n.Attr.Valid
+	resp.Attr.Size = n.Attr.Size
+	resp.Attr.Uid = n.Attr.Uid
+	resp.Attr.Gid = n.Attr.Gid
+	return nil
 }
 
 // SetAttr ...

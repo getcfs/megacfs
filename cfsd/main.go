@@ -12,8 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	// formicserver "github.com/getcfs/megacfs/formic/server"
 	"github.com/getcfs/megacfs/formic"
-	"github.com/getcfs/megacfs/oort/server"
+	oortserver "github.com/getcfs/megacfs/oort/server"
 	"github.com/gholt/brimtext"
 	"github.com/gholt/ring"
 	"github.com/prometheus/client_golang/prometheus"
@@ -80,7 +81,7 @@ func init() {
 
 const (
 	ADDR_PROMETHEUS = iota
-	ADDR_FORMIC
+	ADDR_FORMIC_GRPC
 	ADDR_GROUP_GRPC
 	ADDR_GROUP_REPL
 	ADDR_VALUE_GRPC
@@ -99,8 +100,8 @@ func main() {
 	var replValueIP string
 	var prometheusCertPath string
 	var prometheusKeyPath string
-	var formicCertPath string
-	var formicKeyPath string
+	var grpcFormicCertPath string
+	var grpcFormicKeyPath string
 	var grpcGroupCertPath string
 	var grpcGroupKeyPath string
 	var replGroupCertPath string
@@ -145,7 +146,7 @@ FIND_LOCAL_NODE:
 						if i >= 0 {
 							prometheusIP = nodeAddr[:i]
 						}
-						nodeAddr = node.Address(ADDR_FORMIC)
+						nodeAddr = node.Address(ADDR_FORMIC_GRPC)
 						i = strings.LastIndex(nodeAddr, ":")
 						if i >= 0 {
 							formicIP = nodeAddr[:i]
@@ -199,8 +200,8 @@ FIND_LOCAL_NODE:
 	}
 	prometheusCertPath = "/etc/cfsd/" + prometheusIP + ".pem"
 	prometheusKeyPath = "/etc/cfsd/" + prometheusIP + "-key.pem"
-	formicCertPath = "/etc/cfsd/" + formicIP + ".pem"
-	formicKeyPath = "/etc/cfsd/" + formicIP + "-key.pem"
+	grpcFormicCertPath = "/etc/cfsd/" + formicIP + ".pem"
+	grpcFormicKeyPath = "/etc/cfsd/" + formicIP + "-key.pem"
 	grpcGroupCertPath = "/etc/cfsd/" + grpcGroupIP + ".pem"
 	grpcGroupKeyPath = "/etc/cfsd/" + grpcGroupIP + "-key.pem"
 	replGroupCertPath = "/etc/cfsd/" + replGroupIP + ".pem"
@@ -221,7 +222,7 @@ FIND_LOCAL_NODE:
 	waitGroup := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
 
-	groupStore, groupStoreRestartChan, err := server.NewGroupStore(&server.GroupStoreConfig{
+	groupStore, groupStoreRestartChan, err := oortserver.NewGroupStore(&oortserver.GroupStoreConfig{
 		GRPCAddressIndex: ADDR_GROUP_GRPC,
 		ReplAddressIndex: ADDR_GROUP_REPL,
 		GRPCCertFile:     grpcGroupCertPath,
@@ -261,7 +262,7 @@ FIND_LOCAL_NODE:
 		logger.Fatal("Error starting group store", zap.Error(err))
 	}
 
-	valueStore, valueStoreRestartChan, err := server.NewValueStore(&server.ValueStoreConfig{
+	valueStore, valueStoreRestartChan, err := oortserver.NewValueStore(&oortserver.ValueStoreConfig{
 		GRPCAddressIndex: ADDR_VALUE_GRPC,
 		ReplAddressIndex: ADDR_VALUE_REPL,
 		GRPCCertFile:     grpcValueCertPath,
@@ -301,13 +302,63 @@ FIND_LOCAL_NODE:
 		logger.Fatal("Error starting value store", zap.Error(err))
 	}
 
+	/* TODO: What I want to get formic to.
+	newFormicCfg := formicserver.NewFormicConfig()
+	newFormicCfg.GRPCAddressIndex = ADDR_FORMIC_GRPC
+	newFormicCfg.ValueGRPCAddressIndex = ADDR_VALUE_GRPC
+	newFormicCfg.GroupGRPCAddressIndex = ADDR_GROUP_GRPC
+	newFormicCfg.GRPCCertFile = grpcFormicCertPath
+	newFormicCfg.GRPCKeyFile = grpcFormicKeyPath
+	newFormicCfg.CAFile = caPath
+	newFormicCfg.Scale = 0.2
+	newFormicCfg.Ring = oneRing
+	newFormicCfg.AuthURL = "http://localhost:5000"
+	newFormicCfg.AuthUser = "admin"
+	newFormicCfg.AuthPassword = "admin"
+	newFormicCfg.Logger = logger
+	newFormic, err := formicserver.NewFormic(newFormicCfg)
+	if err != nil {
+		logger.Fatal("Error initializing formic", zap.Error(err))
+	}
+	waitGroup.Add(1)
+	go func() {
+		<-shutdownChan
+		ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+		newFormic.Shutdown(ctx)
+		waitGroup.Done()
+	}()
+	ctx, _ = context.WithTimeout(context.Background(), time.Minute)
+	if err = newFormic.Startup(ctx); err != nil {
+		ctx, _ = context.WithTimeout(context.Background(), time.Minute)
+		newFormic.Shutdown(ctx)
+		logger.Fatal("Error starting formic", zap.Error(err))
+	}
+
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	waitGroup.Add(1)
+	go func() {
+		for {
+			select {
+			case <-ch:
+				close(shutdownChan)
+				waitGroup.Done()
+				return
+			case <-shutdownChan:
+				waitGroup.Done()
+				return
+			}
+		}
+	}()
+	*/
+
 	// Startup formic
 	formicCfg := formic.NewConfig()
-	formicCfg.FormicAddressIndex = ADDR_FORMIC
+	formicCfg.FormicAddressIndex = ADDR_FORMIC_GRPC
 	formicCfg.ValueAddressIndex = ADDR_VALUE_GRPC
 	formicCfg.GroupAddressIndex = ADDR_GROUP_GRPC
-	formicCfg.CertFile = formicCertPath
-	formicCfg.KeyFile = formicKeyPath
+	formicCfg.CertFile = grpcFormicCertPath
+	formicCfg.KeyFile = grpcFormicKeyPath
 	formicCfg.CAFile = caPath
 	formicCfg.Ring = oneRing
 	formicCfg.RingPath = ringPath
