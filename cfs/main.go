@@ -20,6 +20,7 @@ import (
 
 	"bazil.org/fuse"
 	pb "github.com/getcfs/megacfs/formic/formicproto"
+	"github.com/getcfs/megacfs/formic/newproto"
 	"github.com/gholt/brimtext"
 	"github.com/gholt/cpcp"
 	"github.com/gholt/dudu"
@@ -91,7 +92,7 @@ func init() {
 
 // FORMIC PORT
 const (
-	PORT = "12300"
+	PORT = 12300
 )
 
 type server struct {
@@ -128,9 +129,10 @@ func (s *server) serve() error {
 
 type rpc struct {
 	apiClients []pb.ApiClient
+	newClient  newproto.FormicClient
 }
 
-func newrpc(addr string) *rpc {
+func newrpc(addr string, newAddr string) *rpc {
 	var opts []grpc.DialOption
 	creds := credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
@@ -150,6 +152,15 @@ func newrpc(addr string) *rpc {
 	r := &rpc{
 		apiClients: clients,
 	}
+
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	conn, err := grpc.Dial(newAddr, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	r.newClient = newproto.NewFormicClient(conn)
 
 	return r
 }
@@ -243,7 +254,9 @@ Examples:
 		fmt.Println("Invalid filesystem:", addrFsid)
 		return usageErr
 	}
-	addr := fmt.Sprintf("%s:%s", strings.ToLower(parts[0]), PORT)
+	addr := fmt.Sprintf("%s:%d", strings.ToLower(parts[0]), PORT)
+	// TODO: Just temp, get rid of + 1 at some point
+	newAddr := fmt.Sprintf("%s:%d", strings.ToLower(parts[0]), PORT+1)
 	fsid := parts[1]
 	mountpoint := f.Args()[1]
 	// Verify mountpoint exists
@@ -302,7 +315,7 @@ Examples:
 		defer cfs.Close()
 
 		// setup rpc client
-		rpc := newrpc(addr)
+		rpc := newrpc(addr, newAddr)
 		fs := newfs(cfs, rpc, fsid)
 		err = fs.InitFs()
 		if err != nil {
@@ -348,7 +361,7 @@ func main() {
 	authURL, _ := config["authURL"]
 	username, _ := config["username"]
 	password, _ := config["password"]
-	addr := fmt.Sprintf("%s:%s", ip, PORT)
+	addr := fmt.Sprintf("%s:%d", ip, PORT)
 
 	flag.Usage = func() {
 		fmt.Println("Usage:")
