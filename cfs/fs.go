@@ -15,6 +15,7 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fuseutil"
 	pb "github.com/getcfs/megacfs/formic/formicproto"
+	"github.com/getcfs/megacfs/formic/newproto"
 	"go.uber.org/zap"
 )
 
@@ -179,6 +180,19 @@ func (f *fileHandles) getReadCache(h fuse.HandleID) []byte {
 	defer f.RUnlock()
 	// TODO: Need to add error handling
 	return f.handles[h].readCache
+}
+
+func copyNewAttr(dst *fuse.Attr, src *newproto.Attr) {
+	dst.Inode = src.Inode
+	dst.Mode = os.FileMode(src.Mode)
+	dst.Size = src.Size
+	dst.Mtime = time.Unix(src.Mtime, 0)
+	dst.Atime = time.Unix(src.Atime, 0)
+	dst.Ctime = time.Unix(src.Ctime, 0)
+	dst.Crtime = time.Unix(src.Crtime, 0)
+	dst.Uid = src.Uid
+	dst.Gid = src.Gid
+	dst.Blocks = dst.Size / 512 // set Blocks so df works without the --apparent-size flag
 }
 
 func copyAttr(dst *fuse.Attr, src *pb.Attr) {
@@ -387,7 +401,7 @@ func (f *fs) handleSetattr(r *fuse.SetattrRequest) {
 	logger.Debug("Inside handleSetattr", zap.Any("request", r))
 	resp := &fuse.SetattrResponse{}
 	resp.Attr.Inode = uint64(r.Node)
-	a := &pb.Attr{
+	a := &newproto.Attr{
 		Inode: uint64(r.Node),
 	}
 	if r.Valid.Size() {
@@ -411,13 +425,26 @@ func (f *fs) handleSetattr(r *fuse.SetattrRequest) {
 	if r.Valid.Gid() {
 		a.Gid = r.Gid
 	}
-	setAttrResp, err := f.rpc.api().SetAttr(f.getContext(), &pb.SetAttrRequest{Attr: a, Valid: uint32(r.Valid)})
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.SetAttr(f.getContext())
+	if err = stream.Send(&newproto.SetAttrRequest{Rpcid: 1, Attr: a, Valid: uint32(r.Valid)}); err != nil {
+		logger.Debug("Setattr failed", zap.Error(err))
+		r.RespondError(fuse.EIO)
+		return
+	}
+	setAttrResp, err := stream.Recv()
 	if err != nil {
 		logger.Debug("Setattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
-	copyAttr(&resp.Attr, setAttrResp.Attr)
+	if setAttrResp.Err != "" {
+		logger.Debug("Setattr failed", zap.String("Err", setAttrResp.Err))
+		r.RespondError(fuse.EIO)
+		return
+	}
+	copyNewAttr(&resp.Attr, setAttrResp.Attr)
 	resp.Attr.Valid = attrValidTime
 	logger.Debug("handleSetattr returning", zap.Any("response", resp))
 	r.Respond(resp)

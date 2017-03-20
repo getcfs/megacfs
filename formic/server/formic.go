@@ -42,6 +42,7 @@ type Formic struct {
 	groupGRPCAddressIndex int
 	valueGRPCAddressIndex int
 	ring                  ring.Ring
+	ringPath              string
 	logger                *zap.Logger
 }
 
@@ -55,6 +56,7 @@ type FormicConfig struct {
 	CAFile                string
 	Scale                 float64
 	Ring                  ring.Ring
+	RingPath              string
 	AuthURL               string
 	AuthUser              string
 	AuthPassword          string
@@ -84,14 +86,18 @@ func resolveFormicConfig(c *FormicConfig) *FormicConfig {
 func NewFormic(cfg *FormicConfig) (*Formic, error) {
 	cfg = resolveFormicConfig(cfg)
 	f := &Formic{
-		waitGroup:        &sync.WaitGroup{},
-		nodeID:           cfg.NodeID,
-		grpcAddressIndex: cfg.GRPCAddressIndex,
-		grpcCertFile:     cfg.GRPCCertFile,
-		grpcKeyFile:      cfg.GRPCKeyFile,
-		caFile:           cfg.CAFile,
-		ring:             cfg.Ring,
-		logger:           cfg.Logger,
+		waitGroup:             &sync.WaitGroup{},
+		validIPs:              make(map[string]map[string]time.Time),
+		nodeID:                cfg.NodeID,
+		grpcAddressIndex:      cfg.GRPCAddressIndex,
+		grpcCertFile:          cfg.GRPCCertFile,
+		grpcKeyFile:           cfg.GRPCKeyFile,
+		caFile:                cfg.CAFile,
+		groupGRPCAddressIndex: cfg.GroupGRPCAddressIndex,
+		valueGRPCAddressIndex: cfg.ValueGRPCAddressIndex,
+		ring:     cfg.Ring,
+		ringPath: cfg.RingPath,
+		logger:   cfg.Logger,
 	}
 	return f, nil
 }
@@ -138,20 +144,26 @@ func (f *Formic) Startup(ctx context.Context) error {
 		close(f.shutdownChan)
 		return err
 	}
+	// TODO: Eventually get rid of the + 1
+	if grpcHostPort[len(grpcHostPort)-1] != '1' {
+		grpcHostPort = grpcHostPort[:len(grpcHostPort)-1] + "1"
+	}
 
 	groupStore := oort.NewReplGroupStore(&oort.GroupStoreConfig{
 		AddressIndex:    f.groupGRPCAddressIndex,
 		StoreFTLSConfig: ftls.DefaultClientFTLSConf(f.grpcCertFile, f.grpcKeyFile, f.caFile),
 		RingClientID:    grpcHostPort,
+		RingCachePath:   f.ringPath,
 		Logger:          f.logger,
 	})
 	valueStore := oort.NewReplValueStore(&oort.ValueStoreConfig{
 		AddressIndex:    f.valueGRPCAddressIndex,
 		StoreFTLSConfig: ftls.DefaultClientFTLSConf(f.grpcCertFile, f.grpcKeyFile, f.caFile),
 		RingClientID:    grpcHostPort,
+		RingCachePath:   f.ringPath,
 		Logger:          f.logger,
 	})
-	comms, err := formic.NewStoreComms(valueStore, groupStore, f.logger)
+	f.comms, err = formic.NewStoreComms(valueStore, groupStore, f.logger)
 	if err != nil {
 		close(f.shutdownChan)
 		return err
@@ -159,18 +171,22 @@ func (f *Formic) Startup(ctx context.Context) error {
 	// TODO: Make sure there are ways to shut this stuff down gracefully.
 	deleteChan := make(chan *formic.DeleteItem, 1000)
 	dirtyChan := make(chan *formic.DirtyItem, 1000)
-	f.fs = formic.NewOortFS(comms, f.logger, deleteChan, dirtyChan)
-	deletes := formic.NewDeletinator(deleteChan, f.fs, comms, f.logger)
-	cleaner := formic.NewCleaninator(dirtyChan, f.fs, comms, f.logger)
+	f.fs = formic.NewOortFS(f.comms, f.logger, deleteChan, dirtyChan)
+	deletes := formic.NewDeletinator(deleteChan, f.fs, f.comms, f.logger)
+	cleaner := formic.NewCleaninator(dirtyChan, f.fs, f.comms, f.logger)
 	go deletes.Run()
 	go cleaner.Run()
 
+	f.logger.Debug("Listen on", zap.String("grpcHostPort", grpcHostPort))
 	lis, err := net.Listen("tcp", grpcHostPort)
 	if err != nil {
 		close(f.shutdownChan)
 		return err
 	}
-	tlsCfg, err := ftls.NewServerTLSConfig(ftls.DefaultServerFTLSConf(f.grpcCertFile, f.grpcKeyFile, f.caFile))
+	ftlsCfg := ftls.DefaultServerFTLSConf(f.grpcCertFile, f.grpcKeyFile, f.caFile)
+	ftlsCfg.MutualTLS = false // TODO: Currently no way to allow full cert validation
+	ftlsCfg.InsecureSkipVerify = true
+	tlsCfg, err := ftls.NewServerTLSConfig(ftlsCfg)
 	if err != nil {
 		close(f.shutdownChan)
 		return err

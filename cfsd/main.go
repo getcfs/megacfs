@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	// formicserver "github.com/getcfs/megacfs/formic/server"
 	"github.com/getcfs/megacfs/formic"
+	formicserver "github.com/getcfs/megacfs/formic/server"
 	oortserver "github.com/getcfs/megacfs/oort/server"
 	"github.com/gholt/brimtext"
 	"github.com/gholt/ring"
@@ -302,7 +302,6 @@ FIND_LOCAL_NODE:
 		logger.Fatal("Error starting value store", zap.Error(err))
 	}
 
-	/* TODO: What I want to get formic to.
 	newFormicCfg := formicserver.NewFormicConfig()
 	newFormicCfg.GRPCAddressIndex = ADDR_FORMIC_GRPC
 	newFormicCfg.ValueGRPCAddressIndex = ADDR_VALUE_GRPC
@@ -312,6 +311,7 @@ FIND_LOCAL_NODE:
 	newFormicCfg.CAFile = caPath
 	newFormicCfg.Scale = 0.2
 	newFormicCfg.Ring = oneRing
+	newFormicCfg.RingPath = ringPath
 	newFormicCfg.AuthURL = "http://localhost:5000"
 	newFormicCfg.AuthUser = "admin"
 	newFormicCfg.AuthPassword = "admin"
@@ -333,24 +333,6 @@ FIND_LOCAL_NODE:
 		newFormic.Shutdown(ctx)
 		logger.Fatal("Error starting formic", zap.Error(err))
 	}
-
-	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	waitGroup.Add(1)
-	go func() {
-		for {
-			select {
-			case <-ch:
-				close(shutdownChan)
-				waitGroup.Done()
-				return
-			case <-shutdownChan:
-				waitGroup.Done()
-				return
-			}
-		}
-	}()
-	*/
 
 	// Startup formic
 	formicCfg := formic.NewConfig()

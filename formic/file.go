@@ -274,7 +274,8 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, r
 	if err != nil {
 		return err
 	}
-	id := fsid.Bytes()
+	fsidb := fsid.Bytes()
+	id := GetID(fsidb, req.Attr.Inode, 0)
 	attr := req.Attr
 	valid := fuse.SetattrValid(req.Valid)
 	n, err := o.GetInode(ctx, id)
@@ -291,7 +292,7 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, r
 			d := &pb.Dirty{
 				Dtime:  tsm,
 				Qtime:  tsm,
-				FsId:   id,
+				FsId:   fsidb,
 				Blocks: n.Blocks,
 				Inode:  n.Inode,
 			}
@@ -299,7 +300,7 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, r
 			if err != nil {
 				return err
 			}
-			err = o.comms.WriteGroupTS(ctx, GetDirtyID(id), []byte(fmt.Sprintf("%d", d.Inode)), b, tsm)
+			err = o.comms.WriteGroupTS(ctx, GetDirtyID(fsidb), []byte(fmt.Sprintf("%d", d.Inode)), b, tsm)
 			if err != nil {
 				return err
 			}
@@ -334,16 +335,18 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, r
 	}
 	// TODO: Set everything explicitly for now since the structs are different
 	// until the newproto becomes theproto.
-	resp.Attr.Inode = n.Attr.Inode
-	resp.Attr.Atime = n.Attr.Atime
-	resp.Attr.Mtime = n.Attr.Mtime
-	resp.Attr.Ctime = n.Attr.Ctime
-	resp.Attr.Crtime = n.Attr.Crtime
-	resp.Attr.Mode = n.Attr.Mode
-	resp.Attr.Valid = n.Attr.Valid
-	resp.Attr.Size = n.Attr.Size
-	resp.Attr.Uid = n.Attr.Uid
-	resp.Attr.Gid = n.Attr.Gid
+	resp.Attr = &newproto.Attr{
+		Inode:  n.Attr.Inode,
+		Atime:  n.Attr.Atime,
+		Mtime:  n.Attr.Mtime,
+		Ctime:  n.Attr.Ctime,
+		Crtime: n.Attr.Crtime,
+		Mode:   n.Attr.Mode,
+		Valid:  n.Attr.Valid,
+		Size:   n.Attr.Size,
+		Uid:    n.Attr.Uid,
+		Gid:    n.Attr.Gid,
+	}
 	return nil
 }
 
