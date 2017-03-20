@@ -306,8 +306,10 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, r
 			}
 			o.dirtyChan <- &DirtyItem{dirty: d}
 		}
-		// TODO: Ask creiht about this, not sure why it's before the update and
-		// not after.
+		// TODO: creiht's pretty sure this should be if attr.Size == 0 or that
+		// this block should be after the n.Attr.Size = attr.Size line. Leaving
+		// it as it was for now; will come back to it later once I've read more
+		// of the code.
 		if n.Attr.Size == 0 {
 			n.Blocks = 0
 		}
