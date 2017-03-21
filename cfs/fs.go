@@ -388,22 +388,35 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 }
 
 func (f *fs) handleWrite(r *fuse.WriteRequest) {
-	logger.Debug("Inside handleWrite", zap.Any("request", r))
-	logger.Debug("Writing bytes at offset", zap.Int("bytes", len(r.Data)), zap.Int64("offset", r.Offset))
 	// TODO: Implement write
 	// Currently this is stupid simple and doesn't handle all the possibilities
-	resp := &fuse.WriteResponse{}
-	w, err := f.rpc.api().Write(f.getContext(), &pb.WriteRequest{Inode: uint64(r.Node), Offset: r.Offset, Payload: r.Data})
+	logger.Debug("Inside handleWrite", zap.Any("request", r))
+	logger.Debug("Writing bytes at offset", zap.Int("bytes", len(r.Data)), zap.Int64("offset", r.Offset))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Write(f.getContext())
 	if err != nil {
-		logger.Debug("Write to file failed", zap.Error(err))
+		logger.Debug("Write failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
-	if w.Status != 0 {
-		logger.Debug("Write status non zero", zap.Int32("status", w.Status))
+	if err = stream.Send(&newproto.WriteRequest{Rpcid: 1, Inode: uint64(r.Node), Offset: r.Offset, Payload: r.Data}); err != nil {
+		logger.Debug("Write failed", zap.Error(err))
+		r.RespondError(fuse.EIO)
+		return
 	}
-	resp.Size = len(r.Data)
-	r.Respond(resp)
+	writeResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Write failed", zap.Error(err))
+		r.RespondError(fuse.EIO)
+		return
+	}
+	if writeResp.Err != "" {
+		logger.Debug("Write failed", zap.String("Err", writeResp.Err))
+		r.RespondError(fuse.EIO)
+		return
+	}
+	r.Respond(&fuse.WriteResponse{Size: len(r.Data)})
 }
 
 func (f *fs) handleCreate(r *fuse.CreateRequest) {
