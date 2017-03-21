@@ -229,16 +229,28 @@ func (f *fs) handleGetattr(r *fuse.GetattrRequest) {
 	logger.Debug("Inside handleGetattr", zap.Any("request", r))
 	resp := &fuse.GetattrResponse{}
 
-	a, err := f.rpc.api().GetAttr(f.getContext(), &pb.GetAttrRequest{Inode: uint64(r.Node)})
-	if err != nil {
-		logger.Debug("GetAttr fail", zap.Error(err))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.GetAttr(f.getContext())
+	if err = stream.Send(&newproto.GetAttrRequest{Rpcid: 1, Inode: uint64(r.Node)}); err != nil {
+		logger.Debug("Getattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
-	copyAttr(&resp.Attr, a.Attr)
+	getAttrResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Getattr failed", zap.Error(err))
+		r.RespondError(fuse.EIO)
+		return
+	}
+	if getAttrResp.Err != "" {
+		logger.Debug("Getattr failed", zap.String("Err", getAttrResp.Err))
+		r.RespondError(fuse.EIO)
+		return
+	}
+	copyNewAttr(&resp.Attr, getAttrResp.Attr)
 	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
-
 	logger.Debug("handleGetattr returning", zap.Any("response", resp))
 	r.Respond(resp)
 }

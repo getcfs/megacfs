@@ -10,8 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc SetAttr(SetAttrRequest) returns (SetAttrResponse) {}
-    rpc GetAttr(GetAttrRequest) returns (GetAttrResponse) {}
     rpc Read(ReadRequest) returns (ReadResponse) {}
     rpc Write(WriteRequest) returns (WriteResponse) {}
     rpc MkDir(MkDirRequest) returns (MkDirResponse) {}
@@ -57,28 +55,7 @@ message Attr {
     uint32 gid    = 10;
 }
 
-// SetAttrRequest
-message SetAttrRequest {
-    Attr   attr  = 1;
-    uint32 valid = 2;   // Bitmask of which attrs are changed
-}
-
-// SetAttrResponse
-message SetAttrResponse {
-    Attr attr = 1;
-}
-
-// GetAttrRequest
-message GetAttrRequest {
-    uint64 inode = 1;
-}
-
-// GetAttrResponse
-message GetAttrResponse {
-    Attr attr = 1;
-}
-
-// ReqadRequest
+// ReadRequest
 message ReadRequest {
     uint64 inode   = 1;
     int64  offset  = 2;

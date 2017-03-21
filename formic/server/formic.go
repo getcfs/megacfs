@@ -231,7 +231,7 @@ func (f *Formic) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (f *Formic) SetAttr(stream newproto.Formic_SetAttrServer) error {
+func (f *Formic) GetAttr(stream newproto.Formic_GetAttrServer) error {
 	// NOTE: Each of these streams is synchronized req1, resp1, req2, resp2.
 	// But it doesn't have to be that way, it was just simpler to code. Each
 	// client/server pair will have a stream for each request/response type, so
@@ -244,6 +244,29 @@ func (f *Formic) SetAttr(stream newproto.Formic_SetAttrServer) error {
 	// set up and tear down streams for each request, but that's just a guess.
 	// We stopped looking into it once we noticed the speed gains from
 	// switching to streaming.
+	var resp newproto.GetAttrResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewGetAttr(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
+func (f *Formic) SetAttr(stream newproto.Formic_SetAttrServer) error {
 	var resp newproto.SetAttrResponse
 	for {
 		req, err := stream.Recv()
