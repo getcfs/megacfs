@@ -313,6 +313,29 @@ func (f *Formic) SetAttr(stream newproto.Formic_SetAttrServer) error {
 	}
 }
 
+func (f *Formic) Write(stream newproto.Formic_WriteServer) error {
+	var resp newproto.WriteResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewWrite(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) validateIP(ctx context.Context) error {
 	p, ok := peer.FromContext(ctx)
 	if !ok {

@@ -35,6 +35,7 @@ type FileService interface {
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
+	NewWrite(context.Context, *newproto.WriteRequest, *newproto.WriteResponse) error
 
 	InitFs(ctx context.Context, fsid []byte) error
 	Create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *pb.Attr, isdir bool) (string, *pb.Attr, error)
@@ -294,7 +295,6 @@ func (o *OortFS) NewRead(ctx context.Context, req *newproto.ReadRequest, resp *n
 		return err
 	}
 	block := uint64(req.Offset / o.blocksize)
-	resp.Inode = req.Inode
 	resp.Payload = make([]byte, 0, req.Size)
 	firstOffset := int64(0)
 	if req.Offset%o.blocksize != 0 {
@@ -407,6 +407,75 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, r
 		Size:   n.Attr.Size,
 		Uid:    n.Attr.Uid,
 		Gid:    n.Attr.Gid,
+	}
+	return nil
+}
+
+// func (s *apiServer) NewWrite(ctx context.Context, r *pb.WriteRequest) (*pb.WriteResponse, error) {
+func (o *OortFS) NewWrite(ctx context.Context, req *newproto.WriteRequest, resp *newproto.WriteResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	block := uint64(req.Offset / o.blocksize)
+	firstOffset := int64(0)
+	if req.Offset%o.blocksize != 0 {
+		// Handle non-aligned offset
+		firstOffset = req.Offset - int64(block)*o.blocksize
+	}
+	fsidb := fsid.Bytes()
+	cur := int64(0)
+	for cur < int64(len(req.Payload)) {
+		sendSize := min(o.blocksize, int64(len(req.Payload))-cur)
+		if sendSize+firstOffset > o.blocksize {
+			sendSize = o.blocksize - firstOffset
+		}
+		payload := req.Payload[cur : cur+sendSize]
+		id := GetID(fsidb, req.Inode, block+1) // 0 block is for inode data
+		if firstOffset > 0 || sendSize < o.blocksize {
+			// need to get the block and update
+			chunk := make([]byte, firstOffset+int64(len(payload)))
+			data, err := o.GetChunk(ctx, id)
+			if firstOffset > 0 && err != nil {
+				// TODO: How do we differentiate a block that hasn't been created yet, and a block that is truely missing?
+			} else {
+				if len(data) > len(chunk) {
+					chunk = data
+				} else {
+					copy(chunk, data)
+				}
+			}
+			copy(chunk[firstOffset:], payload)
+			payload = chunk
+			firstOffset = 0
+		}
+		err := o.WriteChunk(ctx, id, payload)
+		// TODO: Need better error handling for failing with multiple chunks
+		if err != nil {
+			return err
+		}
+		err = o.Update(
+			ctx,
+			GetID(fsidb, req.Inode, 0),
+			block,
+			uint64(o.blocksize),
+			uint64(req.Offset+int64(len(req.Payload))),
+			time.Now().Unix(),
+		)
+		if err != nil {
+			return err
+		}
+		// TODO: Should we queue on error instead?
+		//o.updateChan <- &UpdateItem{
+		//	id:        GetID(fsidb, req.Inode, 0),
+		//	block:     block,
+		//	blocksize: uint64(o.blocksize),
+		//	//size:      uint64(len(payload)),
+		//	size:	uint64(req.Offset + int64(len(req.Payload))),
+		//	mtime:     time.Now().Unix(),
+		//}
+		cur += sendSize
+		block++
 	}
 	return nil
 }

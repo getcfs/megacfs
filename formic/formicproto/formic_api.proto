@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Write(WriteRequest) returns (WriteResponse) {}
     rpc MkDir(MkDirRequest) returns (MkDirResponse) {}
     rpc Create(CreateRequest) returns (CreateResponse) {}
     rpc Remove(RemoveRequest) returns (RemoveResponse) {}
@@ -52,19 +51,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// WriteRequest
-message WriteRequest {
-    uint64 inode   = 1;
-    int64  offset  = 2;
-    bytes  payload = 3;
-}
-
-// WriteResponse place holder. Maybe use an enum so
-// we can map to fuse errors ?
-message WriteResponse {
-    int32 status = 1;
 }
 
 // MkdirRequest
