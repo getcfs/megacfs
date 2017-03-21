@@ -2,16 +2,16 @@ syntax = "proto3";
 package newproto;
 
 service Formic {
+    rpc GetAttr(stream GetAttrRequest) returns (stream GetAttrResponse) {}
     rpc SetAttr(stream SetAttrRequest) returns (stream SetAttrResponse) {}
 }
 
-message SetAttrRequest {
+message GetAttrRequest {
     uint32 rpcid = 1;
-    Attr   attr  = 2;
-    uint32 valid = 3;   // Bitmask of which attrs are changed
+    uint64 inode = 2;
 }
 
-message SetAttrResponse {
+message GetAttrResponse {
     uint32 rpcid = 1;
     Attr   attr  = 2;
     string err   = 3;
@@ -28,4 +28,17 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
+}
+
+
+message SetAttrRequest {
+    uint32 rpcid = 1;
+    Attr   attr  = 2;
+    uint32 valid = 3;   // Bitmask of which attrs are changed
+}
+
+message SetAttrResponse {
+    uint32 rpcid = 1;
+    Attr   attr  = 2;
+    string err   = 3;
 }

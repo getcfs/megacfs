@@ -129,32 +129,6 @@ func (s *apiServer) validateIP(ctx context.Context) error {
 	return nil
 }
 
-func (s *apiServer) GetAttr(ctx context.Context, r *pb.GetAttrRequest) (*pb.GetAttrResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	attr, err := s.fs.GetAttr(ctx, GetID(fsid.Bytes(), r.Inode, 0))
-	return &pb.GetAttrResponse{Attr: attr}, err
-}
-
-func (s *apiServer) SetAttr(ctx context.Context, r *pb.SetAttrRequest) (*pb.SetAttrResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	attr, err := s.fs.SetAttr(ctx, GetID(fsid.Bytes(), r.Attr.Inode, 0), r.Attr, r.Valid)
-	return &pb.SetAttrResponse{Attr: attr}, err
-}
-
 func (s *apiServer) Create(ctx context.Context, r *pb.CreateRequest) (*pb.CreateResponse, error) {
 	err := s.validateIP(ctx)
 	if err != nil {
