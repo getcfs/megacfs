@@ -39,13 +39,13 @@ type apiServer struct {
 }
 
 // NewApiServer ...
-func NewApiServer(fs FileService, nodeID int, comms *StoreComms, logger *zap.Logger) (uint64, *apiServer) {
+func NewApiServer(fs FileService, nodeID int, comms *StoreComms, logger *zap.Logger, blocksize int64) (uint64, *apiServer) {
 	s := new(apiServer)
 	s.fs = fs
 	s.comms = comms
 	s.validIPs = make(map[string]map[string]time.Time)
 	s.fl = flother.NewFlother(time.Time{}, uint64(nodeID))
-	s.blocksize = int64(1024 * 64) // Default Block Size (64K)
+	s.blocksize = blocksize
 	s.updateChan = make(chan *UpdateItem, 1000)
 	s.log = logger
 	updates := newUpdatinator(s.updateChan, fs)
@@ -180,49 +180,6 @@ func (s *apiServer) MkDir(ctx context.Context, r *pb.MkDirRequest) (*pb.MkDirRes
 	}
 	rname, rattr, err := s.fs.Create(ctx, GetID(fsid.Bytes(), r.Parent, 0), GetID(fsid.Bytes(), inode, 0), inode, r.Name, attr, true)
 	return &pb.MkDirResponse{Name: rname, Attr: rattr}, err
-}
-
-func (s *apiServer) Read(ctx context.Context, r *pb.ReadRequest) (*pb.ReadResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	s.log.Debug("READ", zap.Uint64("inode", r.Inode), zap.Int64("offset", r.Offset), zap.Int64("size", r.Size))
-	block := uint64(r.Offset / s.blocksize)
-	data := make([]byte, r.Size)
-	firstOffset := int64(0)
-	if r.Offset%s.blocksize != 0 {
-		// Handle non-aligned offset
-		firstOffset = r.Offset - int64(block)*s.blocksize
-	}
-	cur := int64(0)
-	for cur < r.Size {
-		id := GetID(fsid.Bytes(), r.Inode, block+1) // block 0 is for inode data
-		chunk, err := s.fs.GetChunk(ctx, id)
-		if err != nil {
-			s.log.Debug("Failed to read block: ", zap.Error(err))
-			// NOTE: This returns basically 0's to the client.for this block in this case
-			//       It is totally valid for a fs to request an invalid block
-			// TODO: Do we need to differentiate between real errors and bad requests?
-			return &pb.ReadResponse{}, nil
-		}
-		if len(chunk) == 0 {
-			break
-		}
-		count := copy(data[cur:], chunk[firstOffset:])
-		firstOffset = 0
-		block++
-		cur += int64(count)
-		if int64(len(chunk)) < s.blocksize {
-			break
-		}
-	}
-	f := &pb.ReadResponse{Inode: r.Inode, Payload: data}
-	return f, nil
 }
 
 func min(a, b int64) int64 {

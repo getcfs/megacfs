@@ -232,6 +232,11 @@ func (f *fs) handleGetattr(r *fuse.GetattrRequest) {
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
 	stream, err := f.rpc.newClient.GetAttr(f.getContext())
+	if err != nil {
+		logger.Debug("Getattr failed", zap.Error(err))
+		r.RespondError(fuse.EIO)
+		return
+	}
 	if err = stream.Send(&newproto.GetAttrRequest{Rpcid: 1, Inode: uint64(r.Node)}); err != nil {
 		logger.Debug("Getattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
@@ -318,8 +323,8 @@ func (f *fs) handleOpen(r *fuse.OpenRequest) {
 
 func (f *fs) handleRead(r *fuse.ReadRequest) {
 	logger.Debug("Inside handleRead", zap.Any("request", r))
-	resp := &fuse.ReadResponse{Data: make([]byte, r.Size)}
 	if r.Dir {
+		resp := &fuse.ReadResponse{Data: make([]byte, 0, r.Size)}
 		// handle directory listing
 		data := f.handles.getReadCache(r.Handle)
 		if data == nil {
@@ -355,20 +360,31 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 		r.Respond(resp)
 		return
 	}
-
-	// handle file read
-	data, err := f.rpc.api().Read(f.getContext(), &pb.ReadRequest{
-		Inode:  uint64(r.Node),
-		Offset: int64(r.Offset),
-		Size:   int64(r.Size),
-	})
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Read(f.getContext())
 	if err != nil {
-		logger.Debug("Read on file failed", zap.Error(err))
+		logger.Debug("Read failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
-	copy(resp.Data, data.Payload)
-	r.Respond(resp)
+	if err = stream.Send(&newproto.ReadRequest{Rpcid: 1, Inode: uint64(r.Node), Offset: int64(r.Offset), Size: int64(r.Size)}); err != nil {
+		logger.Debug("Read failed", zap.Error(err))
+		r.RespondError(fuse.EIO)
+		return
+	}
+	readResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Read failed", zap.Error(err))
+		r.RespondError(fuse.EIO)
+		return
+	}
+	if readResp.Err != "" {
+		logger.Debug("Read failed", zap.String("Err", readResp.Err))
+		r.RespondError(fuse.EIO)
+		return
+	}
+	r.Respond(&fuse.ReadResponse{Data: readResp.Payload})
 }
 
 func (f *fs) handleWrite(r *fuse.WriteRequest) {
@@ -440,6 +456,11 @@ func (f *fs) handleSetattr(r *fuse.SetattrRequest) {
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
 	stream, err := f.rpc.newClient.SetAttr(f.getContext())
+	if err != nil {
+		logger.Debug("Setattr failed", zap.Error(err))
+		r.RespondError(fuse.EIO)
+		return
+	}
 	if err = stream.Send(&newproto.SetAttrRequest{Rpcid: 1, Attr: a, Valid: uint32(r.Valid)}); err != nil {
 		logger.Debug("Setattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)

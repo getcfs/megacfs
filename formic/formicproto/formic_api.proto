@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Read(ReadRequest) returns (ReadResponse) {}
     rpc Write(WriteRequest) returns (WriteResponse) {}
     rpc MkDir(MkDirRequest) returns (MkDirResponse) {}
     rpc Create(CreateRequest) returns (CreateResponse) {}
@@ -53,19 +52,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// ReadRequest
-message ReadRequest {
-    uint64 inode   = 1;
-    int64  offset  = 2;
-    int64  size    = 3;
-}
-
-// ReadResponse
-message ReadResponse {
-    uint64 inode   = 1;
-    bytes  payload = 2;
 }
 
 // WriteRequest
