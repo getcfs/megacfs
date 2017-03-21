@@ -171,7 +171,8 @@ func (f *Formic) Startup(ctx context.Context) error {
 	// TODO: Make sure there are ways to shut this stuff down gracefully.
 	deleteChan := make(chan *formic.DeleteItem, 1000)
 	dirtyChan := make(chan *formic.DirtyItem, 1000)
-	f.fs = formic.NewOortFS(f.comms, f.logger, deleteChan, dirtyChan)
+	blocksize := int64(1024 * 64) // Default Block Size (64K)
+	f.fs = formic.NewOortFS(f.comms, f.logger, deleteChan, dirtyChan, blocksize)
 	deletes := formic.NewDeletinator(deleteChan, f.fs, f.comms, f.logger)
 	cleaner := formic.NewCleaninator(dirtyChan, f.fs, f.comms, f.logger)
 	go deletes.Run()
@@ -257,6 +258,29 @@ func (f *Formic) GetAttr(stream newproto.Formic_GetAttrServer) error {
 		if err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
 		} else if err = f.fs.NewGetAttr(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
+func (f *Formic) Read(stream newproto.Formic_ReadServer) error {
+	var resp newproto.ReadResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewRead(stream.Context(), req, &resp); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid

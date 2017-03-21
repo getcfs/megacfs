@@ -112,7 +112,8 @@ func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 	}
 	deleteChan := make(chan *DeleteItem, 1000)
 	dirtyChan := make(chan *DirtyItem, 1000)
-	fs := NewOortFS(comms, logger, deleteChan, dirtyChan)
+	blocksize := int64(1024 * 64) // Default Block Size (64K)
+	fs := NewOortFS(comms, logger, deleteChan, dirtyChan, blocksize)
 	deletes := NewDeletinator(deleteChan, fs, comms, logger.With(zap.String("name", "formic.deletinator")))
 	cleaner := NewCleaninator(dirtyChan, fs, comms, logger.With(zap.String("name", "formic.cleaninator")))
 	go deletes.Run()
@@ -132,7 +133,7 @@ func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 	if formicNodeID == -1 {
 		formicNodeID = int(murmur3.Sum32([]byte(cfg.IpAddr)))
 	}
-	nodeID, apiServer := NewApiServer(fs, formicNodeID, comms, logger)
+	nodeID, apiServer := NewApiServer(fs, formicNodeID, comms, logger, blocksize)
 	pb.RegisterApiServer(s, apiServer)
 	logger.Debug("Starting formic and the filesystem API", zap.Uint64("node", nodeID))
 	go s.Serve(l)

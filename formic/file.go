@@ -33,6 +33,7 @@ const (
 // FileService ...
 type FileService interface {
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
+	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
 
 	InitFs(ctx context.Context, fsid []byte) error
@@ -203,16 +204,18 @@ type OortFS struct {
 	deleteChan chan *DeleteItem
 	dirtyChan  chan *DirtyItem
 	log        *zap.Logger
+	blocksize  int64
 }
 
 // NewOortFS ...
-func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem) *OortFS {
+func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem, blocksize int64) *OortFS {
 	o := &OortFS{
 		hasher:     crc32.NewIEEE,
 		comms:      comms,
 		log:        logger,
 		deleteChan: deleteChan,
 		dirtyChan:  dirtyChan,
+		blocksize:  blocksize,
 	}
 	return o
 }
@@ -281,6 +284,46 @@ func (o *OortFS) NewGetAttr(ctx context.Context, req *newproto.GetAttrRequest, r
 		Size:   n.Attr.Size,
 		Uid:    n.Attr.Uid,
 		Gid:    n.Attr.Gid,
+	}
+	return nil
+}
+
+func (o *OortFS) NewRead(ctx context.Context, req *newproto.ReadRequest, resp *newproto.ReadResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	block := uint64(req.Offset / o.blocksize)
+	resp.Inode = req.Inode
+	resp.Payload = make([]byte, 0, req.Size)
+	firstOffset := int64(0)
+	if req.Offset%o.blocksize != 0 {
+		// Handle non-aligned offset
+		firstOffset = req.Offset - int64(block)*o.blocksize
+	}
+	fsidb := fsid.Bytes()
+	cur := int64(0)
+	for cur < req.Size {
+		id := GetID(fsidb, req.Inode, block+1) // block 0 is for inode data
+		chunk, err := o.GetChunk(ctx, id)
+		if err != nil {
+			// NOTE: This returns basically 0's to the client.for this block in
+			// this case. It is totally valid for a fs to request an invalid
+			// block
+			// TODO: Do we need to differentiate between real errors and bad
+			// requests?
+			return nil
+		}
+		if len(chunk) == 0 {
+			break
+		}
+		resp.Payload = append(resp.Payload, chunk[firstOffset:]...)
+		firstOffset = 0
+		block++
+		cur += int64(len(chunk[firstOffset:]))
+		if int64(len(chunk)) < o.blocksize {
+			break
+		}
 	}
 	return nil
 }

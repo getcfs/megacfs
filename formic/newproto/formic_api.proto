@@ -3,6 +3,7 @@ package newproto;
 
 service Formic {
     rpc GetAttr(stream GetAttrRequest) returns (stream GetAttrResponse) {}
+    rpc Read(stream ReadRequest) returns (stream ReadResponse) {}
     rpc SetAttr(stream SetAttrRequest) returns (stream SetAttrResponse) {}
 }
 
@@ -28,6 +29,21 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
+}
+
+
+message ReadRequest {
+    uint32 rpcid   = 1;
+    uint64 inode   = 2;
+    int64  offset  = 3;
+    int64  size    = 4;
+}
+
+message ReadResponse {
+    uint32 rpcid   = 1;
+    uint64 inode   = 2;
+    bytes  payload = 3;
+    string err     = 4;
 }
 
 
