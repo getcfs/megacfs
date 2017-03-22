@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Create(CreateRequest) returns (CreateResponse) {}
     rpc Remove(RemoveRequest) returns (RemoveResponse) {}
     rpc Lookup(LookupRequest) returns (LookupResponse) {}
     rpc ReadDirAll(ReadDirAllRequest) returns (ReadDirAllResponse) {}
@@ -50,19 +49,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// CreateRequest
-message CreateRequest {
-    uint64 parent = 1;
-    string name   = 2;
-    Attr   attr   = 3;
-}
-
-// CreateResponse
-message CreateResponse {
-    string name   = 1;
-    Attr   attr   = 2;
 }
 
 // RemoveRequest

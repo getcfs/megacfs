@@ -33,6 +33,7 @@ const (
 
 // FileService ...
 type FileService interface {
+	NewCreate(context.Context, *newproto.CreateRequest, *newproto.CreateResponse) error
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
@@ -258,6 +259,46 @@ func (o *OortFS) InitFs(ctx context.Context, fsid []byte) error {
 		//	 return err
 		// }
 		return errors.New("Root Entry does not Exist")
+	}
+	return nil
+}
+
+func (o *OortFS) NewCreate(ctx context.Context, req *newproto.CreateRequest, resp *newproto.CreateResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	fsidb := fsid.Bytes()
+	ts := time.Now().Unix()
+	inode := o.fl.GetID()
+	attr := &pb.Attr{
+		Inode:  inode,
+		Atime:  ts,
+		Mtime:  ts,
+		Ctime:  ts,
+		Crtime: ts,
+		Mode:   req.Attr.Mode,
+		Uid:    req.Attr.Uid,
+		Gid:    req.Attr.Gid,
+	}
+	var rattr *pb.Attr
+	resp.Name, rattr, err = o.Create(ctx, GetID(fsidb, req.Parent, 0), GetID(fsidb, inode, 0), inode, req.Name, attr, false)
+	if err != nil {
+		return err
+	}
+	// TODO: Set everything explicitly for now since the structs are different
+	// until the newproto becomes theproto.
+	resp.Attr = &newproto.Attr{
+		Inode:  rattr.Inode,
+		Atime:  rattr.Atime,
+		Mtime:  rattr.Mtime,
+		Ctime:  rattr.Ctime,
+		Crtime: rattr.Crtime,
+		Mode:   rattr.Mode,
+		Valid:  rattr.Valid,
+		Size:   rattr.Size,
+		Uid:    rattr.Uid,
+		Gid:    rattr.Gid,
 	}
 	return nil
 }
