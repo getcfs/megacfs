@@ -286,29 +286,46 @@ func (f *fs) handleLookup(r *fuse.LookupRequest) {
 	r.Respond(resp)
 }
 
-func (f *fs) handleMkdir(r *fuse.MkdirRequest) {
-	logger.Debug("Inside handleMkdir", zap.Any("request", r))
-	resp := &fuse.MkdirResponse{}
-
-	m, err := f.rpc.api().MkDir(f.getContext(), &pb.MkDirRequest{Name: r.Name, Parent: uint64(r.Node), Attr: &pb.Attr{Uid: r.Uid, Gid: r.Gid, Mode: uint32(r.Mode)}})
+func (f *fs) handleMkdir(req *fuse.MkdirRequest) {
+	logger.Debug("Inside handleMkdir", zap.Any("request", req))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.MkDir(f.getContext())
 	if err != nil {
-		logger.Debug("Mkdir failed", zap.String("name", r.Name), zap.Error(err))
-		r.RespondError(fuse.EIO)
+		logger.Debug("Mkdir failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if err = stream.Send(&newproto.MkDirRequest{Rpcid: 1, Name: req.Name, Parent: uint64(req.Node), Attr: &newproto.Attr{Uid: req.Uid, Gid: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
+		logger.Debug("Mkdir failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	protoResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Mkdir failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if protoResp.Err != "" {
+		logger.Debug("Mkdir failed", zap.String("Err", protoResp.Err))
+		req.RespondError(fuse.EIO)
 		return
 	}
 	// If the name is empty, then the dir already exists
-	if m.Name != r.Name {
-		logger.Debug("EEXIST Mkdir", zap.String("name", r.Name))
-		r.RespondError(fuse.EEXIST)
+	if protoResp.Name != req.Name {
+		logger.Debug("EEXIST Mkdir", zap.String("name", req.Name))
+		req.RespondError(fuse.EEXIST)
 		return
 	}
-	resp.Node = fuse.NodeID(m.Attr.Inode)
-	copyAttr(&resp.Attr, m.Attr)
+	resp := &fuse.MkdirResponse{}
+	resp.Node = fuse.NodeID(protoResp.Attr.Inode)
+	copyNewAttr(&resp.Attr, protoResp.Attr)
+	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
-
 	logger.Debug("handleMkdir returning", zap.Any("response", resp))
-	r.Respond(resp)
+	req.Respond(resp)
 }
 
 func (f *fs) handleOpen(r *fuse.OpenRequest) {

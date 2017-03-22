@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"hash"
 	"hash/crc32"
+	"os"
 	"sort"
 	"time"
 
 	"bazil.org/fuse"
-
+	"github.com/getcfs/megacfs/flother"
 	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/formic/newproto"
 	"github.com/gholt/brimtime"
@@ -33,6 +34,7 @@ const (
 // FileService ...
 type FileService interface {
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
+	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
 	NewWrite(context.Context, *newproto.WriteRequest, *newproto.WriteResponse) error
@@ -206,10 +208,11 @@ type OortFS struct {
 	dirtyChan  chan *DirtyItem
 	log        *zap.Logger
 	blocksize  int64
+	fl         *flother.Flother
 }
 
 // NewOortFS ...
-func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem, blocksize int64) *OortFS {
+func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem, blocksize int64, nodeID int) *OortFS {
 	o := &OortFS{
 		hasher:     crc32.NewIEEE,
 		comms:      comms,
@@ -217,6 +220,7 @@ func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteIte
 		deleteChan: deleteChan,
 		dirtyChan:  dirtyChan,
 		blocksize:  blocksize,
+		fl:         flother.NewFlother(time.Time{}, uint64(nodeID)),
 	}
 	return o
 }
@@ -285,6 +289,47 @@ func (o *OortFS) NewGetAttr(ctx context.Context, req *newproto.GetAttrRequest, r
 		Size:   n.Attr.Size,
 		Uid:    n.Attr.Uid,
 		Gid:    n.Attr.Gid,
+	}
+	return nil
+}
+
+// func (s *apiServer) MkDir(ctx context.Context, r *pb.MkDirRequest) (*pb.MkDirResponse, error) {
+func (o *OortFS) NewMkDir(ctx context.Context, req *newproto.MkDirRequest, resp *newproto.MkDirResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	fsidb := fsid.Bytes()
+	ts := time.Now().Unix()
+	inode := o.fl.GetID()
+	attr := &pb.Attr{
+		Inode:  inode,
+		Atime:  ts,
+		Mtime:  ts,
+		Ctime:  ts,
+		Crtime: ts,
+		Mode:   uint32(os.ModeDir) | req.Attr.Mode,
+		Uid:    req.Attr.Uid,
+		Gid:    req.Attr.Gid,
+	}
+	var rattr *pb.Attr
+	resp.Name, rattr, err = o.Create(ctx, GetID(fsidb, req.Parent, 0), GetID(fsidb, inode, 0), inode, req.Name, attr, true)
+	if err != nil {
+		return err
+	}
+	// TODO: Set everything explicitly for now since the structs are different
+	// until the newproto becomes theproto.
+	resp.Attr = &newproto.Attr{
+		Inode:  rattr.Inode,
+		Atime:  rattr.Atime,
+		Mtime:  rattr.Mtime,
+		Ctime:  rattr.Ctime,
+		Crtime: rattr.Crtime,
+		Mode:   rattr.Mode,
+		Valid:  rattr.Valid,
+		Size:   rattr.Size,
+		Uid:    rattr.Uid,
+		Gid:    rattr.Gid,
 	}
 	return nil
 }
