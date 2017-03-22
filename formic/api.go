@@ -157,31 +157,6 @@ func (s *apiServer) Create(ctx context.Context, r *pb.CreateRequest) (*pb.Create
 	return &pb.CreateResponse{Name: rname, Attr: rattr}, err
 }
 
-func (s *apiServer) MkDir(ctx context.Context, r *pb.MkDirRequest) (*pb.MkDirResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	ts := time.Now().Unix()
-	inode := s.fl.GetID()
-	attr := &pb.Attr{
-		Inode:  inode,
-		Atime:  ts,
-		Mtime:  ts,
-		Ctime:  ts,
-		Crtime: ts,
-		Mode:   uint32(os.ModeDir) | r.Attr.Mode,
-		Uid:    r.Attr.Uid,
-		Gid:    r.Attr.Gid,
-	}
-	rname, rattr, err := s.fs.Create(ctx, GetID(fsid.Bytes(), r.Parent, 0), GetID(fsid.Bytes(), inode, 0), inode, r.Name, attr, true)
-	return &pb.MkDirResponse{Name: rname, Attr: rattr}, err
-}
-
 func min(a, b int64) int64 {
 	if a < b {
 		return a

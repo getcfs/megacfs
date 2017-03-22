@@ -113,7 +113,12 @@ func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 	deleteChan := make(chan *DeleteItem, 1000)
 	dirtyChan := make(chan *DirtyItem, 1000)
 	blocksize := int64(1024 * 64) // Default Block Size (64K)
-	fs := NewOortFS(comms, logger, deleteChan, dirtyChan, blocksize)
+	// TODO: Get a better way to get the Node ID
+	formicNodeID := cfg.NodeID
+	if formicNodeID == -1 {
+		formicNodeID = int(murmur3.Sum32([]byte(cfg.IpAddr)))
+	}
+	fs := NewOortFS(comms, logger, deleteChan, dirtyChan, blocksize, formicNodeID)
 	deletes := NewDeletinator(deleteChan, fs, comms, logger.With(zap.String("name", "formic.deletinator")))
 	cleaner := NewCleaninator(dirtyChan, fs, comms, logger.With(zap.String("name", "formic.cleaninator")))
 	go deletes.Run()
@@ -128,11 +133,6 @@ func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 		logger.Fatal("Failed to bind formic to port", zap.String("hostPort", hostPort), zap.Error(err))
 	}
 	pb.RegisterFileSystemAPIServer(s, NewFileSystemAPIServer(cfg, gstore, vstore, logger.With(zap.String("name", "formic.fs"))))
-	// TODO: Get a better way to get the Node ID
-	formicNodeID := cfg.NodeID
-	if formicNodeID == -1 {
-		formicNodeID = int(murmur3.Sum32([]byte(cfg.IpAddr)))
-	}
 	nodeID, apiServer := NewApiServer(fs, formicNodeID, comms, logger, blocksize)
 	pb.RegisterApiServer(s, apiServer)
 	logger.Debug("Starting formic and the filesystem API", zap.Uint64("node", nodeID))

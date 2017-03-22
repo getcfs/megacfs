@@ -172,7 +172,10 @@ func (f *Formic) Startup(ctx context.Context) error {
 	deleteChan := make(chan *formic.DeleteItem, 1000)
 	dirtyChan := make(chan *formic.DirtyItem, 1000)
 	blocksize := int64(1024 * 64) // Default Block Size (64K)
-	f.fs = formic.NewOortFS(f.comms, f.logger, deleteChan, dirtyChan, blocksize)
+	if f.nodeID == -1 {
+		f.nodeID = int(murmur3.Sum32([]byte(grpcHostPort)))
+	}
+	f.fs = formic.NewOortFS(f.comms, f.logger, deleteChan, dirtyChan, blocksize, f.nodeID)
 	deletes := formic.NewDeletinator(deleteChan, f.fs, f.comms, f.logger)
 	cleaner := formic.NewCleaninator(dirtyChan, f.fs, f.comms, f.logger)
 	go deletes.Run()
@@ -191,9 +194,6 @@ func (f *Formic) Startup(ctx context.Context) error {
 	if err != nil {
 		close(f.shutdownChan)
 		return err
-	}
-	if f.nodeID == -1 {
-		f.nodeID = int(murmur3.Sum32([]byte(grpcHostPort)))
 	}
 	f.grpcServer = grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsCfg)),
@@ -258,6 +258,29 @@ func (f *Formic) GetAttr(stream newproto.Formic_GetAttrServer) error {
 		if err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
 		} else if err = f.fs.NewGetAttr(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
+func (f *Formic) MkDir(stream newproto.Formic_MkDirServer) error {
+	var resp newproto.MkDirResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewMkDir(stream.Context(), req, &resp); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
