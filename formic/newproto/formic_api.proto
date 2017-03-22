@@ -2,12 +2,29 @@ syntax = "proto3";
 package newproto;
 
 service Formic {
+    rpc Create(stream CreateRequest) returns (stream CreateResponse) {}
     rpc GetAttr(stream GetAttrRequest) returns (stream GetAttrResponse) {}
     rpc MkDir(stream MkDirRequest) returns (stream MkDirResponse) {}
     rpc Read(stream ReadRequest) returns (stream ReadResponse) {}
     rpc SetAttr(stream SetAttrRequest) returns (stream SetAttrResponse) {}
     rpc Write(stream WriteRequest) returns (stream WriteResponse) {}
 }
+
+
+message CreateRequest {
+    uint32 rpcid  = 1;
+    uint64 parent = 2;
+    string name   = 3;
+    Attr   attr   = 4;
+}
+
+message CreateResponse {
+    uint32 rpcid = 1;
+    string name  = 2;
+    Attr   attr  = 3;
+    string err   = 4;
+}
+
 
 message GetAttrRequest {
     uint32 rpcid = 1;

@@ -129,34 +129,6 @@ func (s *apiServer) validateIP(ctx context.Context) error {
 	return nil
 }
 
-func (s *apiServer) Create(ctx context.Context, r *pb.CreateRequest) (*pb.CreateResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	ts := time.Now().Unix()
-	inode := s.fl.GetID()
-	attr := &pb.Attr{
-		Inode:  inode,
-		Atime:  ts,
-		Mtime:  ts,
-		Ctime:  ts,
-		Crtime: ts,
-		Mode:   r.Attr.Mode,
-		Uid:    r.Attr.Uid,
-		Gid:    r.Attr.Gid,
-	}
-	rname, rattr, err := s.fs.Create(ctx, GetID(fsid.Bytes(), r.Parent, 0), GetID(fsid.Bytes(), inode, 0), inode, r.Name, attr, false)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.CreateResponse{Name: rname, Attr: rattr}, err
-}
-
 func min(a, b int64) int64 {
 	if a < b {
 		return a

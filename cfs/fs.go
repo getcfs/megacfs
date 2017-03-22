@@ -436,23 +436,44 @@ func (f *fs) handleWrite(r *fuse.WriteRequest) {
 	r.Respond(&fuse.WriteResponse{Size: len(r.Data)})
 }
 
-func (f *fs) handleCreate(r *fuse.CreateRequest) {
-	logger.Debug("Inside handleCreate", zap.Any("request", r))
-	resp := &fuse.CreateResponse{}
-	c, err := f.rpc.api().Create(f.getContext(), &pb.CreateRequest{Parent: uint64(r.Node), Name: r.Name, Attr: &pb.Attr{Uid: r.Uid, Gid: r.Gid, Mode: uint32(r.Mode)}})
+func (f *fs) handleCreate(req *fuse.CreateRequest) {
+	logger.Debug("Inside handleCreate", zap.Any("request", req))
+
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Create(f.getContext())
 	if err != nil {
-		logger.Debug("Failed to create file", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		logger.Debug("Create failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
 		return
 	}
-	resp.Node = fuse.NodeID(c.Attr.Inode)
-	copyAttr(&resp.Attr, c.Attr)
-	resp.EntryValid = entryValidTime
+	if err = stream.Send(&newproto.CreateRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.Name, Attr: &newproto.Attr{Uid: req.Uid, Gid: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
+		logger.Debug("Create failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	createResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Create failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if createResp.Err != "" {
+		logger.Debug("Create failed", zap.String("Err", createResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	resp := &fuse.CreateResponse{}
+	resp.Node = fuse.NodeID(createResp.Attr.Inode)
+	copyNewAttr(&resp.Attr, createResp.Attr)
+	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
-	copyAttr(&resp.LookupResponse.Attr, c.Attr)
-	resp.LookupResponse.EntryValid = entryValidTime
+	resp.EntryValid = entryValidTime
+	copyNewAttr(&resp.LookupResponse.Attr, createResp.Attr)
 	resp.LookupResponse.Attr.Valid = attrValidTime
-	r.Respond(resp)
+	resp.LookupResponse.EntryValid = entryValidTime
+	logger.Debug("handleCreate returning", zap.Any("response", resp))
+	req.Respond(resp)
 }
 
 func (f *fs) handleSetattr(r *fuse.SetattrRequest) {
