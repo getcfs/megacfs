@@ -16,6 +16,7 @@ service Formic {
     rpc Rename(stream RenameRequest) returns (stream RenameResponse) {}
     rpc SetAttr(stream SetAttrRequest) returns (stream SetAttrResponse) {}
     rpc Setxattr(stream SetxattrRequest) returns (stream SetxattrResponse) {}
+    rpc Statfs(stream StatfsRequest) returns (stream StatfsResponse) {}
     rpc Symlink(stream SymlinkRequest) returns (stream SymlinkResponse) {}
     rpc Write(stream WriteRequest) returns (stream WriteResponse) {}
 }
@@ -224,6 +225,24 @@ message SetxattrRequest {
 message SetxattrResponse {
     uint32 rpcid = 1;
     string err   = 2;
+}
+
+
+message StatfsRequest {
+    uint32 rpcid = 1;
+}
+
+message StatfsResponse {
+    uint32 rpcid   = 1;
+    uint64 blocks  = 2;
+    uint64 bfree   = 3;
+    uint64 bavail  = 4;
+    uint64 files   = 5;
+    uint64 ffree   = 6;
+    uint32 bsize   = 7;
+    uint32 namelen = 8;
+    uint32 frsize  = 9;
+    string err     = 10;
 }
 
 

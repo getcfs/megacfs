@@ -566,6 +566,29 @@ func (f *Formic) Setxattr(stream newproto.Formic_SetxattrServer) error {
 	}
 }
 
+func (f *Formic) Statfs(stream newproto.Formic_StatfsServer) error {
+	var resp newproto.StatfsResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewStatfs(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) Symlink(stream newproto.Formic_SymlinkServer) error {
 	var resp newproto.SymlinkResponse
 	for {

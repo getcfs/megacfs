@@ -47,6 +47,7 @@ type FileService interface {
 	NewRename(context.Context, *newproto.RenameRequest, *newproto.RenameResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
 	NewSetxattr(context.Context, *newproto.SetxattrRequest, *newproto.SetxattrResponse) error
+	NewStatfs(context.Context, *newproto.StatfsRequest, *newproto.StatfsResponse) error
 	NewSymlink(context.Context, *newproto.SymlinkRequest, *newproto.SymlinkResponse) error
 	NewWrite(context.Context, *newproto.WriteRequest, *newproto.WriteResponse) error
 
@@ -729,6 +730,18 @@ func (o *OortFS) NewSetxattr(ctx context.Context, req *newproto.SetxattrRequest,
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (o *OortFS) NewStatfs(ctx context.Context, req *newproto.StatfsRequest, resp *newproto.StatfsResponse) error {
+	resp.Blocks = 281474976710656 // 1 exabyte (asuming 4K block size)
+	resp.Bfree = 281474976710656
+	resp.Bavail = 281474976710656
+	resp.Files = 1000000000000 // 1 trillion inodes
+	resp.Ffree = 1000000000000
+	resp.Bsize = 4096 // it looked like ext4 used 4KB blocks
+	resp.Namelen = 256
+	resp.Frsize = 4096 // this should probably match Bsize so we don't allow fragmented blocks
 	return nil
 }
 
