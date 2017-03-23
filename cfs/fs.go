@@ -557,16 +557,35 @@ func (f *fs) handleForget(r *fuse.ForgetRequest) {
 	r.Respond()
 }
 
-func (f *fs) handleRemove(r *fuse.RemoveRequest) {
+func (f *fs) handleRemove(req *fuse.RemoveRequest) {
 	// TODO: Handle dir deletions correctly
-	logger.Debug("Inside handleRemove", zap.Any("request", r))
-	_, err := f.rpc.api().Remove(f.getContext(), &pb.RemoveRequest{Parent: uint64(r.Node), Name: r.Name})
+	logger.Debug("Inside handleRemove", zap.Any("request", req))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Remove(f.getContext())
 	if err != nil {
-		logger.Debug("Failed to delete file", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		logger.Debug("Remove failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
 		return
 	}
-	r.Respond()
+	if err = stream.Send(&newproto.RemoveRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.Name}); err != nil {
+		logger.Debug("Remove failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	removeResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Remove failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if removeResp.Err != "" {
+		logger.Debug("Remove failed", zap.String("Err", removeResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	logger.Debug("handleRemove returning")
+	req.Respond()
 }
 
 func (f *fs) handleAccess(r *fuse.AccessRequest) {
