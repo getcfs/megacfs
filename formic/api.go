@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"os"
 	"sync"
 	"time"
 
@@ -134,31 +133,6 @@ func min(a, b int64) int64 {
 		return a
 	}
 	return b
-}
-
-func (s *apiServer) Symlink(ctx context.Context, r *pb.SymlinkRequest) (*pb.SymlinkResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	ts := time.Now().Unix()
-	inode := s.fl.GetID()
-	attr := &pb.Attr{
-		Inode:  inode,
-		Atime:  ts,
-		Mtime:  ts,
-		Ctime:  ts,
-		Crtime: ts,
-		Mode:   uint32(os.ModeSymlink | 0755),
-		Size:   uint64(len(r.Target)),
-		Uid:    r.Uid,
-		Gid:    r.Gid,
-	}
-	return s.fs.Symlink(ctx, GetID(fsid.Bytes(), r.Parent, 0), GetID(fsid.Bytes(), inode, 0), r.Name, r.Target, attr, inode)
 }
 
 func (s *apiServer) Readlink(ctx context.Context, r *pb.ReadlinkRequest) (*pb.ReadlinkResponse, error) {

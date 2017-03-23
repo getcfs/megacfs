@@ -41,6 +41,7 @@ type FileService interface {
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewRemove(context.Context, *newproto.RemoveRequest, *newproto.RemoveResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
+	NewSymlink(context.Context, *newproto.SymlinkRequest, *newproto.SymlinkResponse) error
 	NewWrite(context.Context, *newproto.WriteRequest, *newproto.WriteResponse) error
 
 	InitFs(ctx context.Context, fsid []byte) error
@@ -48,7 +49,6 @@ type FileService interface {
 	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
 	Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error)
 	Remove(ctx context.Context, parent []byte, name string) (int32, error)
-	Symlink(ctx context.Context, parent, id []byte, name string, target string, attr *pb.Attr, inode uint64) (*pb.SymlinkResponse, error)
 	Readlink(ctx context.Context, id []byte) (*pb.ReadlinkResponse, error)
 	Getxattr(ctx context.Context, id []byte, name string) (*pb.GetxattrResponse, error)
 	Setxattr(ctx context.Context, id []byte, name string, value []byte) (*pb.SetxattrResponse, error)
@@ -565,7 +565,84 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, r
 	return nil
 }
 
-// func (s *apiServer) NewWrite(ctx context.Context, r *pb.WriteRequest) (*pb.WriteResponse, error) {
+func (o *OortFS) NewSymlink(ctx context.Context, req *newproto.SymlinkRequest, resp *newproto.SymlinkResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	fsidb := fsid.Bytes()
+	parent := GetID(fsidb, req.Parent, 0)
+	inode := o.fl.GetID()
+	id := GetID(fsidb, inode, 0)
+	ts := time.Now().Unix()
+	attr := &pb.Attr{
+		Inode:  inode,
+		Atime:  ts,
+		Mtime:  ts,
+		Ctime:  ts,
+		Crtime: ts,
+		Mode:   uint32(os.ModeSymlink | 0755),
+		Size:   uint64(len(req.Target)),
+		Uid:    req.Uid,
+		Gid:    req.Gid,
+	}
+	// Check to see if the name exists
+	val, err := o.comms.ReadGroupItem(ctx, parent, []byte(req.Name))
+	if err != nil && !store.IsNotFound(err) {
+		// TODO: Needs beter error handling
+		return err
+	}
+	if len(val) > 1 { // Exists already
+		return nil
+	}
+	n := &pb.InodeEntry{
+		Version: InodeEntryVersion,
+		Inode:   inode,
+		IsDir:   false,
+		IsLink:  true,
+		Target:  req.Target,
+		Attr:    attr,
+	}
+	b, err := Marshal(n)
+	if err != nil {
+		return err
+	}
+	err = o.WriteChunk(ctx, id, b)
+	if err != nil {
+		return err
+	}
+	// Add the name to the group
+	d := &pb.DirEntry{
+		Version: DirEntryVersion,
+		Name:    req.Name,
+		Id:      id,
+		Type:    uint32(fuse.DT_File),
+	}
+	b, err = Marshal(d)
+	if err != nil {
+		return err
+	}
+	err = o.comms.WriteGroup(ctx, parent, []byte(req.Name), b)
+	if err != nil {
+		return err
+	}
+	// TODO: Set everything explicitly for now since the structs are different
+	// until the newproto becomes theproto.
+	resp.Attr = &newproto.Attr{
+		Inode:  attr.Inode,
+		Atime:  attr.Atime,
+		Mtime:  attr.Mtime,
+		Ctime:  attr.Ctime,
+		Crtime: attr.Crtime,
+		Mode:   attr.Mode,
+		Valid:  attr.Valid,
+		Size:   attr.Size,
+		Uid:    attr.Uid,
+		Gid:    attr.Gid,
+	}
+	return nil
+}
+
 func (o *OortFS) NewWrite(ctx context.Context, req *newproto.WriteRequest, resp *newproto.WriteResponse) error {
 	fsid, err := GetFsId(ctx)
 	if err != nil {
@@ -835,51 +912,6 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 		return err
 	}
 	return nil
-}
-
-// Symlink ...
-func (o *OortFS) Symlink(ctx context.Context, parent, id []byte, name string, target string, attr *pb.Attr, inode uint64) (*pb.SymlinkResponse, error) {
-	// Check to see if the name exists
-	val, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
-	if err != nil && !store.IsNotFound(err) {
-		// TODO: Needs beter error handling
-		return &pb.SymlinkResponse{}, err
-	}
-	if len(val) > 1 { // Exists already
-		return &pb.SymlinkResponse{}, nil
-	}
-	n := &pb.InodeEntry{
-		Version: InodeEntryVersion,
-		Inode:   inode,
-		IsDir:   false,
-		IsLink:  true,
-		Target:  target,
-		Attr:    attr,
-	}
-	b, err := Marshal(n)
-	if err != nil {
-		return &pb.SymlinkResponse{}, err
-	}
-	err = o.WriteChunk(ctx, id, b)
-	if err != nil {
-		return &pb.SymlinkResponse{}, err
-	}
-	// Add the name to the group
-	d := &pb.DirEntry{
-		Version: DirEntryVersion,
-		Name:    name,
-		Id:      id,
-		Type:    uint32(fuse.DT_File),
-	}
-	b, err = Marshal(d)
-	if err != nil {
-		return &pb.SymlinkResponse{}, err
-	}
-	err = o.comms.WriteGroup(ctx, parent, []byte(name), b)
-	if err != nil {
-		return &pb.SymlinkResponse{}, err
-	}
-	return &pb.SymlinkResponse{Name: name, Attr: attr}, nil
 }
 
 // Readlink ...

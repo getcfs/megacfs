@@ -10,6 +10,7 @@ service Formic {
     rpc Read(stream ReadRequest) returns (stream ReadResponse) {}
     rpc Remove(stream RemoveRequest) returns (stream RemoveResponse) {}
     rpc SetAttr(stream SetAttrRequest) returns (stream SetAttrResponse) {}
+    rpc Symlink(stream SymlinkRequest) returns (stream SymlinkResponse) {}
     rpc Write(stream WriteRequest) returns (stream WriteResponse) {}
 }
 
@@ -136,6 +137,22 @@ message SetAttrResponse {
     uint32 rpcid = 1;
     Attr   attr  = 2;
     string err   = 3;
+}
+
+
+message SymlinkRequest {
+    uint32 rpcid  = 1;
+    uint64 parent = 2;
+    string name   = 3;
+    string target = 4;
+    uint32 uid    = 5;
+    uint32 gid    = 6;
+}
+
+message SymlinkResponse {
+    uint32 rpcid  = 1;
+    Attr   attr   = 4;
+    string err    = 5;
 }
 
 

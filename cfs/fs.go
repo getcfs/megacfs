@@ -661,21 +661,39 @@ func (f *fs) handleStatfs(r *fuse.StatfsRequest) {
 	r.Respond(fuseResp)
 }
 
-func (f *fs) handleSymlink(r *fuse.SymlinkRequest) {
-	logger.Debug("Inside handleSymlink", zap.Any("request", r))
-	resp := &fuse.SymlinkResponse{}
-	symlink, err := f.rpc.api().Symlink(f.getContext(), &pb.SymlinkRequest{Parent: uint64(r.Node), Name: r.NewName, Target: r.Target, Uid: r.Uid, Gid: r.Gid})
+func (f *fs) handleSymlink(req *fuse.SymlinkRequest) {
+	logger.Debug("Inside handleSymlink", zap.Any("request", req))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Symlink(f.getContext())
 	if err != nil {
 		logger.Debug("Symlink failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
-	resp.Node = fuse.NodeID(symlink.Attr.Inode)
-	copyAttr(&resp.Attr, symlink.Attr)
+	if err = stream.Send(&newproto.SymlinkRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.NewName, Target: req.Target, Uid: req.Uid, Gid: req.Gid}); err != nil {
+		logger.Debug("Symlink failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	symlinkResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Symlink failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if symlinkResp.Err != "" {
+		logger.Debug("Symlink failed", zap.String("Err", symlinkResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	resp := &fuse.SymlinkResponse{}
+	resp.Node = fuse.NodeID(symlinkResp.Attr.Inode)
+	copyNewAttr(&resp.Attr, symlinkResp.Attr)
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
 	logger.Debug("handleSymlink returning", zap.Any("response", resp))
-	r.Respond(resp)
+	req.Respond(resp)
 }
 
 func (f *fs) handleReadlink(r *fuse.ReadlinkRequest) {
