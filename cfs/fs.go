@@ -6,17 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-
-	"golang.org/x/net/context"
-
 	"bazil.org/fuse"
 	"bazil.org/fuse/fuseutil"
 	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/formic/newproto"
 	"go.uber.org/zap"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/metadata"
 )
 
 const (
@@ -260,30 +256,46 @@ func (f *fs) handleGetattr(r *fuse.GetattrRequest) {
 	r.Respond(resp)
 }
 
-func (f *fs) handleLookup(r *fuse.LookupRequest) {
-	logger.Debug("Inside handleLookup", zap.String("name", r.Name), zap.Any("request", r))
-	resp := &fuse.LookupResponse{}
-
-	l, err := f.rpc.api().Lookup(f.getContext(), &pb.LookupRequest{Name: r.Name, Parent: uint64(r.Node)})
-
-	if grpc.Code(err) == codes.NotFound {
-		logger.Debug("ENOENT Lookup", zap.String("name", r.Name))
-		r.RespondError(fuse.ENOENT)
-		return
-	}
+func (f *fs) handleLookup(req *fuse.LookupRequest) {
+	logger.Debug("Inside handleLookup", zap.Any("request", req))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Lookup(f.getContext())
 	if err != nil {
-		logger.Debug("Lookup failed", zap.String("name", r.Name), zap.Error(err))
-		r.RespondError(fuse.EIO)
+		logger.Debug("Lookup failed [1]", zap.Error(err))
+		req.RespondError(fuse.EIO)
 		return
 	}
-	resp.Node = fuse.NodeID(l.Attr.Inode)
-	copyAttr(&resp.Attr, l.Attr)
-	// TODO: should we make these configureable?
+	if err = stream.Send(&newproto.LookupRequest{Rpcid: 1, Name: req.Name, Parent: uint64(req.Node)}); err != nil {
+		logger.Debug("Lookup failed [2]", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	protoResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Lookup failed [3]", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if protoResp.Err != "" {
+		// TODO: Rework this and error codes like this to be more like oort.
+		if protoResp.Err == "rpc error: code = 5 desc = Not Found" {
+			logger.Debug("ENOENT Lookup", zap.String("name", req.Name))
+			req.RespondError(fuse.ENOENT)
+			return
+		}
+		logger.Debug("Lookup failed [4]", zap.String("Err", protoResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	resp := &fuse.LookupResponse{}
+	resp.Node = fuse.NodeID(protoResp.Attr.Inode)
+	copyNewAttr(&resp.Attr, protoResp.Attr)
+	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
-
 	logger.Debug("handleLookup returning", zap.Any("response", resp))
-	r.Respond(resp)
+	req.Respond(resp)
 }
 
 func (f *fs) handleMkdir(req *fuse.MkdirRequest) {

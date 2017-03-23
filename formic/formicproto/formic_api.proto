@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Lookup(LookupRequest) returns (LookupResponse) {}
     rpc ReadDirAll(ReadDirAllRequest) returns (ReadDirAllResponse) {}
     rpc Symlink(SymlinkRequest) returns (SymlinkResponse) {}
     rpc Readlink(ReadlinkRequest) returns (ReadlinkResponse) {}
@@ -48,19 +47,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// LookupRequest
-message LookupRequest {
-    uint64 parent = 1;
-    string name   = 2;
-}
-
-
-// LookupResponse is a directory entry
-message LookupResponse {
-    string name   = 1;
-    Attr   attr   = 2;
 }
 
 // ReadDirAllRequest

@@ -4,6 +4,7 @@ package newproto;
 service Formic {
     rpc Create(stream CreateRequest) returns (stream CreateResponse) {}
     rpc GetAttr(stream GetAttrRequest) returns (stream GetAttrResponse) {}
+    rpc Lookup(stream LookupRequest) returns (stream LookupResponse) {}
     rpc MkDir(stream MkDirRequest) returns (stream MkDirResponse) {}
     rpc Read(stream ReadRequest) returns (stream ReadResponse) {}
     rpc Remove(stream RemoveRequest) returns (stream RemoveResponse) {}
@@ -49,6 +50,20 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
+}
+
+
+message LookupRequest {
+    uint32 rpcid  = 1;
+    uint64 parent = 2;
+    string name   = 3;
+}
+
+message LookupResponse {
+    uint32 rpcid  = 1;
+    string name   = 2;
+    Attr   attr   = 3;
+    string err    = 4;
 }
 
 
