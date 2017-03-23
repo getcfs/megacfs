@@ -5,6 +5,7 @@ service Formic {
     rpc Create(stream CreateRequest) returns (stream CreateResponse) {}
     rpc GetAttr(stream GetAttrRequest) returns (stream GetAttrResponse) {}
     rpc Getxattr(stream GetxattrRequest) returns (stream GetxattrResponse) {}
+    rpc Listxattr(stream ListxattrRequest) returns (stream ListxattrResponse) {}
     rpc Lookup(stream LookupRequest) returns (stream LookupResponse) {}
     rpc MkDir(stream MkDirRequest) returns (stream MkDirResponse) {}
     rpc ReadDirAll(stream ReadDirAllRequest) returns (stream ReadDirAllResponse) {}
@@ -67,6 +68,20 @@ message GetxattrRequest {
 }
 
 message GetxattrResponse {
+    uint32 rpcid = 1;
+    bytes  xattr = 2;
+    string err   = 3;
+}
+
+
+message ListxattrRequest {
+    uint32 rpcid    = 1;
+    uint64 inode    = 2;
+    uint32 size     = 3;
+    uint32 position = 4;
+}
+
+message ListxattrResponse {
     uint32 rpcid = 1;
     bytes  xattr = 2;
     string err   = 3;

@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Listxattr(ListxattrRequest) returns (ListxattrResponse) {}
     rpc Removexattr(RemovexattrRequest) returns (RemovexattrResponse) {}
     rpc Rename(RenameRequest) returns (RenameResponse) {}
     rpc Statfs(StatfsRequest) returns (StatfsResponse) {}
@@ -30,16 +29,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// Listxattr
-message ListxattrRequest {
-    uint64 inode    = 1;
-    uint32 size     = 2;
-    uint32 position = 3;
-}
-message ListxattrResponse {
-    bytes xattr = 1;
 }
 
 // Removexattr
