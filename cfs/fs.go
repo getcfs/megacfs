@@ -857,23 +857,41 @@ func (f *fs) handleSetxattr(req *fuse.SetxattrRequest) {
 	req.Respond()
 }
 
-func (f *fs) handleRemovexattr(r *fuse.RemovexattrRequest) {
-	logger.Debug("Inside handleRemovexattr", zap.Any("request", r))
-	if strings.HasPrefix(r.Name, "cfs.") {
-		r.RespondError(fuse.ENOSYS)
+func (f *fs) handleRemovexattr(req *fuse.RemovexattrRequest) {
+	logger.Debug("Inside handleRemovexattr", zap.Any("request", req))
+	// TODO: All these checks need to be server side.
+	if strings.HasPrefix(req.Name, "cfs.") {
+		req.RespondError(fuse.ENOSYS)
 		return
 	}
-	req := &pb.RemovexattrRequest{
-		Inode: uint64(r.Node),
-		Name:  r.Name,
-	}
-	_, err := f.rpc.api().Removexattr(f.getContext(), req)
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Removexattr(f.getContext())
 	if err != nil {
 		logger.Debug("Removexattr failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
-	r.Respond()
+	// TODO: Best I can tell, xattr size and position were never implemented.
+	// The whole list of xattrs are always returned.
+	if err = stream.Send(&newproto.RemovexattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name}); err != nil {
+		logger.Debug("Removexattr failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	removexattrResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Removexattr failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if removexattrResp.Err != "" {
+		logger.Debug("Removexattr failed", zap.String("Err", removexattrResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	logger.Debug("handleRemovexattr returning")
+	req.Respond()
 }
 
 func (f *fs) handleDestroy(r *fuse.DestroyRequest) {

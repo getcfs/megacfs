@@ -135,18 +135,6 @@ func min(a, b int64) int64 {
 	return b
 }
 
-func (s *apiServer) Removexattr(ctx context.Context, r *pb.RemovexattrRequest) (*pb.RemovexattrResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return s.fs.Removexattr(ctx, GetID(fsid.Bytes(), r.Inode, 0), r.Name)
-}
-
 func (s *apiServer) Rename(ctx context.Context, r *pb.RenameRequest) (*pb.RenameResponse, error) {
 	err := s.validateIP(ctx)
 	if err != nil {
