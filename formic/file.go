@@ -43,6 +43,7 @@ type FileService interface {
 	NewReadlink(context.Context, *newproto.ReadlinkRequest, *newproto.ReadlinkResponse) error
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewRemove(context.Context, *newproto.RemoveRequest, *newproto.RemoveResponse) error
+	NewRemovexattr(context.Context, *newproto.RemovexattrRequest, *newproto.RemovexattrResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
 	NewSetxattr(context.Context, *newproto.SetxattrRequest, *newproto.SetxattrResponse) error
 	NewSymlink(context.Context, *newproto.SymlinkRequest, *newproto.SymlinkResponse) error
@@ -53,7 +54,6 @@ type FileService interface {
 	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
 	Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error)
 	Remove(ctx context.Context, parent []byte, name string) (int32, error)
-	Removexattr(ctx context.Context, id []byte, name string) (*pb.RemovexattrResponse, error)
 	Rename(ctx context.Context, oldParent, newParent []byte, oldName, newName string) (*pb.RenameResponse, error)
 	GetChunk(ctx context.Context, id []byte) ([]byte, error)
 	WriteChunk(ctx context.Context, id, data []byte) error
@@ -545,6 +545,33 @@ func (o *OortFS) NewRemove(ctx context.Context, req *newproto.RemoveRequest, res
 	return nil
 }
 
+func (o *OortFS) NewRemovexattr(ctx context.Context, req *newproto.RemovexattrRequest, resp *newproto.RemovexattrResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	id := GetID(fsid.Bytes(), req.Inode, 0)
+	b, err := o.GetChunk(ctx, id)
+	if err != nil {
+		return err
+	}
+	n := &pb.InodeEntry{}
+	err = Unmarshal(b, n)
+	if err != nil {
+		return err
+	}
+	delete(n.Xattr, req.Name)
+	b, err = Marshal(n)
+	if err != nil {
+		return nil
+	}
+	err = o.WriteChunk(ctx, id, b)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, resp *newproto.SetAttrResponse) error {
 	fsid, err := GetFsId(ctx)
 	if err != nil {
@@ -1007,29 +1034,6 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 		return err
 	}
 	return nil
-}
-
-// Removexattr ...
-func (o *OortFS) Removexattr(ctx context.Context, id []byte, name string) (*pb.RemovexattrResponse, error) {
-	b, err := o.GetChunk(ctx, id)
-	if err != nil {
-		return &pb.RemovexattrResponse{}, err
-	}
-	n := &pb.InodeEntry{}
-	err = Unmarshal(b, n)
-	if err != nil {
-		return &pb.RemovexattrResponse{}, err
-	}
-	delete(n.Xattr, name)
-	b, err = Marshal(n)
-	if err != nil {
-		return &pb.RemovexattrResponse{}, err
-	}
-	err = o.WriteChunk(ctx, id, b)
-	if err != nil {
-		return &pb.RemovexattrResponse{}, err
-	}
-	return &pb.RemovexattrResponse{}, nil
 }
 
 // Rename ...
