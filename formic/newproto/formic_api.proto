@@ -13,6 +13,7 @@ service Formic {
     rpc Read(stream ReadRequest) returns (stream ReadResponse) {}
     rpc Remove(stream RemoveRequest) returns (stream RemoveResponse) {}
     rpc Removexattr(stream RemovexattrRequest) returns (stream RemovexattrResponse) {}
+    rpc Rename(stream RenameRequest) returns (stream RenameResponse) {}
     rpc SetAttr(stream SetAttrRequest) returns (stream SetAttrResponse) {}
     rpc Setxattr(stream SetxattrRequest) returns (stream SetxattrResponse) {}
     rpc Symlink(stream SymlinkRequest) returns (stream SymlinkResponse) {}
@@ -180,6 +181,20 @@ message RemovexattrRequest {
 }
 
 message RemovexattrResponse {
+    uint32 rpcid = 1;
+    string err   = 2;
+}
+
+
+message RenameRequest {
+    uint32 rpcid     = 1;
+    uint64 oldParent = 2;
+    uint64 newParent = 3;
+    string oldName   = 4;
+    string newName   = 5;
+}
+
+message RenameResponse {
     uint32 rpcid = 1;
     string err   = 2;
 }
