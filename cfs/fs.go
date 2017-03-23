@@ -899,15 +899,36 @@ func (f *fs) handleDestroy(r *fuse.DestroyRequest) {
 	r.RespondError(fuse.ENOSYS)
 }
 
-func (f *fs) handleRename(r *fuse.RenameRequest) {
-	logger.Debug("Inside handleRename", zap.Any("request", r))
-	_, err := f.rpc.api().Rename(f.getContext(), &pb.RenameRequest{OldParent: uint64(r.Node), NewParent: uint64(r.NewDir), OldName: r.OldName, NewName: r.NewName})
+func (f *fs) handleRename(req *fuse.RenameRequest) {
+	logger.Debug("Inside handleRename", zap.Any("request", req))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Rename(f.getContext())
 	if err != nil {
 		logger.Debug("Rename failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
-	r.Respond()
+	// TODO: Best I can tell, xattr size and position were never implemented.
+	// The whole list of xattrs are always returned.
+	if err = stream.Send(&newproto.RenameRequest{Rpcid: 1, OldParent: uint64(req.Node), NewParent: uint64(req.NewDir), OldName: req.OldName, NewName: req.NewName}); err != nil {
+		logger.Debug("Rename failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	renameResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Rename failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if renameResp.Err != "" {
+		logger.Debug("Rename failed", zap.String("Err", renameResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	logger.Debug("handleRename returning")
+	req.Respond()
 }
 
 func (f *fs) handleFsync(r *fuse.FsyncRequest) {

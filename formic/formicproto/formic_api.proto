@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Rename(RenameRequest) returns (RenameResponse) {}
     rpc Statfs(StatfsRequest) returns (StatfsResponse) {}
     rpc InitFs(InitFsRequest) returns (InitFsResponse) {}
     rpc Check(CheckRequest) returns (CheckResponse) {}
@@ -29,15 +28,6 @@ message Attr {
     uint32 uid    = 9;
     uint32 gid    = 10;
 }
-
-// Rename
-message RenameRequest {
-    uint64 oldParent = 1;
-    uint64 newParent = 2;
-    string oldName   = 3;
-    string newName   = 4;
-}
-message RenameResponse {}
 
 // Statfs
 message StatfsRequest {}

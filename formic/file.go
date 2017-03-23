@@ -44,6 +44,7 @@ type FileService interface {
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewRemove(context.Context, *newproto.RemoveRequest, *newproto.RemoveResponse) error
 	NewRemovexattr(context.Context, *newproto.RemovexattrRequest, *newproto.RemovexattrResponse) error
+	NewRename(context.Context, *newproto.RenameRequest, *newproto.RenameResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
 	NewSetxattr(context.Context, *newproto.SetxattrRequest, *newproto.SetxattrResponse) error
 	NewSymlink(context.Context, *newproto.SymlinkRequest, *newproto.SymlinkResponse) error
@@ -54,7 +55,6 @@ type FileService interface {
 	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
 	Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error)
 	Remove(ctx context.Context, parent []byte, name string) (int32, error)
-	Rename(ctx context.Context, oldParent, newParent []byte, oldName, newName string) (*pb.RenameResponse, error)
 	GetChunk(ctx context.Context, id []byte) ([]byte, error)
 	WriteChunk(ctx context.Context, id, data []byte) error
 	DeleteChunk(ctx context.Context, id []byte, tsm int64) error
@@ -572,6 +572,51 @@ func (o *OortFS) NewRemovexattr(ctx context.Context, req *newproto.RemovexattrRe
 	return nil
 }
 
+func (o *OortFS) NewRename(ctx context.Context, req *newproto.RenameRequest, resp *newproto.RenameResponse) error {
+	// TODO: Note that renames are not atomic!
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	fsidb := fsid.Bytes()
+	oldParent := GetID(fsidb, req.OldParent, 0)
+	newParent := GetID(fsidb, req.NewParent, 0)
+	// Get the ID from the group list
+	b, err := o.comms.ReadGroupItem(ctx, oldParent, []byte(req.OldName))
+	if store.IsNotFound(err) {
+		return nil // TODO: Is this correct or should it error?
+	}
+	if err != nil {
+		return err
+	}
+	d := &pb.DirEntry{}
+	err = Unmarshal(b, d)
+	if err != nil {
+		return err
+	}
+	// Be sure that old data is deleted
+	// TODO: It would be better to create the tombstone for the delete, and only queue the delete if the are sure the new write happens
+	_, err = o.Remove(ctx, newParent, req.NewName)
+	if err != nil {
+		return err
+	}
+	// Create new entry
+	d.Name = req.NewName
+	b, err = Marshal(d)
+	err = o.comms.WriteGroup(ctx, newParent, []byte(req.NewName), b)
+	if err != nil {
+		return err
+	}
+	// Delete old entry
+	err = o.comms.DeleteGroupItem(ctx, oldParent, []byte(req.OldName))
+	if err != nil {
+		// TODO: Handle errors
+		// If we fail here then we will have two entries
+		return err
+	}
+	return nil
+}
+
 func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, resp *newproto.SetAttrResponse) error {
 	fsid, err := GetFsId(ctx)
 	if err != nil {
@@ -1034,44 +1079,6 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 		return err
 	}
 	return nil
-}
-
-// Rename ...
-func (o *OortFS) Rename(ctx context.Context, oldParent, newParent []byte, oldName, newName string) (*pb.RenameResponse, error) {
-	// Get the ID from the group list
-	b, err := o.comms.ReadGroupItem(ctx, oldParent, []byte(oldName))
-	if store.IsNotFound(err) {
-		return &pb.RenameResponse{}, nil
-	}
-	if err != nil {
-		return &pb.RenameResponse{}, err
-	}
-	d := &pb.DirEntry{}
-	err = Unmarshal(b, d)
-	if err != nil {
-		return &pb.RenameResponse{}, err
-	}
-	// Be sure that old data is deleted
-	// TODO: It would be better to create the tombstone for the delete, and only queue the delete if the are sure the new write happens
-	_, err = o.Remove(ctx, newParent, newName)
-	if err != nil {
-		return &pb.RenameResponse{}, err
-	}
-	// Create new entry
-	d.Name = newName
-	b, err = Marshal(d)
-	err = o.comms.WriteGroup(ctx, newParent, []byte(newName), b)
-	if err != nil {
-		return &pb.RenameResponse{}, err
-	}
-	// Delete old entry
-	err = o.comms.DeleteGroupItem(ctx, oldParent, []byte(oldName))
-	if err != nil {
-		// TODO: Handle errors
-		// If we fail here then we will have two entries
-		return &pb.RenameResponse{}, err
-	}
-	return &pb.RenameResponse{}, nil
 }
 
 // GetChunk ...

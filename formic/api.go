@@ -135,18 +135,6 @@ func min(a, b int64) int64 {
 	return b
 }
 
-func (s *apiServer) Rename(ctx context.Context, r *pb.RenameRequest) (*pb.RenameResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return s.fs.Rename(ctx, GetID(fsid.Bytes(), r.OldParent, 0), GetID(fsid.Bytes(), r.NewParent, 0), r.OldName, r.NewName)
-}
-
 func (s *apiServer) Statfs(ctx context.Context, r *pb.StatfsRequest) (*pb.StatfsResponse, error) {
 	err := s.validateIP(ctx)
 	if err != nil {
