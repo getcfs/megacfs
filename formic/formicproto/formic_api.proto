@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Statfs(StatfsRequest) returns (StatfsResponse) {}
     rpc InitFs(InitFsRequest) returns (InitFsResponse) {}
     rpc Check(CheckRequest) returns (CheckResponse) {}
 }
@@ -27,19 +26,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// Statfs
-message StatfsRequest {}
-message StatfsResponse {
-    uint64 blocks  = 1;
-    uint64 bfree   = 2;
-    uint64 bavail  = 3;
-    uint64 files   = 4;
-    uint64 ffree   = 5;
-    uint32 bsize   = 6;
-    uint32 namelen = 7;
-    uint32 frsize  = 8;
 }
 
 // InitFs

@@ -640,25 +640,43 @@ func (f *fs) handleInit(r *fuse.InitRequest) {
 }
 */
 
-func (f *fs) handleStatfs(r *fuse.StatfsRequest) {
-	logger.Debug("Inside handleStatfs", zap.Any("request", r))
-	resp, err := f.rpc.api().Statfs(f.getContext(), &pb.StatfsRequest{})
+func (f *fs) handleStatfs(req *fuse.StatfsRequest) {
+	logger.Debug("Inside handleStatfs", zap.Any("request", req))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Statfs(f.getContext())
 	if err != nil {
-		logger.Debug("Failed to Statfs", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		logger.Debug("Statfs failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
 		return
 	}
-	fuseResp := &fuse.StatfsResponse{
-		Blocks:  resp.Blocks,
-		Bfree:   resp.Bfree,
-		Bavail:  resp.Bavail,
-		Files:   resp.Files,
-		Ffree:   resp.Ffree,
-		Bsize:   resp.Bsize,
-		Namelen: resp.Namelen,
-		Frsize:  resp.Frsize,
+	if err = stream.Send(&newproto.StatfsRequest{Rpcid: 1}); err != nil {
+		logger.Debug("Statfs failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
 	}
-	r.Respond(fuseResp)
+	statfsResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Statfs failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if statfsResp.Err != "" {
+		logger.Debug("Statfs failed", zap.String("Err", statfsResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	resp := &fuse.StatfsResponse{
+		Blocks:  statfsResp.Blocks,
+		Bfree:   statfsResp.Bfree,
+		Bavail:  statfsResp.Bavail,
+		Files:   statfsResp.Files,
+		Ffree:   statfsResp.Ffree,
+		Bsize:   statfsResp.Bsize,
+		Namelen: statfsResp.Namelen,
+		Frsize:  statfsResp.Frsize,
+	}
+	req.Respond(resp)
 }
 
 func (f *fs) handleSymlink(req *fuse.SymlinkRequest) {
