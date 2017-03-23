@@ -35,6 +35,7 @@ const (
 type FileService interface {
 	NewCreate(context.Context, *newproto.CreateRequest, *newproto.CreateResponse) error
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
+	NewLookup(context.Context, *newproto.LookupRequest, *newproto.LookupResponse) error
 	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewRemove(context.Context, *newproto.RemoveRequest, *newproto.RemoveResponse) error
@@ -335,7 +336,33 @@ func (o *OortFS) NewGetAttr(ctx context.Context, req *newproto.GetAttrRequest, r
 	return nil
 }
 
-// func (s *apiServer) MkDir(ctx context.Context, r *pb.MkDirRequest) (*pb.MkDirResponse, error) {
+func (o *OortFS) NewLookup(ctx context.Context, req *newproto.LookupRequest, resp *newproto.LookupResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	var rattr *pb.Attr
+	resp.Name, rattr, err = o.Lookup(ctx, GetID(fsid.Bytes(), req.Parent, 0), req.Name)
+	if err != nil {
+		return err
+	}
+	// TODO: Set everything explicitly for now since the structs are different
+	// until the newproto becomes theproto.
+	resp.Attr = &newproto.Attr{
+		Inode:  rattr.Inode,
+		Atime:  rattr.Atime,
+		Mtime:  rattr.Mtime,
+		Ctime:  rattr.Ctime,
+		Crtime: rattr.Crtime,
+		Mode:   rattr.Mode,
+		Valid:  rattr.Valid,
+		Size:   rattr.Size,
+		Uid:    rattr.Uid,
+		Gid:    rattr.Gid,
+	}
+	return nil
+}
+
 func (o *OortFS) NewMkDir(ctx context.Context, req *newproto.MkDirRequest, resp *newproto.MkDirResponse) error {
 	fsid, err := GetFsId(ctx)
 	if err != nil {

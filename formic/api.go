@@ -136,19 +136,6 @@ func min(a, b int64) int64 {
 	return b
 }
 
-func (s *apiServer) Lookup(ctx context.Context, r *pb.LookupRequest) (*pb.LookupResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	name, attr, err := s.fs.Lookup(ctx, GetID(fsid.Bytes(), r.Parent, 0), r.Name)
-	return &pb.LookupResponse{Name: name, Attr: attr}, err
-}
-
 func (s *apiServer) ReadDirAll(ctx context.Context, n *pb.ReadDirAllRequest) (*pb.ReadDirAllResponse, error) {
 	err := s.validateIP(ctx)
 	if err != nil {
