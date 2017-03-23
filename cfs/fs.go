@@ -696,16 +696,34 @@ func (f *fs) handleSymlink(req *fuse.SymlinkRequest) {
 	req.Respond(resp)
 }
 
-func (f *fs) handleReadlink(r *fuse.ReadlinkRequest) {
-	logger.Debug("Inside handleReadlink", zap.Any("request", r))
-	resp, err := f.rpc.api().Readlink(f.getContext(), &pb.ReadlinkRequest{Inode: uint64(r.Node)})
+func (f *fs) handleReadlink(req *fuse.ReadlinkRequest) {
+	logger.Debug("Inside handleReadlink", zap.Any("request", req))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Readlink(f.getContext())
 	if err != nil {
 		logger.Debug("Readlink failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
-	logger.Debug("handleReadlink returning", zap.Any("reponse", resp))
-	r.Respond(resp.Target)
+	if err = stream.Send(&newproto.ReadlinkRequest{Rpcid: 1, Inode: uint64(req.Node)}); err != nil {
+		logger.Debug("Readlink failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	readlinkResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Readlink failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if readlinkResp.Err != "" {
+		logger.Debug("Readlink failed", zap.String("Err", readlinkResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	logger.Debug("handleReadlink returning", zap.Any("response", readlinkResp.Target))
+	req.Respond(readlinkResp.Target)
 }
 
 func (f *fs) handleLink(r *fuse.LinkRequest) {

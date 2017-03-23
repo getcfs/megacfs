@@ -7,6 +7,7 @@ service Formic {
     rpc Lookup(stream LookupRequest) returns (stream LookupResponse) {}
     rpc MkDir(stream MkDirRequest) returns (stream MkDirResponse) {}
     rpc ReadDirAll(stream ReadDirAllRequest) returns (stream ReadDirAllResponse) {}
+    rpc Readlink(stream ReadlinkRequest) returns (stream ReadlinkResponse) {}
     rpc Read(stream ReadRequest) returns (stream ReadResponse) {}
     rpc Remove(stream RemoveRequest) returns (stream RemoveResponse) {}
     rpc SetAttr(stream SetAttrRequest) returns (stream SetAttrResponse) {}
@@ -81,6 +82,18 @@ message MkDirResponse {
     string name  = 2;
     Attr   attr  = 3;
     string err   = 4;
+}
+
+
+message ReadlinkRequest {
+    uint32 rpcid = 1;
+    uint64 inode = 2;
+}
+
+message ReadlinkResponse {
+    uint32 rpcid  = 1;
+    string target = 2;
+    string err    = 3;
 }
 
 
