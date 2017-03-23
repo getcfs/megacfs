@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Getxattr(GetxattrRequest) returns (GetxattrResponse) {}
     rpc Setxattr(SetxattrRequest) returns (SetxattrResponse) {}
     rpc Listxattr(ListxattrRequest) returns (ListxattrResponse) {}
     rpc Removexattr(RemovexattrRequest) returns (RemovexattrResponse) {}
@@ -32,17 +31,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// Getxattr
-message GetxattrRequest {
-    uint64 inode    = 1;
-    string name     = 2;
-    uint32 size     = 3;
-    uint32 position = 4;
-}
-message GetxattrResponse {
-    bytes xattr = 1;
 }
 
 // Setxattr

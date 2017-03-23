@@ -4,6 +4,7 @@ package newproto;
 service Formic {
     rpc Create(stream CreateRequest) returns (stream CreateResponse) {}
     rpc GetAttr(stream GetAttrRequest) returns (stream GetAttrResponse) {}
+    rpc Getxattr(stream GetxattrRequest) returns (stream GetxattrResponse) {}
     rpc Lookup(stream LookupRequest) returns (stream LookupResponse) {}
     rpc MkDir(stream MkDirRequest) returns (stream MkDirResponse) {}
     rpc ReadDirAll(stream ReadDirAllRequest) returns (stream ReadDirAllResponse) {}
@@ -30,6 +31,19 @@ message CreateResponse {
     string err   = 4;
 }
 
+message Attr {
+    uint64 inode  = 1;
+    int64  atime  = 2;
+    int64  mtime  = 3;
+    int64  ctime  = 4;
+    int64  crtime = 5;
+    uint32 mode   = 6;
+    int32  valid  = 7;
+    uint64 size   = 8;
+    uint32 uid    = 9;
+    uint32 gid    = 10;
+}
+
 
 message GetAttrRequest {
     uint32 rpcid = 1;
@@ -42,17 +56,19 @@ message GetAttrResponse {
     string err   = 3;
 }
 
-message Attr {
-    uint64 inode  = 1;
-    int64  atime  = 2;
-    int64  mtime  = 3;
-    int64  ctime  = 4;
-    int64  crtime = 5;
-    uint32 mode   = 6;
-    int32  valid  = 7;
-    uint64 size   = 8;
-    uint32 uid    = 9;
-    uint32 gid    = 10;
+
+message GetxattrRequest {
+    uint32 rpcid    = 1;
+    uint64 inode    = 2;
+    string name     = 3;
+    uint32 size     = 4;
+    uint32 position = 5;
+}
+
+message GetxattrResponse {
+    uint32 rpcid = 1;
+    bytes  xattr = 2;
+    string err   = 3;
 }
 
 
