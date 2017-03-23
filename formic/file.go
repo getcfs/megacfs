@@ -35,6 +35,7 @@ const (
 type FileService interface {
 	NewCreate(context.Context, *newproto.CreateRequest, *newproto.CreateResponse) error
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
+	NewGetxattr(context.Context, *newproto.GetxattrRequest, *newproto.GetxattrResponse) error
 	NewLookup(context.Context, *newproto.LookupRequest, *newproto.LookupResponse) error
 	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
 	NewReadDirAll(context.Context, *newproto.ReadDirAllRequest, *newproto.ReadDirAllResponse) error
@@ -50,7 +51,6 @@ type FileService interface {
 	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
 	Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error)
 	Remove(ctx context.Context, parent []byte, name string) (int32, error)
-	Getxattr(ctx context.Context, id []byte, name string) (*pb.GetxattrResponse, error)
 	Setxattr(ctx context.Context, id []byte, name string, value []byte) (*pb.SetxattrResponse, error)
 	Listxattr(ctx context.Context, id []byte) (*pb.ListxattrResponse, error)
 	Removexattr(ctx context.Context, id []byte, name string) (*pb.RemovexattrResponse, error)
@@ -333,6 +333,25 @@ func (o *OortFS) NewGetAttr(ctx context.Context, req *newproto.GetAttrRequest, r
 		Uid:    n.Attr.Uid,
 		Gid:    n.Attr.Gid,
 	}
+	return nil
+}
+
+func (o *OortFS) NewGetxattr(ctx context.Context, req *newproto.GetxattrRequest, resp *newproto.GetxattrResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	id := GetID(fsid.Bytes(), req.Inode, 0)
+	b, err := o.GetChunk(ctx, id)
+	if err != nil {
+		return err
+	}
+	n := &pb.InodeEntry{}
+	err = Unmarshal(b, n)
+	if err != nil {
+		return err
+	}
+	resp.Xattr = n.Xattr[req.Name]
 	return nil
 }
 
@@ -931,23 +950,6 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 		return err
 	}
 	return nil
-}
-
-// Getxattr ...
-func (o *OortFS) Getxattr(ctx context.Context, id []byte, name string) (*pb.GetxattrResponse, error) {
-	b, err := o.GetChunk(ctx, id)
-	if err != nil {
-		return &pb.GetxattrResponse{}, err
-	}
-	n := &pb.InodeEntry{}
-	err = Unmarshal(b, n)
-	if err != nil {
-		return &pb.GetxattrResponse{}, err
-	}
-	if xattr, ok := n.Xattr[name]; ok {
-		return &pb.GetxattrResponse{Xattr: xattr}, nil
-	}
-	return &pb.GetxattrResponse{}, nil
 }
 
 // Setxattr ...

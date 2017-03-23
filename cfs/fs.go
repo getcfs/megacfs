@@ -731,37 +731,51 @@ func (f *fs) handleLink(r *fuse.LinkRequest) {
 	r.RespondError(fuse.ENOSYS)
 }
 
-func (f *fs) handleGetxattr(r *fuse.GetxattrRequest) {
-	logger.Debug("Inside handleGetxattr", zap.Any("request", r))
-	if r.Name == "security.capability" {
+func (f *fs) handleGetxattr(req *fuse.GetxattrRequest) {
+	logger.Debug("Inside handleGetxattr", zap.Any("request", req))
+	if req.Name == "security.capability" {
 		// Ignore this for now
 		// TODO: Figure out if we want to allow this or not
-		r.RespondError(fuse.ENOSYS)
+		req.RespondError(fuse.ENOSYS)
 		return
 	}
-	if r.Name == "system.posix_acl_access" || r.Name == "system.posix_acl_default" {
-		r.RespondError(fuse.ENOSYS)
+	if req.Name == "system.posix_acl_access" || req.Name == "system.posix_acl_default" {
+		req.RespondError(fuse.ENOSYS)
 		return
 	}
-	if r.Name == "cfs.fsid" {
-		r.Respond(&fuse.GetxattrResponse{Xattr: []byte(f.fsid)})
+	if req.Name == "cfs.fsid" {
+		req.Respond(&fuse.GetxattrResponse{Xattr: []byte(f.fsid)})
 		return
 	}
-	req := &pb.GetxattrRequest{
-		Inode:    uint64(r.Node),
-		Name:     r.Name,
-		Size:     r.Size,
-		Position: r.Position,
-	}
-	resp, err := f.rpc.api().Getxattr(f.getContext(), req)
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Getxattr(f.getContext())
 	if err != nil {
 		logger.Debug("Getxattr failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
-	fuseResp := &fuse.GetxattrResponse{Xattr: resp.Xattr}
-	logger.Debug("handleGetxattr returning", zap.Any("response", fuseResp))
-	r.Respond(fuseResp)
+	// TODO: Best I can tell, xattr size and position were never implemented.
+	// The whole xattr is always returned.
+	if err = stream.Send(&newproto.GetxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name, Size: req.Size, Position: req.Position}); err != nil {
+		logger.Debug("Getxattr failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	getxattrResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Getxattr failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if getxattrResp.Err != "" {
+		logger.Debug("Getxattr failed", zap.String("Err", getxattrResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	resp := &fuse.GetxattrResponse{Xattr: getxattrResp.Xattr}
+	logger.Debug("handleGetxattr returning", zap.Any("response", resp))
+	req.Respond(resp)
 }
 
 func (f *fs) handleListxattr(r *fuse.ListxattrRequest) {
