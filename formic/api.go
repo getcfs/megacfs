@@ -135,18 +135,6 @@ func min(a, b int64) int64 {
 	return b
 }
 
-func (s *apiServer) Listxattr(ctx context.Context, r *pb.ListxattrRequest) (*pb.ListxattrResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return s.fs.Listxattr(ctx, GetID(fsid.Bytes(), r.Inode, 0))
-}
-
 func (s *apiServer) Removexattr(ctx context.Context, r *pb.RemovexattrRequest) (*pb.RemovexattrResponse, error) {
 	err := s.validateIP(ctx)
 	if err != nil {

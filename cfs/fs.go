@@ -778,22 +778,37 @@ func (f *fs) handleGetxattr(req *fuse.GetxattrRequest) {
 	req.Respond(resp)
 }
 
-func (f *fs) handleListxattr(r *fuse.ListxattrRequest) {
-	logger.Debug("Inside handleListxattr", zap.Any("request", r))
-	req := &pb.ListxattrRequest{
-		Inode:    uint64(r.Node),
-		Size:     r.Size,
-		Position: r.Position,
-	}
-	resp, err := f.rpc.api().Listxattr(f.getContext(), req)
+func (f *fs) handleListxattr(req *fuse.ListxattrRequest) {
+	logger.Debug("Inside handleListxattr", zap.Any("request", req))
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Listxattr(f.getContext())
 	if err != nil {
 		logger.Debug("Listxattr failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
-	fuseResp := &fuse.ListxattrResponse{Xattr: resp.Xattr}
-	logger.Debug("handleListxattr returning", zap.Any("response", fuseResp))
-	r.Respond(fuseResp)
+	// TODO: Best I can tell, xattr size and position were never implemented.
+	// The whole list of xattrs are always returned.
+	if err = stream.Send(&newproto.ListxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Size: req.Size, Position: req.Position}); err != nil {
+		logger.Debug("Listxattr failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	listxattrResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Listxattr failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if listxattrResp.Err != "" {
+		logger.Debug("Listxattr failed", zap.String("Err", listxattrResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	resp := &fuse.ListxattrResponse{Xattr: listxattrResp.Xattr}
+	logger.Debug("handleListxattr returning", zap.Any("response", resp))
+	req.Respond(resp)
 }
 
 func (f *fs) handleSetxattr(req *fuse.SetxattrRequest) {

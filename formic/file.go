@@ -36,6 +36,7 @@ type FileService interface {
 	NewCreate(context.Context, *newproto.CreateRequest, *newproto.CreateResponse) error
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewGetxattr(context.Context, *newproto.GetxattrRequest, *newproto.GetxattrResponse) error
+	NewListxattr(context.Context, *newproto.ListxattrRequest, *newproto.ListxattrResponse) error
 	NewLookup(context.Context, *newproto.LookupRequest, *newproto.LookupResponse) error
 	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
 	NewReadDirAll(context.Context, *newproto.ReadDirAllRequest, *newproto.ReadDirAllResponse) error
@@ -52,7 +53,6 @@ type FileService interface {
 	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
 	Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error)
 	Remove(ctx context.Context, parent []byte, name string) (int32, error)
-	Listxattr(ctx context.Context, id []byte) (*pb.ListxattrResponse, error)
 	Removexattr(ctx context.Context, id []byte, name string) (*pb.RemovexattrResponse, error)
 	Rename(ctx context.Context, oldParent, newParent []byte, oldName, newName string) (*pb.RenameResponse, error)
 	GetChunk(ctx context.Context, id []byte) ([]byte, error)
@@ -352,6 +352,31 @@ func (o *OortFS) NewGetxattr(ctx context.Context, req *newproto.GetxattrRequest,
 		return err
 	}
 	resp.Xattr = n.Xattr[req.Name]
+	return nil
+}
+
+func (o *OortFS) NewListxattr(ctx context.Context, req *newproto.ListxattrRequest, resp *newproto.ListxattrResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	id := GetID(fsid.Bytes(), req.Inode, 0)
+	b, err := o.GetChunk(ctx, id)
+	if err != nil {
+		return err
+	}
+	n := &pb.InodeEntry{}
+	err = Unmarshal(b, n)
+	if err != nil {
+		return err
+	}
+	names := ""
+	for name := range n.Xattr {
+		names += name
+		names += "\x00"
+	}
+	names += "cfs.fsid\x00"
+	resp.Xattr = []byte(names)
 	return nil
 }
 
@@ -982,28 +1007,6 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 		return err
 	}
 	return nil
-}
-
-// Listxattr ...
-func (o *OortFS) Listxattr(ctx context.Context, id []byte) (*pb.ListxattrResponse, error) {
-	resp := &pb.ListxattrResponse{}
-	b, err := o.GetChunk(ctx, id)
-	if err != nil {
-		return &pb.ListxattrResponse{}, err
-	}
-	n := &pb.InodeEntry{}
-	err = Unmarshal(b, n)
-	if err != nil {
-		return &pb.ListxattrResponse{}, err
-	}
-	names := ""
-	for name := range n.Xattr {
-		names += name
-		names += "\x00"
-	}
-	names += "cfs.fsid\x00"
-	resp.Xattr = []byte(names)
-	return resp, nil
 }
 
 // Removexattr ...
