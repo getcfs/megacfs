@@ -37,6 +37,7 @@ type FileService interface {
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
+	NewRemove(context.Context, *newproto.RemoveRequest, *newproto.RemoveResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
 	NewWrite(context.Context, *newproto.WriteRequest, *newproto.WriteResponse) error
 
@@ -410,6 +411,22 @@ func (o *OortFS) NewRead(ctx context.Context, req *newproto.ReadRequest, resp *n
 		if int64(len(chunk)) < o.blocksize {
 			break
 		}
+	}
+	return nil
+}
+
+func (o *OortFS) NewRemove(ctx context.Context, req *newproto.RemoveRequest, resp *newproto.RemoveResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	// TODO: No need for this status thing; can refactor to just return errors.
+	status, err := o.Remove(ctx, GetID(fsid.Bytes(), req.Parent, 0), req.Name)
+	if err != nil {
+		return err
+	}
+	if status != 0 {
+		return fmt.Errorf("Remove failed with status %d", status)
 	}
 	return nil
 }

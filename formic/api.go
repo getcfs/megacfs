@@ -161,19 +161,6 @@ func (s *apiServer) ReadDirAll(ctx context.Context, n *pb.ReadDirAllRequest) (*p
 	return s.fs.ReadDirAll(ctx, GetID(fsid.Bytes(), n.Inode, 0))
 }
 
-func (s *apiServer) Remove(ctx context.Context, r *pb.RemoveRequest) (*pb.RemoveResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	status, err := s.fs.Remove(ctx, GetID(fsid.Bytes(), r.Parent, 0), r.Name)
-	return &pb.RemoveResponse{Status: status}, err
-}
-
 func (s *apiServer) Symlink(ctx context.Context, r *pb.SymlinkRequest) (*pb.SymlinkResponse, error) {
 	err := s.validateIP(ctx)
 	if err != nil {

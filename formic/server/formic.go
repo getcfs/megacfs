@@ -336,6 +336,29 @@ func (f *Formic) Read(stream newproto.Formic_ReadServer) error {
 	}
 }
 
+func (f *Formic) Remove(stream newproto.Formic_RemoveServer) error {
+	var resp newproto.RemoveResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewRemove(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) SetAttr(stream newproto.Formic_SetAttrServer) error {
 	var resp newproto.SetAttrResponse
 	for {

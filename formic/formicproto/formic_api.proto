@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Remove(RemoveRequest) returns (RemoveResponse) {}
     rpc Lookup(LookupRequest) returns (LookupResponse) {}
     rpc ReadDirAll(ReadDirAllRequest) returns (ReadDirAllResponse) {}
     rpc Symlink(SymlinkRequest) returns (SymlinkResponse) {}
@@ -49,17 +48,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// RemoveRequest
-message RemoveRequest {
-    uint64 parent = 1;
-    string name   = 2;
-}
-
-// RemoveResponse
-message RemoveResponse {
-    int32 status = 1;
 }
 
 // LookupRequest
