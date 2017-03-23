@@ -359,6 +359,29 @@ func (f *Formic) ReadDirAll(stream newproto.Formic_ReadDirAllServer) error {
 	}
 }
 
+func (f *Formic) Readlink(stream newproto.Formic_ReadlinkServer) error {
+	var resp newproto.ReadlinkResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewReadlink(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) Read(stream newproto.Formic_ReadServer) error {
 	var resp newproto.ReadResponse
 	for {

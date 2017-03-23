@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Readlink(ReadlinkRequest) returns (ReadlinkResponse) {}
     rpc Getxattr(GetxattrRequest) returns (GetxattrResponse) {}
     rpc Setxattr(SetxattrRequest) returns (SetxattrResponse) {}
     rpc Listxattr(ListxattrRequest) returns (ListxattrResponse) {}
@@ -33,16 +32,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// ReadlinkRequest
-message ReadlinkRequest {
-    uint64 inode = 1;
-}
-
-// ReadlinkResponse
-message ReadlinkResponse {
-    string target = 1;
 }
 
 // Getxattr

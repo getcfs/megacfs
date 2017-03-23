@@ -38,6 +38,7 @@ type FileService interface {
 	NewLookup(context.Context, *newproto.LookupRequest, *newproto.LookupResponse) error
 	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
 	NewReadDirAll(context.Context, *newproto.ReadDirAllRequest, *newproto.ReadDirAllResponse) error
+	NewReadlink(context.Context, *newproto.ReadlinkRequest, *newproto.ReadlinkResponse) error
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewRemove(context.Context, *newproto.RemoveRequest, *newproto.RemoveResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
@@ -49,7 +50,6 @@ type FileService interface {
 	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
 	Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error)
 	Remove(ctx context.Context, parent []byte, name string) (int32, error)
-	Readlink(ctx context.Context, id []byte) (*pb.ReadlinkResponse, error)
 	Getxattr(ctx context.Context, id []byte, name string) (*pb.GetxattrResponse, error)
 	Setxattr(ctx context.Context, id []byte, name string, value []byte) (*pb.SetxattrResponse, error)
 	Listxattr(ctx context.Context, id []byte) (*pb.ListxattrResponse, error)
@@ -384,6 +384,25 @@ func (o *OortFS) NewReadDirAll(ctx context.Context, req *newproto.ReadDirAllRequ
 		resp.Direntries = append(resp.Direntries, &newproto.DirEnt{Name: de.Name, Type: de.Type})
 	}
 	sort.Sort(ByDirent(resp.Direntries))
+	return nil
+}
+
+func (o *OortFS) NewReadlink(ctx context.Context, req *newproto.ReadlinkRequest, resp *newproto.ReadlinkResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	id := GetID(fsid.Bytes(), req.Inode, 0)
+	b, err := o.GetChunk(ctx, id)
+	if err != nil {
+		return err
+	}
+	n := &pb.InodeEntry{}
+	err = Unmarshal(b, n)
+	if err != nil {
+		return err
+	}
+	resp.Target = n.Target
 	return nil
 }
 
@@ -912,20 +931,6 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 		return err
 	}
 	return nil
-}
-
-// Readlink ...
-func (o *OortFS) Readlink(ctx context.Context, id []byte) (*pb.ReadlinkResponse, error) {
-	b, err := o.GetChunk(ctx, id)
-	if err != nil {
-		return &pb.ReadlinkResponse{}, err
-	}
-	n := &pb.InodeEntry{}
-	err = Unmarshal(b, n)
-	if err != nil {
-		return &pb.ReadlinkResponse{}, err
-	}
-	return &pb.ReadlinkResponse{Target: n.Target}, nil
 }
 
 // Getxattr ...

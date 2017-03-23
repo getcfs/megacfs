@@ -135,18 +135,6 @@ func min(a, b int64) int64 {
 	return b
 }
 
-func (s *apiServer) Readlink(ctx context.Context, r *pb.ReadlinkRequest) (*pb.ReadlinkResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return s.fs.Readlink(ctx, GetID(fsid.Bytes(), r.Inode, 0))
-}
-
 func (s *apiServer) Getxattr(ctx context.Context, r *pb.GetxattrRequest) (*pb.GetxattrResponse, error) {
 	err := s.validateIP(ctx)
 	if err != nil {
