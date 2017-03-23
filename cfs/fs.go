@@ -350,22 +350,40 @@ func (f *fs) handleOpen(r *fuse.OpenRequest) {
 	r.Respond(resp)
 }
 
-func (f *fs) handleRead(r *fuse.ReadRequest) {
-	logger.Debug("Inside handleRead", zap.Any("request", r))
-	if r.Dir {
-		resp := &fuse.ReadResponse{Data: make([]byte, 0, r.Size)}
+func (f *fs) handleRead(req *fuse.ReadRequest) {
+	logger.Debug("Inside handleRead", zap.Any("request", req))
+	if req.Dir {
+		resp := &fuse.ReadResponse{Data: make([]byte, 0, req.Size)}
 		// handle directory listing
-		data := f.handles.getReadCache(r.Handle)
+		data := f.handles.getReadCache(req.Handle)
 		if data == nil {
-			d, err := f.rpc.api().ReadDirAll(f.getContext(), &pb.ReadDirAllRequest{Inode: uint64(r.Node)})
+			// TODO: Placeholder code to get things working; needs to be
+			// replaced to be more like oort's client code.
+			stream, err := f.rpc.newClient.ReadDirAll(f.getContext())
 			if err != nil {
-				logger.Debug("Read on dir failed", zap.Error(err))
-				r.RespondError(fuse.EIO)
+				logger.Debug("ReadDirAll failed", zap.Error(err))
+				req.RespondError(fuse.EIO)
+				return
+			}
+			if err = stream.Send(&newproto.ReadDirAllRequest{Rpcid: 1, Inode: uint64(req.Node)}); err != nil {
+				logger.Debug("ReadDirAll failed", zap.Error(err))
+				req.RespondError(fuse.EIO)
+				return
+			}
+			protoResp, err := stream.Recv()
+			if err != nil {
+				logger.Debug("ReadDirAll failed", zap.Error(err))
+				req.RespondError(fuse.EIO)
+				return
+			}
+			if protoResp.Err != "" {
+				logger.Debug("ReadDirAll failed", zap.String("Err", protoResp.Err), zap.Any("protoResp", protoResp))
+				req.RespondError(fuse.EIO)
 				return
 			}
 			data = fuse.AppendDirent(data, fuse.Dirent{
 				Name:  ".",
-				Inode: uint64(r.Node),
+				Inode: uint64(req.Node),
 				Type:  fuse.DT_Dir,
 			})
 			data = fuse.AppendDirent(data, fuse.Dirent{
@@ -373,7 +391,7 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 				Inode: 1, // TODO: not sure what value this should be, but this seems to work fine.
 				Type:  fuse.DT_Dir,
 			})
-			for _, de := range d.DirEntries {
+			for _, de := range protoResp.Direntries {
 				if de == nil || de.Name == "" {
 					continue
 				}
@@ -383,10 +401,10 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 					Type:  fuse.DirentType(de.Type),
 				})
 			}
-			f.handles.cacheRead(r.Handle, data)
+			f.handles.cacheRead(req.Handle, data)
 		}
-		fuseutil.HandleRead(r, resp, data)
-		r.Respond(resp)
+		fuseutil.HandleRead(req, resp, data)
+		req.Respond(resp)
 		return
 	}
 	// TODO: Placeholder code to get things working; needs to be replaced to be
@@ -394,26 +412,26 @@ func (f *fs) handleRead(r *fuse.ReadRequest) {
 	stream, err := f.rpc.newClient.Read(f.getContext())
 	if err != nil {
 		logger.Debug("Read failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.ReadRequest{Rpcid: 1, Inode: uint64(r.Node), Offset: int64(r.Offset), Size: int64(r.Size)}); err != nil {
+	if err = stream.Send(&newproto.ReadRequest{Rpcid: 1, Inode: uint64(req.Node), Offset: int64(req.Offset), Size: int64(req.Size)}); err != nil {
 		logger.Debug("Read failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
 	readResp, err := stream.Recv()
 	if err != nil {
 		logger.Debug("Read failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
 	if readResp.Err != "" {
 		logger.Debug("Read failed", zap.String("Err", readResp.Err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
-	r.Respond(&fuse.ReadResponse{Data: readResp.Payload})
+	req.Respond(&fuse.ReadResponse{Data: readResp.Payload})
 }
 
 func (f *fs) handleWrite(r *fuse.WriteRequest) {
