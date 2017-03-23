@@ -135,18 +135,6 @@ func min(a, b int64) int64 {
 	return b
 }
 
-func (s *apiServer) Setxattr(ctx context.Context, r *pb.SetxattrRequest) (*pb.SetxattrResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return s.fs.Setxattr(ctx, GetID(fsid.Bytes(), r.Inode, 0), r.Name, r.Value)
-}
-
 func (s *apiServer) Listxattr(ctx context.Context, r *pb.ListxattrRequest) (*pb.ListxattrResponse, error) {
 	err := s.validateIP(ctx)
 	if err != nil {
