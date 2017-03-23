@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc InitFs(InitFsRequest) returns (InitFsResponse) {}
     rpc Check(CheckRequest) returns (CheckResponse) {}
 }
 
@@ -27,11 +26,6 @@ message Attr {
     uint32 uid    = 9;
     uint32 gid    = 10;
 }
-
-// InitFs
-message InitFsRequest {}
-
-message InitFsResponse {}
 
 // Check
 message CheckRequest {

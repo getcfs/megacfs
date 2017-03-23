@@ -313,6 +313,29 @@ func (f *Formic) Getxattr(stream newproto.Formic_GetxattrServer) error {
 	}
 }
 
+func (f *Formic) InitFs(stream newproto.Formic_InitFsServer) error {
+	var resp newproto.InitFsResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewInitFs(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) Listxattr(stream newproto.Formic_ListxattrServer) error {
 	var resp newproto.ListxattrResponse
 	for {
