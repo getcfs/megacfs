@@ -474,6 +474,29 @@ func (f *Formic) SetAttr(stream newproto.Formic_SetAttrServer) error {
 	}
 }
 
+func (f *Formic) Setxattr(stream newproto.Formic_SetxattrServer) error {
+	var resp newproto.SetxattrResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewSetxattr(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) Symlink(stream newproto.Formic_SymlinkServer) error {
 	var resp newproto.SymlinkResponse
 	for {

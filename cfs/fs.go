@@ -796,30 +796,50 @@ func (f *fs) handleListxattr(r *fuse.ListxattrRequest) {
 	r.Respond(fuseResp)
 }
 
-func (f *fs) handleSetxattr(r *fuse.SetxattrRequest) {
-	logger.Debug("Inside handleSetxattr", zap.Any("request", r))
-	if r.Name == "system.posix_acl_access" || r.Name == "system.posix_acl_default" {
-		r.RespondError(fuse.ENOENT)
+func (f *fs) handleSetxattr(req *fuse.SetxattrRequest) {
+	logger.Debug("Inside handleSetxattr", zap.Any("request", req))
+	if req.Name == "security.capability" {
+		// Ignore this for now
+		// TODO: Figure out if we want to allow this or not
+		req.RespondError(fuse.ENOSYS)
 		return
 	}
-	if strings.HasPrefix(r.Name, "cfs.") {
-		r.RespondError(fuse.ENOSYS)
+	if req.Name == "system.posix_acl_access" || req.Name == "system.posix_acl_default" {
+		req.RespondError(fuse.ENOSYS)
 		return
 	}
-	req := &pb.SetxattrRequest{
-		Inode:    uint64(r.Node),
-		Name:     r.Name,
-		Value:    r.Xattr,
-		Position: r.Position,
-		Flags:    r.Flags,
+	if strings.HasPrefix(req.Name, "cfs.") {
+		req.RespondError(fuse.ENOSYS)
+		return
 	}
-	_, err := f.rpc.api().Setxattr(f.getContext(), req)
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.Setxattr(f.getContext())
 	if err != nil {
 		logger.Debug("Setxattr failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
+		req.RespondError(fuse.EIO)
 		return
 	}
-	r.Respond()
+	// TODO: Best I can tell, xattr position and flags were never implemented.
+	// The whole xattr is always set and flags are ignored.
+	if err = stream.Send(&newproto.SetxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name, Value: req.Xattr, Position: req.Position, Flags: req.Flags}); err != nil {
+		logger.Debug("Setxattr failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	setxattrResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("Setxattr failed", zap.Error(err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	if setxattrResp.Err != "" {
+		logger.Debug("Setxattr failed", zap.String("Err", setxattrResp.Err))
+		req.RespondError(fuse.EIO)
+		return
+	}
+	logger.Debug("handleSetxattr returning")
+	req.Respond()
 }
 
 func (f *fs) handleRemovexattr(r *fuse.RemovexattrRequest) {

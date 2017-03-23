@@ -43,6 +43,7 @@ type FileService interface {
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewRemove(context.Context, *newproto.RemoveRequest, *newproto.RemoveResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
+	NewSetxattr(context.Context, *newproto.SetxattrRequest, *newproto.SetxattrResponse) error
 	NewSymlink(context.Context, *newproto.SymlinkRequest, *newproto.SymlinkResponse) error
 	NewWrite(context.Context, *newproto.WriteRequest, *newproto.WriteResponse) error
 
@@ -51,7 +52,6 @@ type FileService interface {
 	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
 	Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error)
 	Remove(ctx context.Context, parent []byte, name string) (int32, error)
-	Setxattr(ctx context.Context, id []byte, name string, value []byte) (*pb.SetxattrResponse, error)
 	Listxattr(ctx context.Context, id []byte) (*pb.ListxattrResponse, error)
 	Removexattr(ctx context.Context, id []byte, name string) (*pb.RemovexattrResponse, error)
 	Rename(ctx context.Context, oldParent, newParent []byte, oldName, newName string) (*pb.RenameResponse, error)
@@ -603,6 +603,38 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, r
 	return nil
 }
 
+func (o *OortFS) NewSetxattr(ctx context.Context, req *newproto.SetxattrRequest, resp *newproto.SetxattrResponse) error {
+	// NOTE: Setting xattrs is NOT concurrency safe!
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	fsidb := fsid.Bytes()
+	id := GetID(fsidb, req.Inode, 0)
+	b, err := o.GetChunk(ctx, id)
+	if err != nil {
+		return err
+	}
+	n := &pb.InodeEntry{}
+	err = Unmarshal(b, n)
+	if err != nil {
+		return err
+	}
+	if n.Xattr == nil {
+		n.Xattr = make(map[string][]byte)
+	}
+	n.Xattr[req.Name] = req.Value
+	b, err = Marshal(n)
+	if err != nil {
+		return err
+	}
+	err = o.WriteChunk(ctx, id, b)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (o *OortFS) NewSymlink(ctx context.Context, req *newproto.SymlinkRequest, resp *newproto.SymlinkResponse) error {
 	fsid, err := GetFsId(ctx)
 	if err != nil {
@@ -950,32 +982,6 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 		return err
 	}
 	return nil
-}
-
-// Setxattr ...
-func (o *OortFS) Setxattr(ctx context.Context, id []byte, name string, value []byte) (*pb.SetxattrResponse, error) {
-	b, err := o.GetChunk(ctx, id)
-	if err != nil {
-		return &pb.SetxattrResponse{}, err
-	}
-	n := &pb.InodeEntry{}
-	err = Unmarshal(b, n)
-	if err != nil {
-		return &pb.SetxattrResponse{}, err
-	}
-	if n.Xattr == nil {
-		n.Xattr = make(map[string][]byte)
-	}
-	n.Xattr[name] = value
-	b, err = Marshal(n)
-	if err != nil {
-		return &pb.SetxattrResponse{}, err
-	}
-	err = o.WriteChunk(ctx, id, b)
-	if err != nil {
-		return &pb.SetxattrResponse{}, err
-	}
-	return &pb.SetxattrResponse{}, nil
 }
 
 // Listxattr ...
