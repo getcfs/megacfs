@@ -37,6 +37,7 @@ type FileService interface {
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewLookup(context.Context, *newproto.LookupRequest, *newproto.LookupResponse) error
 	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
+	NewReadDirAll(context.Context, *newproto.ReadDirAllRequest, *newproto.ReadDirAllResponse) error
 	NewRead(context.Context, *newproto.ReadRequest, *newproto.ReadResponse) error
 	NewRemove(context.Context, *newproto.RemoveRequest, *newproto.RemoveResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
@@ -46,7 +47,6 @@ type FileService interface {
 	Create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *pb.Attr, isdir bool) (string, *pb.Attr, error)
 	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
 	Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error)
-	ReadDirAll(ctx context.Context, id []byte) (*pb.ReadDirAllResponse, error)
 	Remove(ctx context.Context, parent []byte, name string) (int32, error)
 	Symlink(ctx context.Context, parent, id []byte, name string, target string, attr *pb.Attr, inode uint64) (*pb.SymlinkResponse, error)
 	Readlink(ctx context.Context, id []byte) (*pb.ReadlinkResponse, error)
@@ -360,6 +360,30 @@ func (o *OortFS) NewLookup(ctx context.Context, req *newproto.LookupRequest, res
 		Uid:    rattr.Uid,
 		Gid:    rattr.Gid,
 	}
+	return nil
+}
+
+func (o *OortFS) NewReadDirAll(ctx context.Context, req *newproto.ReadDirAllRequest, resp *newproto.ReadDirAllResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	id := GetID(fsid.Bytes(), req.Inode, 0)
+	// Get the keys from the group
+	items, err := o.comms.ReadGroup(ctx, id)
+	if err != nil {
+		return err
+	}
+	// Iterate over each item, getting the ID then the Inode Entry
+	de := &pb.DirEntry{}
+	for _, item := range items {
+		err = Unmarshal(item.Value, de)
+		if err != nil {
+			return err
+		}
+		resp.Direntries = append(resp.Direntries, &newproto.DirEnt{Name: de.Name, Type: de.Type})
+	}
+	sort.Sort(ByDirent(resp.Direntries))
 	return nil
 }
 
@@ -695,7 +719,7 @@ func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string
 // Needed to be able to sort the dirents
 
 // ByDirent ...
-type ByDirent []*pb.DirEnt
+type ByDirent []*newproto.DirEnt
 
 func (d ByDirent) Len() int {
 	return len(d)
@@ -707,29 +731,6 @@ func (d ByDirent) Swap(i, j int) {
 
 func (d ByDirent) Less(i, j int) bool {
 	return d[i].Name < d[j].Name
-}
-
-// ReadDirAll ...
-func (o *OortFS) ReadDirAll(ctx context.Context, id []byte) (*pb.ReadDirAllResponse, error) {
-	// Get the keys from the group
-	items, err := o.comms.ReadGroup(ctx, id)
-	if err != nil {
-		// TODO: Needs beter error handling
-		o.log.Error("Error looking up group: ", zap.Error(err))
-		return &pb.ReadDirAllResponse{}, err
-	}
-	// Iterate over each item, getting the ID then the Inode Entry
-	e := &pb.ReadDirAllResponse{}
-	dirent := &pb.DirEntry{}
-	for _, item := range items {
-		err = Unmarshal(item.Value, dirent)
-		if err != nil {
-			return &pb.ReadDirAllResponse{}, err
-		}
-		e.DirEntries = append(e.DirEntries, &pb.DirEnt{Name: dirent.Name, Type: dirent.Type})
-	}
-	sort.Sort(ByDirent(e.DirEntries))
-	return e, nil
 }
 
 // Remove ...

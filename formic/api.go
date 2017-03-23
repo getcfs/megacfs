@@ -136,18 +136,6 @@ func min(a, b int64) int64 {
 	return b
 }
 
-func (s *apiServer) ReadDirAll(ctx context.Context, n *pb.ReadDirAllRequest) (*pb.ReadDirAllResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return s.fs.ReadDirAll(ctx, GetID(fsid.Bytes(), n.Inode, 0))
-}
-
 func (s *apiServer) Symlink(ctx context.Context, r *pb.SymlinkRequest) (*pb.SymlinkResponse, error) {
 	err := s.validateIP(ctx)
 	if err != nil {

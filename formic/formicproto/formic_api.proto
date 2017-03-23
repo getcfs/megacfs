@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc ReadDirAll(ReadDirAllRequest) returns (ReadDirAllResponse) {}
     rpc Symlink(SymlinkRequest) returns (SymlinkResponse) {}
     rpc Readlink(ReadlinkRequest) returns (ReadlinkResponse) {}
     rpc Getxattr(GetxattrRequest) returns (GetxattrResponse) {}
@@ -21,18 +20,6 @@ service Api {
     rpc Statfs(StatfsRequest) returns (StatfsResponse) {}
     rpc InitFs(InitFsRequest) returns (InitFsResponse) {}
     rpc Check(CheckRequest) returns (CheckResponse) {}
-}
-
-// DirEnt is a directory entry
-message DirEnt {
-    string name   = 1;
-    uint64 parent = 2;
-    uint32 type   = 3;
-}
-
-// DirEntries just contains a list of directory entries
-message DirEntries {
-    repeated DirEnt DirEntries  = 1;
 }
 
 // Attr
@@ -47,16 +34,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// ReadDirAllRequest
-message ReadDirAllRequest {
-    uint64 inode = 1;
-}
-
-// ReadDirAllResponse
-message ReadDirAllResponse {
-    repeated DirEnt DirEntries  = 1;
 }
 
 // SymlinkRequest
@@ -201,17 +178,6 @@ message Dirty {
     uint64 blocks = 5; // Blocks from the original object that was dirty
 }
 
-// DirEntry
-// This is used for the serialization of dir info in the group score
-// This is *not* used for api calls
-message DirEntry {
-    uint32    version   = 1;
-    string    name      = 2;
-    bytes     id        = 3;
-    Tombstone tombstone = 4; // If set, this record has been deleted
-    uint32    type      = 5;
-}
-
 // FileBlock
 // This is used for storing blocks in value store
 // This is *not* used for api calls
@@ -316,3 +282,17 @@ message RevokeAddrFSRequest {
 message RevokeAddrFSResponse {
   string  Data     = 1;
 }
+
+
+// TODO: Needed for now since this is used when storing in the stores.
+// This really shouldn't be in this proto package.
+// This is used for the serialization of dir info in the group score
+// This is *not* used for api calls
+message DirEntry {
+    uint32    version   = 1;
+    string    name      = 2;
+    bytes     id        = 3;
+    Tombstone tombstone = 4; // If set, this record has been deleted
+    uint32    type      = 5;
+}
+
