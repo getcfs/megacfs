@@ -232,7 +232,7 @@ func (f *Formic) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (f *Formic) Create(stream newproto.Formic_CreateServer) error {
+func (f *Formic) Check(stream newproto.Formic_CheckServer) error {
 	// NOTE: Each of these streams is synchronized req1, resp1, req2, resp2.
 	// But it doesn't have to be that way, it was just simpler to code. Each
 	// client/server pair will have a stream for each request/response type, so
@@ -245,6 +245,29 @@ func (f *Formic) Create(stream newproto.Formic_CreateServer) error {
 	// set up and tear down streams for each request, but that's just a guess.
 	// We stopped looking into it once we noticed the speed gains from
 	// switching to streaming.
+	var resp newproto.CheckResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		if err = f.validateIP(stream.Context()); err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewCheck(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
+func (f *Formic) Create(stream newproto.Formic_CreateServer) error {
 	var resp newproto.CreateResponse
 	for {
 		req, err := stream.Recv()

@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	pb "github.com/getcfs/megacfs/formic/formicproto"
+	"github.com/getcfs/megacfs/formic/newproto"
 	"github.com/pkg/xattr"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/metadata"
@@ -312,18 +313,32 @@ func check(addr string) error {
 	}
 	c := setupWS(addr)
 	defer c.Close()
-	ws := pb.NewApiClient(c)
+	ws := newproto.NewFormicClient(c)
 	ctx := context.Background()
 	ctx = metadata.NewContext(
 		ctx,
 		metadata.Pairs("fsid", fsid),
 	)
-	res, err := ws.Check(ctx, &pb.CheckRequest{Inode: stat.Ino, Name: fileName})
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := ws.Check(ctx)
 	if err != nil {
-		fmt.Println("Error calling check: ", err)
+		fmt.Println("Check failed", err)
 		os.Exit(1)
 	}
-	fmt.Println(res.Response)
-
+	if err = stream.Send(&newproto.CheckRequest{Rpcid: 1, Inode: stat.Ino, Name: fileName}); err != nil {
+		fmt.Println("Check failed", err)
+		os.Exit(1)
+	}
+	checkResp, err := stream.Recv()
+	if err != nil {
+		fmt.Println("Check failed", err)
+		os.Exit(1)
+	}
+	if checkResp.Err != "" {
+		fmt.Println("Check failed", checkResp.Err)
+		os.Exit(1)
+	}
+	fmt.Println("Check complete:", checkResp.Response)
 	return nil
 }

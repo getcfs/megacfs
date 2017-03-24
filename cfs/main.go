@@ -362,6 +362,7 @@ func main() {
 	username, _ := config["username"]
 	password, _ := config["password"]
 	addr := fmt.Sprintf("%s:%d", ip, PORT)
+	newAddr := fmt.Sprintf("%s:%d", ip, PORT+1)
 
 	flag.Usage = func() {
 		fmt.Println("Usage:")
@@ -488,7 +489,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := check(addr)
+		err := check(newAddr)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

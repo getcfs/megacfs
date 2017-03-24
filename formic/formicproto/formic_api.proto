@@ -10,7 +10,6 @@ package formicproto;
 
 // Combined ClientApi
 service Api {
-    rpc Check(CheckRequest) returns (CheckResponse) {}
 }
 
 // Attr
@@ -25,16 +24,6 @@ message Attr {
     uint64 size   = 8;
     uint32 uid    = 9;
     uint32 gid    = 10;
-}
-
-// Check
-message CheckRequest {
-    uint64 inode = 1;
-    string name  = 2;
-}
-
-message CheckResponse {
-    string response = 1;    
 }
 
 // Since this data can sit around for a while, we track a version number of the api so that it
