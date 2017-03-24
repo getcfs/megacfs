@@ -770,19 +770,13 @@ func (f *fs) handleLink(r *fuse.LinkRequest) {
 }
 
 func (f *fs) handleGetxattr(req *fuse.GetxattrRequest) {
+	// TODO: Possiblity short circuit excessive xattr calls we don't really
+	// support.
 	logger.Debug("Inside handleGetxattr", zap.Any("request", req))
-	if req.Name == "security.capability" {
-		// Ignore this for now
-		// TODO: Figure out if we want to allow this or not
-		req.RespondError(fuse.ENOSYS)
-		return
-	}
-	if req.Name == "system.posix_acl_access" || req.Name == "system.posix_acl_default" {
-		req.RespondError(fuse.ENOSYS)
-		return
-	}
 	if req.Name == "cfs.fsid" {
-		req.Respond(&fuse.GetxattrResponse{Xattr: []byte(f.fsid)})
+		resp := &fuse.GetxattrResponse{Xattr: []byte(f.fsid)}
+		logger.Debug("handleGetxattr returning", zap.Any("response", resp))
+		req.Respond(resp)
 		return
 	}
 	// TODO: Placeholder code to get things working; needs to be replaced to be
@@ -850,19 +844,12 @@ func (f *fs) handleListxattr(req *fuse.ListxattrRequest) {
 }
 
 func (f *fs) handleSetxattr(req *fuse.SetxattrRequest) {
+	// TODO: Possiblity disallow some xattr sets, like security.* system.* if
+	// that makes sense.
 	logger.Debug("Inside handleSetxattr", zap.Any("request", req))
-	if req.Name == "security.capability" {
-		// Ignore this for now
-		// TODO: Figure out if we want to allow this or not
-		req.RespondError(fuse.ENOSYS)
-		return
-	}
-	if req.Name == "system.posix_acl_access" || req.Name == "system.posix_acl_default" {
-		req.RespondError(fuse.ENOSYS)
-		return
-	}
 	if strings.HasPrefix(req.Name, "cfs.") {
-		req.RespondError(fuse.ENOSYS)
+		// Silently discard sets to "our" namespace.
+		req.Respond()
 		return
 	}
 	// TODO: Placeholder code to get things working; needs to be replaced to be
@@ -896,10 +883,13 @@ func (f *fs) handleSetxattr(req *fuse.SetxattrRequest) {
 }
 
 func (f *fs) handleRemovexattr(req *fuse.RemovexattrRequest) {
+	// TODO: Possiblity disallow some xattr removes, like security.* system.*
+	// if that makes sense.
 	logger.Debug("Inside handleRemovexattr", zap.Any("request", req))
 	// TODO: All these checks need to be server side.
 	if strings.HasPrefix(req.Name, "cfs.") {
-		req.RespondError(fuse.ENOSYS)
+		// Silently discard removes to "our" namespace.
+		req.Respond()
 		return
 	}
 	// TODO: Placeholder code to get things working; needs to be replaced to be
