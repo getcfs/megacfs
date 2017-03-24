@@ -66,21 +66,37 @@ func list(addr, authURL, username, password string) error {
 	}
 	c := setupWS(addr)
 	defer c.Close()
-	ws := pb.NewFileSystemAPIClient(c)
+	ws := newproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	res, err := ws.ListFS(context.Background(), &pb.ListFSRequest{Token: token})
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	ctx := context.Background()
+	stream, err := ws.ListFS(ctx)
 	if err != nil {
-		return fmt.Errorf("Request Error: %v", err)
+		fmt.Println("ListFS failed", err)
+		os.Exit(1)
+	}
+	if err = stream.Send(&newproto.ListFSRequest{Rpcid: 1, Token: token}); err != nil {
+		fmt.Println("ListFS failed", err)
+		os.Exit(1)
+	}
+	listFSResp, err := stream.Recv()
+	if err != nil {
+		fmt.Println("ListFS failed", err)
+		os.Exit(1)
+	}
+	if listFSResp.Err != "" {
+		fmt.Println("ListFS failed", listFSResp.Err)
+		os.Exit(1)
 	}
 	var data []map[string]interface{}
-	if err := json.Unmarshal([]byte(res.Data), &data); err != nil {
+	if err := json.Unmarshal([]byte(listFSResp.Data), &data); err != nil {
 		return fmt.Errorf("Error unmarshalling response: %v", err)
 	}
 	fmt.Printf("%-36s    %s\n", "ID", "Name")
 	for _, fs := range data {
 		fmt.Printf("%-36s    %s\n", fs["id"], fs["name"])
 	}
-
 	return nil
 }
 
@@ -152,16 +168,16 @@ func create(addr, authURL, username, password string) error {
 		fmt.Println("CreateFS failed", err)
 		os.Exit(1)
 	}
-	createResp, err := stream.Recv()
+	createFSResp, err := stream.Recv()
 	if err != nil {
 		fmt.Println("CreateFS failed", err)
 		os.Exit(1)
 	}
-	if createResp.Err != "" {
-		fmt.Println("CreateFS failed", createResp.Err)
+	if createFSResp.Err != "" {
+		fmt.Println("CreateFS failed", createFSResp.Err)
 		os.Exit(1)
 	}
-	fmt.Println("ID:", createResp.Data)
+	fmt.Println("ID:", createFSResp.Data)
 	return nil
 }
 
