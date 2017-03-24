@@ -308,18 +308,34 @@ func grant(addr, authURL, username, password string) error {
 		ip = f.Args()[0]
 		fsid = f.Args()[1]
 	} else {
-
 		f.Usage()
 	}
 	c := setupWS(addr)
 	defer c.Close()
-	ws := pb.NewFileSystemAPIClient(c)
+	ws := newproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	res, err := ws.GrantAddrFS(context.Background(), &pb.GrantAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
+	ctx := context.Background()
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := ws.GrantAddrFS(ctx)
 	if err != nil {
-		return fmt.Errorf("Request Error: %v", err)
+		fmt.Println("GrantAddrFS failed", err)
+		os.Exit(1)
 	}
-	fmt.Println(res.Data)
+	if err = stream.Send(&newproto.GrantAddrFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Addr: ip}); err != nil {
+		fmt.Println("GrantAddrFS failed", err)
+		os.Exit(1)
+	}
+	grantAddrFSResp, err := stream.Recv()
+	if err != nil {
+		fmt.Println("GrantAddrFS failed", err)
+		os.Exit(1)
+	}
+	if grantAddrFSResp.Err != "" {
+		fmt.Println("GrantAddrFS failed", grantAddrFSResp.Err)
+		os.Exit(1)
+	}
+	fmt.Println(grantAddrFSResp.Data)
 	return nil
 }
 
