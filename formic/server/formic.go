@@ -771,6 +771,29 @@ func (f *Formic) Symlink(stream newproto.Formic_SymlinkServer) error {
 	}
 }
 
+func (f *Formic) UpdateFS(stream newproto.Formic_UpdateFSServer) error {
+	var resp newproto.UpdateFSResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		// No need to validateIP for UpdateFS calls; token validation happens
+		// later.
+		if err = f.fs.NewUpdateFS(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) Write(stream newproto.Formic_WriteServer) error {
 	var resp newproto.WriteResponse
 	for {
