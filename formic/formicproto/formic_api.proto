@@ -4,7 +4,6 @@ package formicproto;
 
 // Message service definition for the FileSystemApi
 service FileSystemAPI {
-  rpc RevokeAddrFS (RevokeAddrFSRequest) returns (RevokeAddrFSResponse) {}
 }
 
 // Versioning Rules
@@ -80,19 +79,6 @@ message FileBlock {
     bytes  data     = 2;
     uint32 checksum = 3;
 }
-
-// Request revoke an ip address access to a file system
-message RevokeAddrFSRequest {
-  string Token      = 1;
-  string FSid       = 2;
-  string Addr       = 3;
-}
-
-// Response from revoking ip address access to a file system
-message RevokeAddrFSResponse {
-  string  Data     = 1;
-}
-
 
 // TODO: Needed for now since this is used when storing in the stores.
 // This really shouldn't be in this proto package.

@@ -360,7 +360,6 @@ func main() {
 	authURL, _ := config["authURL"]
 	username, _ := config["username"]
 	password, _ := config["password"]
-	addr := fmt.Sprintf("%s:%d", ip, PORT)
 	newAddr := fmt.Sprintf("%s:%d", ip, PORT+1)
 
 	flag.Usage = func() {
@@ -478,7 +477,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := revoke(addr, authURL, username, password)
+		err := revoke(newAddr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

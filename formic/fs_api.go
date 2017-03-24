@@ -21,15 +21,12 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
 	"github.com/spaolacci/murmur3"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/peer"
 )
 
 var errf = grpc.Errorf
@@ -110,78 +107,6 @@ func NewFileSystemAPIServer(cfg *Config, grpstore store.GroupStore, valstore sto
 	}
 
 	return s
-}
-
-// RevokeAddrFS ...
-func (s *FileSystemAPIServer) RevokeAddrFS(ctx context.Context, r *pb.RevokeAddrFSRequest) (*pb.RevokeAddrFSResponse, error) {
-	var err error
-	var acctID string
-	var value []byte
-	var fsRef FileSysRef
-	srcAddr := ""
-	srcAddrIP := ""
-
-	// Get incomming ip
-	pr, ok := peer.FromContext(ctx)
-	if ok {
-		srcAddr = pr.Addr.String()
-	}
-	// Validate Token
-	acctID, err = s.validateToken(r.Token)
-	if err != nil {
-		s.log.Info("REVOKE FAILED", zap.String("src", srcAddr), zap.String("error", "PermissionDenied"))
-		return nil, errf(codes.PermissionDenied, "%v", "Invalid Token")
-	}
-	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID), zap.String("fsid", r.FSid))
-	// Validate Token/Account owns this file system
-	// Read FileSysRef entry to determine if it exists
-	pKey := fmt.Sprintf("/fs")
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB := murmur3.Sum128([]byte(r.FSid))
-	_, value, err = s.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		log.Info("REVOKE FAILED", zap.String("error", "IDNotFound"))
-		return nil, errf(codes.NotFound, "%v", "File System ID Not Found")
-	}
-	if err != nil {
-		log.Error("REVOKE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-	err = json.Unmarshal(value, &fsRef)
-	if err != nil {
-		log.Error("REVOKE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-	if fsRef.AcctID != acctID {
-		log.Info("REVOKE FAILED", zap.String("error", "AccountMismatch"), zap.String("acct2", fsRef.AcctID))
-		return nil, errf(codes.FailedPrecondition, "%v", "Account Mismatch")
-	}
-
-	// REVOKE an file system entry for the addr
-	// 		delete /fs/FSID/addr			addr						AddrRef
-	if r.Addr == "" {
-		srcAddrIP = strings.Split(srcAddr, ":")[0]
-	} else {
-		srcAddrIP = r.Addr
-	}
-	pKey = fmt.Sprintf("/fs/%s/addr", r.FSid)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
-	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	_, err = s.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
-	if store.IsNotFound(err) {
-		log.Info("REVOKE FAILED", zap.String("error", "IDNotFound"))
-		return nil, errf(codes.NotFound, "%v", "File System ID Not Found")
-	}
-	if err != nil {
-		log.Error("REVOKE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-
-	// return Addr was revoked
-	// Log Operation
-	log.Info("REVOKE", zap.String("addr", srcAddrIP))
-	return &pb.RevokeAddrFSResponse{Data: srcAddrIP}, nil
 }
 
 // ValidateResponse ...

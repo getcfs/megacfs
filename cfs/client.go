@@ -9,7 +9,6 @@ import (
 	"path"
 	"syscall"
 
-	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/formic/newproto"
 	"github.com/pkg/xattr"
 	"golang.org/x/net/context"
@@ -362,13 +361,30 @@ func revoke(addr, authURL, username, password string) error {
 	}
 	c := setupWS(addr)
 	defer c.Close()
-	ws := pb.NewFileSystemAPIClient(c)
+	ws := newproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	res, err := ws.RevokeAddrFS(context.Background(), &pb.RevokeAddrFSRequest{Token: token, FSid: fsid, Addr: ip})
+	ctx := context.Background()
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := ws.RevokeAddrFS(ctx)
 	if err != nil {
-		return fmt.Errorf("Request Error: %v", err)
+		fmt.Println("RevokeAddrFS failed", err)
+		os.Exit(1)
 	}
-	fmt.Println(res.Data)
+	if err = stream.Send(&newproto.RevokeAddrFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Addr: ip}); err != nil {
+		fmt.Println("RevokeAddrFS failed", err)
+		os.Exit(1)
+	}
+	revokeAddrFSResp, err := stream.Recv()
+	if err != nil {
+		fmt.Println("RevokeAddrFS failed", err)
+		os.Exit(1)
+	}
+	if revokeAddrFSResp.Err != "" {
+		fmt.Println("RevokeAddrFS failed", revokeAddrFSResp.Err)
+		os.Exit(1)
+	}
+	fmt.Println(revokeAddrFSResp.Data)
 	return nil
 }
 

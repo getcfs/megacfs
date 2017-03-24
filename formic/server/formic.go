@@ -679,6 +679,29 @@ func (f *Formic) Rename(stream newproto.Formic_RenameServer) error {
 	}
 }
 
+func (f *Formic) RevokeAddrFS(stream newproto.Formic_RevokeAddrFSServer) error {
+	var resp newproto.RevokeAddrFSResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		// No need to validateIP for RevokeAddrFS calls; token validation
+		// happens later.
+		if err = f.fs.NewRevokeAddrFS(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) SetAttr(stream newproto.Formic_SetAttrServer) error {
 	var resp newproto.SetAttrResponse
 	for {

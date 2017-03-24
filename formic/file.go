@@ -57,6 +57,7 @@ type FileService interface {
 	NewRemove(context.Context, *newproto.RemoveRequest, *newproto.RemoveResponse) error
 	NewRemovexattr(context.Context, *newproto.RemovexattrRequest, *newproto.RemovexattrResponse) error
 	NewRename(context.Context, *newproto.RenameRequest, *newproto.RenameResponse) error
+	NewRevokeAddrFS(context.Context, *newproto.RevokeAddrFSRequest, *newproto.RevokeAddrFSResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
 	NewSetxattr(context.Context, *newproto.SetxattrRequest, *newproto.SetxattrResponse) error
 	NewShowFS(context.Context, *newproto.ShowFSRequest, *newproto.ShowFSResponse) error
@@ -1022,6 +1023,64 @@ func (o *OortFS) NewRename(ctx context.Context, req *newproto.RenameRequest, res
 		// If we fail here then we will have two entries
 		return err
 	}
+	return nil
+}
+
+func (o *OortFS) NewRevokeAddrFS(ctx context.Context, req *newproto.RevokeAddrFSRequest, resp *newproto.RevokeAddrFSResponse) error {
+	var err error
+	var acctID string
+	var value []byte
+	var fsRef FileSysRef
+	srcAddr := ""
+	srcAddrIP := ""
+	// Get incomming ip
+	pr, ok := peer.FromContext(ctx)
+	if ok {
+		srcAddr = pr.Addr.String()
+	}
+	// Validate Token
+	acctID, err = o.validateToken(req.Token)
+	if err != nil {
+		return err
+	}
+	// Validate Token/Account owns this file system
+	// Read FileSysRef entry to determine if it exists
+	pKey := fmt.Sprintf("/fs")
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(req.Fsid))
+	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
+	if store.IsNotFound(err) {
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(value, &fsRef)
+	if err != nil {
+		return err
+	}
+	if fsRef.AcctID != acctID {
+		return errors.New("permission denied")
+	}
+	// REVOKE an file system entry for the addr
+	// 		delete /fs/FSID/addr			addr						AddrRef
+	if req.Addr == "" {
+		srcAddrIP = strings.Split(srcAddr, ":")[0]
+	} else {
+		srcAddrIP = req.Addr
+	}
+	pKey = fmt.Sprintf("/fs/%s/addr", req.Fsid)
+	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
+	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
+	_, err = o.comms.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
+	if store.IsNotFound(err) {
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	resp.Data = srcAddrIP
 	return nil
 }
 
