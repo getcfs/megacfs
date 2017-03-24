@@ -334,6 +334,29 @@ func (f *Formic) Create(stream newproto.Formic_CreateServer) error {
 	}
 }
 
+func (f *Formic) DeleteFS(stream newproto.Formic_DeleteFSServer) error {
+	var resp newproto.DeleteFSResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		// No need to validateIP for DeleteFS calls; token validation happens
+		// later.
+		if err = f.fs.NewDeleteFS(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) GetAttr(stream newproto.Formic_GetAttrServer) error {
 	var resp newproto.GetAttrResponse
 	for {
