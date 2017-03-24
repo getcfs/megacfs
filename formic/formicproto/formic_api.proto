@@ -4,7 +4,6 @@ package formicproto;
 
 // Message service definition for the FileSystemApi
 service FileSystemAPI {
-  rpc UpdateFS (UpdateFSRequest) returns (UpdateFSResponse) {}
   rpc GrantAddrFS (GrantAddrFSRequest) returns (GrantAddrFSResponse) {}
   rpc RevokeAddrFS (RevokeAddrFSRequest) returns (RevokeAddrFSResponse) {}
 }
@@ -81,24 +80,6 @@ message FileBlock {
     uint32 version  = 1;
     bytes  data     = 2;
     uint32 checksum = 3;
-}
-
-// ModFS ...
-message ModFS {
-  string    Name         = 1;
-  string    Status       = 2;
-}
-
-// Request to update a specific file system's information
-message UpdateFSRequest {
-  string  Token           = 1;
-  string  FSid            = 2;
-  ModFS   Filesys         = 3;
-}
-
-// Response from an update operation
-message UpdateFSResponse {
-  string  Data       = 1;
 }
 
 // Request grant an ip address access to a file system

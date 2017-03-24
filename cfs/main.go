@@ -458,7 +458,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := update(addr, authURL, username, password)
+		err := update(newAddr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

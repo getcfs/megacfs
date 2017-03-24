@@ -59,6 +59,7 @@ type FileService interface {
 	NewShowFS(context.Context, *newproto.ShowFSRequest, *newproto.ShowFSResponse) error
 	NewStatfs(context.Context, *newproto.StatfsRequest, *newproto.StatfsResponse) error
 	NewSymlink(context.Context, *newproto.SymlinkRequest, *newproto.SymlinkResponse) error
+	NewUpdateFS(context.Context, *newproto.UpdateFSRequest, *newproto.UpdateFSResponse) error
 	NewWrite(context.Context, *newproto.WriteRequest, *newproto.WriteResponse) error
 
 	InitFs(ctx context.Context, fsid []byte) error
@@ -1242,6 +1243,60 @@ func (o *OortFS) NewSymlink(ctx context.Context, req *newproto.SymlinkRequest, r
 		Uid:    attr.Uid,
 		Gid:    attr.Gid,
 	}
+	return nil
+}
+
+func (o *OortFS) NewUpdateFS(ctx context.Context, req *newproto.UpdateFSRequest, resp *newproto.UpdateFSResponse) error {
+	var err error
+	var value []byte
+	var fsRef FileSysRef
+	var fsSysAttr FileSysAttr
+	var fsSysAttrByte []byte
+	if req.Filesys.Name == "" {
+		return errors.New("file system name cannot be empty")
+	}
+	acctID, err := o.validateToken(req.Token)
+	if err != nil {
+		return err
+	}
+	// validate that Token/Account own this file system
+	// Read FileSysRef entry to determine if it exists
+	pKey := fmt.Sprintf("/fs")
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(req.Fsid))
+	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
+	if store.IsNotFound(err) {
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(value, &fsRef)
+	if err != nil {
+		return err
+	}
+	if fsRef.AcctID != acctID {
+		return errors.New("permission denied")
+	}
+	// Write file system attributes
+	// write /fs/FSID						name						FileSysAttr
+	pKey = fmt.Sprintf("/fs/%s", req.Fsid)
+	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
+	fsSysAttr.Attr = "name"
+	fsSysAttr.Value = req.Filesys.Name
+	fsSysAttr.FSID = req.Fsid
+	fsSysAttrByte, err = json.Marshal(fsSysAttr)
+	if err != nil {
+		return err
+	}
+	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
+	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
+	if err != nil {
+		return err
+	}
+	// return message
+	resp.Data = req.Fsid
 	return nil
 }
 

@@ -24,6 +24,7 @@ service Formic {
     rpc ShowFS(stream ShowFSRequest) returns (stream ShowFSResponse) {}
     rpc Statfs(stream StatfsRequest) returns (stream StatfsResponse) {}
     rpc Symlink(stream SymlinkRequest) returns (stream SymlinkResponse) {}
+    rpc UpdateFS(stream UpdateFSRequest) returns (stream UpdateFSResponse) {}
     rpc Write(stream WriteRequest) returns (stream WriteResponse) {}
 }
 
@@ -340,6 +341,26 @@ message SymlinkResponse {
     Attr   attr   = 4;
     string err    = 5;
 }
+
+
+message UpdateFSRequest {
+    uint32 rpcid   = 1;
+    string token   = 2;
+    string fsid    = 3;
+    ModFS  filesys = 4;
+}
+
+message UpdateFSResponse {
+    uint32 rpcid = 1;
+    string data  = 2;
+    string err   = 3;
+}
+
+message ModFS {
+  string name   = 1;
+  string status = 2;
+}
+
 
 
 message WriteRequest {

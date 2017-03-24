@@ -252,20 +252,40 @@ func update(addr, authURL, username, password string) error {
 	if f.NArg() != 2 {
 		f.Usage()
 	}
-	newFS := &pb.ModFS{
+	newFS := &newproto.ModFS{
 		Name: f.Args()[0],
 	}
 	fsid := f.Args()[1]
 	c := setupWS(addr)
 	defer c.Close()
-	ws := pb.NewFileSystemAPIClient(c)
+	ws := newproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	res, err := ws.UpdateFS(context.Background(), &pb.UpdateFSRequest{Token: token, FSid: fsid, Filesys: newFS})
+	ctx := context.Background()
+	ctx = metadata.NewContext(
+		ctx,
+		metadata.Pairs("fsid", fsid),
+	)
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := ws.UpdateFS(ctx)
 	if err != nil {
-		return fmt.Errorf("Request Error: %v", err)
+		fmt.Println("UpdateFS failed", err)
+		os.Exit(1)
 	}
-	fmt.Println(res.Data)
-
+	if err = stream.Send(&newproto.UpdateFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Filesys: newFS}); err != nil {
+		fmt.Println("UpdateFS failed", err)
+		os.Exit(1)
+	}
+	updateFSResp, err := stream.Recv()
+	if err != nil {
+		fmt.Println("UpdateFS failed", err)
+		os.Exit(1)
+	}
+	if updateFSResp.Err != "" {
+		fmt.Println("UpdateFS failed", updateFSResp.Err)
+		os.Exit(1)
+	}
+	fmt.Println(updateFSResp.Data)
 	return nil
 }
 
