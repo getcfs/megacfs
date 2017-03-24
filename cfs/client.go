@@ -138,14 +138,30 @@ func create(addr, authURL, username, password string) error {
 	name := f.Args()[0]
 	c := setupWS(addr)
 	defer c.Close()
-	ws := pb.NewFileSystemAPIClient(c)
+	ws := newproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	res, err := ws.CreateFS(context.Background(), &pb.CreateFSRequest{Token: token, FSName: name})
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	ctx := context.Background()
+	stream, err := ws.CreateFS(ctx)
 	if err != nil {
-		return fmt.Errorf("Request Error: %v", err)
+		fmt.Println("CreateFS failed", err)
+		os.Exit(1)
 	}
-	fmt.Println("ID:", res.Data)
-
+	if err = stream.Send(&newproto.CreateFSRequest{Rpcid: 1, Token: token, Fsname: name}); err != nil {
+		fmt.Println("CreateFS failed", err)
+		os.Exit(1)
+	}
+	createResp, err := stream.Recv()
+	if err != nil {
+		fmt.Println("CreateFS failed", err)
+		os.Exit(1)
+	}
+	if createResp.Err != "" {
+		fmt.Println("CreateFS failed", createResp.Err)
+		os.Exit(1)
+	}
+	fmt.Println("ID:", createResp.Data)
 	return nil
 }
 

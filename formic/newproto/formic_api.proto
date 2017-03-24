@@ -3,6 +3,7 @@ package newproto;
 
 service Formic {
     rpc Check(stream CheckRequest) returns (stream CheckResponse) {}
+    rpc CreateFS(stream CreateFSRequest) returns (stream CreateFSResponse) {}
     rpc Create(stream CreateRequest) returns (stream CreateResponse) {}
     rpc GetAttr(stream GetAttrRequest) returns (stream GetAttrResponse) {}
     rpc Getxattr(stream GetxattrRequest) returns (stream GetxattrResponse) {}
@@ -34,6 +35,19 @@ message CheckResponse {
     uint32 rpcid    = 1;
     string response = 2;    
     string err      = 3;
+}
+
+
+message CreateFSRequest {
+    uint32 rpcid  = 1;
+    string token  = 2;
+    string fsname = 3;
+}
+
+message CreateFSResponse {
+    uint32 rpcid = 1;
+    string data  = 2;
+    string err   = 3;
 }
 
 

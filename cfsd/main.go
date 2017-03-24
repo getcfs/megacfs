@@ -312,6 +312,7 @@ FIND_LOCAL_NODE:
 	newFormicCfg.Scale = 0.2
 	newFormicCfg.Ring = oneRing
 	newFormicCfg.RingPath = ringPath
+	newFormicCfg.SkipAuth = false
 	newFormicCfg.AuthURL = "http://localhost:5000"
 	newFormicCfg.AuthUser = "admin"
 	newFormicCfg.AuthPassword = "admin"

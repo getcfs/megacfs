@@ -44,6 +44,10 @@ type Formic struct {
 	ring                  ring.Ring
 	ringPath              string
 	logger                *zap.Logger
+	skipAuth              bool
+	authURL               string
+	authUser              string
+	authPassword          string
 }
 
 type FormicConfig struct {
@@ -60,6 +64,7 @@ type FormicConfig struct {
 	AuthURL               string
 	AuthUser              string
 	AuthPassword          string
+	SkipAuth              bool
 	Logger                *zap.Logger
 }
 
@@ -95,9 +100,13 @@ func NewFormic(cfg *FormicConfig) (*Formic, error) {
 		caFile:                cfg.CAFile,
 		groupGRPCAddressIndex: cfg.GroupGRPCAddressIndex,
 		valueGRPCAddressIndex: cfg.ValueGRPCAddressIndex,
-		ring:     cfg.Ring,
-		ringPath: cfg.RingPath,
-		logger:   cfg.Logger,
+		ring:         cfg.Ring,
+		ringPath:     cfg.RingPath,
+		logger:       cfg.Logger,
+		skipAuth:     cfg.SkipAuth,
+		authURL:      cfg.AuthURL,
+		authUser:     cfg.AuthUser,
+		authPassword: cfg.AuthPassword,
 	}
 	return f, nil
 }
@@ -175,7 +184,7 @@ func (f *Formic) Startup(ctx context.Context) error {
 	if f.nodeID == -1 {
 		f.nodeID = int(murmur3.Sum32([]byte(grpcHostPort)))
 	}
-	f.fs = formic.NewOortFS(f.comms, f.logger, deleteChan, dirtyChan, blocksize, f.nodeID)
+	f.fs = formic.NewOortFS(f.comms, f.logger, deleteChan, dirtyChan, blocksize, f.nodeID, f.skipAuth, f.authURL, f.authUser, f.authPassword)
 	deletes := formic.NewDeletinator(deleteChan, f.fs, f.comms, f.logger)
 	cleaner := formic.NewCleaninator(dirtyChan, f.fs, f.comms, f.logger)
 	go deletes.Run()
@@ -258,6 +267,40 @@ func (f *Formic) Check(stream newproto.Formic_CheckServer) error {
 		if err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
 		} else if err = f.fs.NewCheck(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
+func (f *Formic) CreateFS(stream newproto.Formic_CreateFSServer) error {
+	// NOTE: Each of these streams is synchronized req1, resp1, req2, resp2.
+	// But it doesn't have to be that way, it was just simpler to code. Each
+	// client/server pair will have a stream for each request/response type, so
+	// there's a pretty good amount of concurrency going on there already.
+	// Perhaps later we can experiment with intrastream concurrency and see if
+	// the complexity is worth it.
+	//
+	// The main reason for using streams over unary grpc requests was
+	// benchmarked speed gains. I suspect it is because unary requests actually
+	// set up and tear down streams for each request, but that's just a guess.
+	// We stopped looking into it once we noticed the speed gains from
+	// switching to streaming.
+	var resp newproto.CreateFSResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		// No need to validateIP for CreateFS calls.
+		if err = f.fs.NewCreateFS(stream.Context(), req, &resp); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
