@@ -4,7 +4,6 @@ package formicproto;
 
 // Message service definition for the FileSystemApi
 service FileSystemAPI {
-  rpc DeleteFS (DeleteFSRequest) returns (DeleteFSResponse) {}
   rpc UpdateFS (UpdateFSRequest) returns (UpdateFSResponse) {}
   rpc GrantAddrFS (GrantAddrFSRequest) returns (GrantAddrFSResponse) {}
   rpc RevokeAddrFS (RevokeAddrFSRequest) returns (RevokeAddrFSResponse) {}
@@ -88,17 +87,6 @@ message FileBlock {
 message ModFS {
   string    Name         = 1;
   string    Status       = 2;
-}
-
-// Request to delete a specific file system
-message DeleteFSRequest {
-  string  Token         = 1;
-  string  FSid          = 2;
-}
-
-// Response from deleting a file system
-message DeleteFSResponse {
-  string  Data         = 1;
 }
 
 // Request to update a specific file system's information

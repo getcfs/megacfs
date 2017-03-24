@@ -212,14 +212,30 @@ func del(addr, authURL, username, password string) error {
 	fsid := f.Args()[0]
 	c := setupWS(addr)
 	defer c.Close()
-	ws := pb.NewFileSystemAPIClient(c)
+	ws := newproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	res, err := ws.DeleteFS(context.Background(), &pb.DeleteFSRequest{Token: token, FSid: fsid})
-	if err != nil {
-		return fmt.Errorf("Request Error: %v", err)
-	}
-	fmt.Println(res.Data)
 
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := ws.DeleteFS(context.Background())
+	if err != nil {
+		fmt.Println("DeleteFS failed", err)
+		os.Exit(1)
+	}
+	if err = stream.Send(&newproto.DeleteFSRequest{Rpcid: 1, Token: token, Fsid: fsid}); err != nil {
+		fmt.Println("DeleteFS failed", err)
+		os.Exit(1)
+	}
+	deleteFSResp, err := stream.Recv()
+	if err != nil {
+		fmt.Println("DeleteFS failed", err)
+		os.Exit(1)
+	}
+	if deleteFSResp.Err != "" {
+		fmt.Println("DeleteFS failed", deleteFSResp.Err)
+		os.Exit(1)
+	}
+	fmt.Println(deleteFSResp.Data)
 	return nil
 }
 

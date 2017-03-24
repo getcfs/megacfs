@@ -40,6 +40,7 @@ type FileService interface {
 	NewCheck(context.Context, *newproto.CheckRequest, *newproto.CheckResponse) error
 	NewCreateFS(context.Context, *newproto.CreateFSRequest, *newproto.CreateFSResponse) error
 	NewCreate(context.Context, *newproto.CreateRequest, *newproto.CreateResponse) error
+	NewDeleteFS(context.Context, *newproto.DeleteFSRequest, *newproto.DeleteFSResponse) error
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewGetxattr(context.Context, *newproto.GetxattrRequest, *newproto.GetxattrResponse) error
 	NewInitFs(context.Context, *newproto.InitFsRequest, *newproto.InitFsResponse) error
@@ -456,6 +457,111 @@ func (o *OortFS) NewCreate(ctx context.Context, req *newproto.CreateRequest, res
 		Uid:    rattr.Uid,
 		Gid:    rattr.Gid,
 	}
+	return nil
+}
+
+func (o *OortFS) NewDeleteFS(ctx context.Context, req *newproto.DeleteFSRequest, resp *newproto.DeleteFSResponse) error {
+	var err error
+	var value []byte
+	var fsRef FileSysRef
+	var addrData AddrRef
+	rowcount := 0
+	// validate Token
+	acctID, err := o.validateToken(req.Token)
+	if err != nil {
+		return err
+	}
+	// Validate Token/Account own this file system
+	pKey := fmt.Sprintf("/fs")
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(req.Fsid))
+	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
+	if store.IsNotFound(err) {
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(value, &fsRef)
+	if err != nil {
+		return err
+	}
+	if fsRef.AcctID != acctID {
+		return errors.New("permission denied")
+	}
+	uuID, err := uuid.FromString(req.Fsid)
+	id := GetID(uuID.Bytes(), 1, 0)
+	// Test if file system is empty.
+	keyA, keyB := murmur3.Sum128(id)
+	items, err := o.comms.gstore.ReadGroup(context.Background(), keyA, keyB)
+	if len(items) != 0 {
+		return errors.New("file system not empty")
+	}
+	// Remove the root file system entry from the value store
+	keyA, keyB = murmur3.Sum128(id)
+	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
+	_, err = o.comms.vstore.Delete(context.Background(), keyA, keyB, timestampMicro)
+	if err != nil {
+		if !store.IsNotFound(err) {
+			return err
+		}
+	}
+	// Delete this record set
+	// IP Addresses																				(x records)
+	//    /fs/FSID/addr			  addr						AddrRef
+	// File System Attributes															(1 record)
+	//    /fs/FSID						name						FileSysAttr
+	// File System Account Reference											(1 record)
+	//    /acct/acctID				FSID						FileSysRef
+	// File System Reference 															(1 record)
+	//    /fs 								FSID						FileSysRef
+	// Read list of granted ip addresses
+	// group-lookup printf("/fs/%s/addr", FSID)
+	pKey = fmt.Sprintf("/fs/%s/addr", req.Fsid)
+	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+	items, err = o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	if !store.IsNotFound(err) {
+		// No addr granted
+		for _, v := range items {
+			err = json.Unmarshal(v.Value, &addrData)
+			if err != nil {
+				return err
+			}
+			err = o.deleteEntry(pKey, addrData.Addr)
+			if err != nil {
+				return err
+			}
+			rowcount++
+		}
+	}
+	if err != nil {
+		return err
+	}
+	// Delete File System Attributes
+	//    /fs/FSID						name						FileSysAttr
+	pKey = fmt.Sprintf("/fs/%s", req.Fsid)
+	err = o.deleteEntry(pKey, "name")
+	if err != nil {
+		return err
+	}
+	rowcount++
+	// Delete File System Account Reference
+	//    /acct/acctID				FSID						FileSysRef
+	pKey = fmt.Sprintf("/acct/%s", acctID)
+	err = o.deleteEntry(pKey, req.Fsid)
+	if err != nil {
+		return err
+	}
+	rowcount++
+	// File System Reference
+	//    /fs 								FSID						FileSysRef
+	err = o.deleteEntry("/fs", req.Fsid)
+	if err != nil {
+		return err
+	}
+	rowcount++
+	// Prep things to return
+	resp.Data = req.Fsid
 	return nil
 }
 
@@ -1517,4 +1623,17 @@ func (o *OortFS) validateToken(token string) (string, error) {
 	json.Unmarshal(r, &validateResp)
 	project := validateResp.Token.Project.ID
 	return project, nil
+}
+
+// deleteEntry Deletes and entry in the group store and doesn't care if
+// its not Found
+func (o *OortFS) deleteEntry(pKey string, cKey string) error {
+	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(cKey))
+	_, err := o.comms.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
+	if store.IsNotFound(err) || err == nil {
+		return nil
+	}
+	return err
 }
