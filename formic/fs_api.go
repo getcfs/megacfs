@@ -15,10 +15,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -113,144 +111,6 @@ func NewFileSystemAPIServer(cfg *Config, grpstore store.GroupStore, valstore sto
 	}
 
 	return s
-}
-
-// CreateFS ...
-func (s *FileSystemAPIServer) CreateFS(ctx context.Context, r *pb.CreateFSRequest) (*pb.CreateFSResponse, error) {
-	var err error
-	var acctID string
-	srcAddr := ""
-	var fsRef FileSysRef
-	var fsRefByte []byte
-	var fsSysAttr FileSysAttr
-	var fsSysAttrByte []byte
-
-	// Get incomming ip
-	pr, ok := peer.FromContext(ctx)
-	if ok {
-		srcAddr = pr.Addr.String()
-	}
-
-	// Validate Token
-	acctID, err = s.validateToken(r.Token)
-	if err != nil {
-		s.log.Info("CREATE FAILED", zap.String("src", srcAddr), zap.String("error", "PermissionDenied"))
-		return nil, errf(codes.PermissionDenied, "%v", "Invalid Token")
-	}
-	log := s.log.With(zap.String("src", srcAddr), zap.String("acct", acctID))
-
-	fsID := uuid.NewV4().String()
-	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	// Write file system reference entries.
-	// write /fs 								FSID						FileSysRef
-	pKey := "/fs"
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB := murmur3.Sum128([]byte(fsID))
-	fsRef.AcctID = acctID
-	fsRef.FSID = fsID
-	fsRefByte, err = json.Marshal(fsRef)
-	if err != nil {
-		log.Error("CREATE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsRefByte)
-	if err != nil {
-		log.Error("CREATE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-	// write /acct/acctID				FSID						FileSysRef
-	pKey = fmt.Sprintf("/acct/%s", acctID)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsRefByte)
-	if err != nil {
-		log.Error("CREATE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-	// Write file system attributes
-	// write /fs/FSID						name						FileSysAttr
-	pKey = fmt.Sprintf("/fs/%s", fsID)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
-	fsSysAttr.Attr = "name"
-	fsSysAttr.Value = r.FSName
-	fsSysAttr.FSID = fsID
-	fsSysAttrByte, err = json.Marshal(fsSysAttr)
-	if err != nil {
-		log.Error("CREATE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-	_, err = s.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
-	if err != nil {
-		log.Error("CREATE FAILED", zap.String("type", "GroupStoreWrite"), zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-
-	uuID, err := uuid.FromString(fsID)
-	id := GetID(uuID.Bytes(), 1, 0)
-	vKeyA, vKeyB := murmur3.Sum128(id)
-
-	// Check if root entry already exits
-	_, value, err := s.vstore.Read(context.Background(), vKeyA, vKeyB, nil)
-	if !store.IsNotFound(err) {
-		if len(value) != 0 {
-			log.Error("CREATE FAILED", zap.String("msg", "Root Entry Already Exists"))
-			return nil, errf(codes.FailedPrecondition, "%v", "Root Entry Already Exists")
-		}
-		log.Error("CREATE FAILED", zap.String("type", "ValueStoreRead"), zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-
-	// Create the Root entry data
-	log.Debug("Creating new root", zap.Binary("root", id))
-	// Prepare the root node
-	nr := &pb.InodeEntry{
-		Version: InodeEntryVersion,
-		Inode:   1,
-		IsDir:   true,
-		FsId:    uuID.Bytes(),
-	}
-	ts := time.Now().Unix()
-	nr.Attr = &pb.Attr{
-		Inode:  1,
-		Atime:  ts,
-		Mtime:  ts,
-		Ctime:  ts,
-		Crtime: ts,
-		Mode:   uint32(os.ModeDir | 0775),
-		Uid:    1001, // TODO: need to config default user/group id
-		Gid:    1001,
-	}
-	data, err := Marshal(nr)
-	if err != nil {
-		log.Error("CREATE FAILED", zap.String("type", "Marshal Data"), zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-
-	// Use data to Create The First Block
-	crc := crc32.NewIEEE()
-	crc.Write(data)
-	fb := &pb.FileBlock{
-		Version:  FileBlockVersion,
-		Data:     data,
-		Checksum: crc.Sum32(),
-	}
-	blkdata, err := Marshal(fb)
-	if err != nil {
-		log.Error("CREATE FAILED", zap.String("type", "Marshal First Block"), zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-
-	// Write root entry
-	_, err = s.vstore.Write(context.Background(), vKeyA, vKeyB, timestampMicro, blkdata)
-	if err != nil {
-		log.Error("CREATE FAILED", zap.Error(err))
-		return nil, errf(codes.Internal, "%v", err)
-	}
-
-	// Return File System UUID
-	// Log Operation
-	log.Info("CREATE", zap.String("fsid", fsID))
-	return &pb.CreateFSResponse{Data: fsID}, nil
 }
 
 // ShowFS ...

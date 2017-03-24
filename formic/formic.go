@@ -6,18 +6,17 @@ import (
 	"errors"
 	"net"
 
+	pb "github.com/getcfs/megacfs/formic/formicproto"
+	"github.com/getcfs/megacfs/ftls"
+	"github.com/getcfs/megacfs/oort"
+	"github.com/gholt/ring"
 	"github.com/gogo/protobuf/proto"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/spaolacci/murmur3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-
-	pb "github.com/getcfs/megacfs/formic/formicproto"
-	"github.com/getcfs/megacfs/ftls"
-	"github.com/getcfs/megacfs/oort"
-	"github.com/gholt/ring"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 )
 
 var ErrZeroValue = errors.New("Got 0 length message")
@@ -118,7 +117,7 @@ func NewFormicServer(cfg *Config, logger *zap.Logger) error {
 	if formicNodeID == -1 {
 		formicNodeID = int(murmur3.Sum32([]byte(cfg.IpAddr)))
 	}
-	fs := NewOortFS(comms, logger, deleteChan, dirtyChan, blocksize, formicNodeID)
+	fs := NewOortFS(comms, logger, deleteChan, dirtyChan, blocksize, formicNodeID, cfg.SkipAuth, cfg.AuthUrl, cfg.AuthUser, cfg.AuthPassword)
 	deletes := NewDeletinator(deleteChan, fs, comms, logger.With(zap.String("name", "formic.deletinator")))
 	cleaner := NewCleaninator(dirtyChan, fs, comms, logger.With(zap.String("name", "formic.cleaninator")))
 	go deletes.Run()

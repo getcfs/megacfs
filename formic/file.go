@@ -1,10 +1,13 @@
 package formic
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash"
 	"hash/crc32"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"sort"
 	"time"
@@ -15,6 +18,7 @@ import (
 	"github.com/getcfs/megacfs/formic/newproto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
+	"github.com/satori/go.uuid"
 	"github.com/spaolacci/murmur3"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -34,6 +38,7 @@ const (
 // FileService ...
 type FileService interface {
 	NewCheck(context.Context, *newproto.CheckRequest, *newproto.CheckResponse) error
+	NewCreateFS(context.Context, *newproto.CreateFSRequest, *newproto.CreateFSResponse) error
 	NewCreate(context.Context, *newproto.CreateRequest, *newproto.CreateResponse) error
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewGetxattr(context.Context, *newproto.GetxattrRequest, *newproto.GetxattrResponse) error
@@ -208,25 +213,33 @@ func (o *StoreComms) ReadGroup(ctx context.Context, key []byte) ([]store.ReadGro
 
 // OortFS ...
 type OortFS struct {
-	hasher     func() hash.Hash32
-	comms      *StoreComms
-	deleteChan chan *DeleteItem
-	dirtyChan  chan *DirtyItem
-	log        *zap.Logger
-	blocksize  int64
-	fl         *flother.Flother
+	hasher       func() hash.Hash32
+	comms        *StoreComms
+	deleteChan   chan *DeleteItem
+	dirtyChan    chan *DirtyItem
+	log          *zap.Logger
+	blocksize    int64
+	fl           *flother.Flother
+	skipAuth     bool
+	authUrl      string
+	authUser     string
+	authPassword string
 }
 
 // NewOortFS ...
-func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem, blocksize int64, nodeID int) *OortFS {
+func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem, blocksize int64, nodeID int, skipAuth bool, authUrl string, authUser string, authPassword string) *OortFS {
 	o := &OortFS{
-		hasher:     crc32.NewIEEE,
-		comms:      comms,
-		log:        logger,
-		deleteChan: deleteChan,
-		dirtyChan:  dirtyChan,
-		blocksize:  blocksize,
-		fl:         flother.NewFlother(time.Time{}, uint64(nodeID)),
+		hasher:       crc32.NewIEEE,
+		comms:        comms,
+		log:          logger,
+		deleteChan:   deleteChan,
+		dirtyChan:    dirtyChan,
+		blocksize:    blocksize,
+		fl:           flother.NewFlother(time.Time{}, uint64(nodeID)),
+		skipAuth:     skipAuth,
+		authUrl:      authUrl,
+		authUser:     authUser,
+		authPassword: authPassword,
 	}
 	return o
 }
@@ -293,6 +306,114 @@ func (o *OortFS) NewCheck(ctx context.Context, req *newproto.CheckRequest, resp 
 	}
 	// If we get here then everything is fine
 	resp.Response = "No issues found."
+	return nil
+}
+
+func (o *OortFS) NewCreateFS(ctx context.Context, req *newproto.CreateFSRequest, resp *newproto.CreateFSResponse) error {
+	var err error
+	var acctID string
+	var fsRef FileSysRef
+	var fsRefByte []byte
+	var fsSysAttr FileSysAttr
+	var fsSysAttrByte []byte
+	acctID, err = o.validateToken(req.Token)
+	if err != nil {
+		return err
+	}
+	fsID := uuid.NewV4().String()
+	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
+	// Write file system reference entries.
+	// write /fs 								FSID						FileSysRef
+	pKey := "/fs"
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(fsID))
+	fsRef.AcctID = acctID
+	fsRef.FSID = fsID
+	fsRefByte, err = json.Marshal(fsRef)
+	if err != nil {
+		return err
+	}
+	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsRefByte)
+	if err != nil {
+		return err
+	}
+	// write /acct/acctID				FSID						FileSysRef
+	pKey = fmt.Sprintf("/acct/%s", acctID)
+	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsRefByte)
+	if err != nil {
+		return err
+	}
+	// Write file system attributes
+	// write /fs/FSID						name						FileSysAttr
+	pKey = fmt.Sprintf("/fs/%s", fsID)
+	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
+	fsSysAttr.Attr = "name"
+	fsSysAttr.Value = req.Fsname
+	fsSysAttr.FSID = fsID
+	fsSysAttrByte, err = json.Marshal(fsSysAttr)
+	if err != nil {
+		return err
+	}
+	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
+	if err != nil {
+		return err
+	}
+	uuID, err := uuid.FromString(fsID)
+	id := GetID(uuID.Bytes(), 1, 0)
+	vKeyA, vKeyB := murmur3.Sum128(id)
+	// Check if root entry already exits
+	_, value, err := o.comms.vstore.Read(ctx, vKeyA, vKeyB, nil)
+	if !store.IsNotFound(err) {
+		if len(value) != 0 {
+			return err
+		}
+		return err
+	}
+	// Create the Root entry data
+	// Prepare the root node
+	nr := &pb.InodeEntry{
+		Version: InodeEntryVersion,
+		Inode:   1,
+		IsDir:   true,
+		FsId:    uuID.Bytes(),
+	}
+	ts := time.Now().Unix()
+	nr.Attr = &pb.Attr{
+		Inode:  1,
+		Atime:  ts,
+		Mtime:  ts,
+		Ctime:  ts,
+		Crtime: ts,
+		Mode:   uint32(os.ModeDir | 0775),
+		Uid:    1001, // TODO: need to config default user/group id
+		Gid:    1001,
+	}
+	data, err := Marshal(nr)
+	if err != nil {
+		return err
+	}
+	// Use data to Create The First Block
+	crc := crc32.NewIEEE()
+	crc.Write(data)
+	fb := &pb.FileBlock{
+		Version:  FileBlockVersion,
+		Data:     data,
+		Checksum: crc.Sum32(),
+	}
+	blkdata, err := Marshal(fb)
+	if err != nil {
+		return err
+	}
+	// Write root entry
+	_, err = o.comms.vstore.Write(context.Background(), vKeyA, vKeyB, timestampMicro, blkdata)
+	if err != nil {
+		return err
+	}
+	// Return File System UUID
+	// Log Operation
+	resp.Data = fsID
 	return nil
 }
 
@@ -1206,4 +1327,37 @@ func (o *OortFS) GetDirent(ctx context.Context, parent []byte, name string) (*pb
 		return &pb.DirEntry{}, err
 	}
 	return d, nil
+}
+
+func (o *OortFS) validateToken(token string) (string, error) {
+	if o.skipAuth {
+		// Running in dev mode
+		return "11", nil
+	}
+	auth_token, err := auth(o.authUrl, o.authUser, o.authPassword)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest("GET", o.authUrl+"/v3/auth/tokens", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("X-Auth-Token", auth_token)
+	req.Header.Set("X-Subject-Token", token)
+	resp, err := http.DefaultClient.Do(req) // TODO: Is this safe for formic?
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		// TODO: This probably isn't 100% accurate; 5xx would indicate the auth
+		// server was broken and not that the token was invalid necessarily.
+		return "", errors.New("Invalid Token")
+	}
+	// parse tenant from response
+	var validateResp ValidateResponse
+	r, _ := ioutil.ReadAll(resp.Body)
+	json.Unmarshal(r, &validateResp)
+	project := validateResp.Token.Project.ID
+	return project, nil
 }

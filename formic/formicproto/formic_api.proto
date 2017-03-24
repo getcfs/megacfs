@@ -2,6 +2,16 @@ syntax = "proto3";
 
 package formicproto;
 
+// Message service definition for the FileSystemApi
+service FileSystemAPI {
+  rpc ListFS (ListFSRequest) returns (ListFSResponse) {}
+  rpc ShowFS (ShowFSRequest) returns (ShowFSResponse) {}
+  rpc DeleteFS (DeleteFSRequest) returns (DeleteFSResponse) {}
+  rpc UpdateFS (UpdateFSRequest) returns (UpdateFSResponse) {}
+  rpc GrantAddrFS (GrantAddrFSRequest) returns (GrantAddrFSResponse) {}
+  rpc RevokeAddrFS (RevokeAddrFSRequest) returns (RevokeAddrFSResponse) {}
+}
+
 // Versioning Rules
 // Don't change the number tags once set
 // If you remove a field, don't re-use the number tag
@@ -76,32 +86,10 @@ message FileBlock {
     uint32 checksum = 3;
 }
 
-// Message service definition for the FileSystemApi
-service FileSystemAPI {
-  rpc CreateFS (CreateFSRequest) returns (CreateFSResponse) {}
-  rpc ListFS (ListFSRequest) returns (ListFSResponse) {}
-  rpc ShowFS (ShowFSRequest) returns (ShowFSResponse) {}
-  rpc DeleteFS (DeleteFSRequest) returns (DeleteFSResponse) {}
-  rpc UpdateFS (UpdateFSRequest) returns (UpdateFSResponse) {}
-  rpc GrantAddrFS (GrantAddrFSRequest) returns (GrantAddrFSResponse) {}
-  rpc RevokeAddrFS (RevokeAddrFSRequest) returns (RevokeAddrFSResponse) {}
-}
-
 // ModFS ...
 message ModFS {
   string    Name         = 1;
   string    Status       = 2;
-}
-
-// Request to create a new filesystem
-message CreateFSRequest {
-  string  Token           = 1;
-  string  FSName          = 2;
-}
-
-// Response from creating a new filesystem
-message CreateFSResponse {
-  string  Data        = 1;
 }
 
 // Request a list of all file systems for a given account

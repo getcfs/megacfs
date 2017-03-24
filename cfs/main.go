@@ -180,7 +180,6 @@ var commitVersion string
 var goVersion string
 
 func auth(authURL string, username string, password string) string {
-
 	var token string
 
 	if authURL == "dev" {
@@ -439,7 +438,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := create(addr, authURL, username, password)
+		err := create(newAddr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
