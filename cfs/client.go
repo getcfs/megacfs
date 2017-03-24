@@ -116,15 +116,31 @@ func show(addr, authURL, username, password string) error {
 	fsid := f.Args()[0]
 	c := setupWS(addr)
 	defer c.Close()
-	ws := pb.NewFileSystemAPIClient(c)
+	ws := newproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	res, err := ws.ShowFS(context.Background(), &pb.ShowFSRequest{Token: token, FSid: fsid})
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	ctx := context.Background()
+	stream, err := ws.ShowFS(ctx)
 	if err != nil {
-		return fmt.Errorf("Request Error: %v", err)
+		fmt.Println("ShowFS failed", err)
+		os.Exit(1)
 	}
-	c.Close()
+	if err = stream.Send(&newproto.ShowFSRequest{Rpcid: 1, Token: token, Fsid: fsid}); err != nil {
+		fmt.Println("ShowFS failed", err)
+		os.Exit(1)
+	}
+	showFSResp, err := stream.Recv()
+	if err != nil {
+		fmt.Println("ShowFS failed", err)
+		os.Exit(1)
+	}
+	if showFSResp.Err != "" {
+		fmt.Println("ShowFS failed", showFSResp.Err)
+		os.Exit(1)
+	}
 	var data map[string]interface{}
-	if err := json.Unmarshal([]byte(res.Data), &data); err != nil {
+	if err := json.Unmarshal([]byte(showFSResp.Data), &data); err != nil {
 		return fmt.Errorf("Error unmarshalling response: %v", err)
 	}
 	fmt.Println("ID:", data["id"])
@@ -133,7 +149,6 @@ func show(addr, authURL, username, password string) error {
 	for _, ip := range data["addrs"].([]interface{}) {
 		fmt.Println("IP:", ip)
 	}
-
 	return nil
 }
 

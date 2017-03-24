@@ -55,6 +55,7 @@ type FileService interface {
 	NewRename(context.Context, *newproto.RenameRequest, *newproto.RenameResponse) error
 	NewSetAttr(context.Context, *newproto.SetAttrRequest, *newproto.SetAttrResponse) error
 	NewSetxattr(context.Context, *newproto.SetxattrRequest, *newproto.SetxattrResponse) error
+	NewShowFS(context.Context, *newproto.ShowFSRequest, *newproto.ShowFSResponse) error
 	NewStatfs(context.Context, *newproto.StatfsRequest, *newproto.StatfsResponse) error
 	NewSymlink(context.Context, *newproto.SymlinkRequest, *newproto.SymlinkResponse) error
 	NewWrite(context.Context, *newproto.WriteRequest, *newproto.WriteResponse) error
@@ -964,6 +965,87 @@ func (o *OortFS) NewSetxattr(ctx context.Context, req *newproto.SetxattrRequest,
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (o *OortFS) NewShowFS(ctx context.Context, req *newproto.ShowFSRequest, resp *newproto.ShowFSResponse) error {
+	var err error
+	var acctID string
+	acctID, err = o.validateToken(req.Token)
+	if err != nil {
+		return err
+	}
+	var fs FileSysMeta
+	var value []byte
+	var fsRef FileSysRef
+	var addrData AddrRef
+	var fsAttrData FileSysAttr
+	var aList []string
+	fs.ID = req.Fsid
+	// Read FileSysRef entry to determine if it exists
+	pKey := fmt.Sprintf("/fs")
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(fs.ID))
+	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
+	if store.IsNotFound(err) {
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(value, &fsRef)
+	if err != nil {
+		return err
+	}
+	// Validate Token/Account own the file system
+	if fsRef.AcctID != acctID {
+		return errors.New("permission denied")
+	}
+	fs.AcctID = fsRef.AcctID
+	// Read the file system attributes
+	// group-lookup /fs			FSID
+	//		Iterate over all the atributes
+	pKey = fmt.Sprintf("/fs/%s", fs.ID)
+	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
+	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
+	if store.IsNotFound(err) {
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(value, &fsAttrData)
+	if err != nil {
+		return err
+	}
+	fs.Name = fsAttrData.Value
+	// Read list of granted ip addresses
+	// group-lookup printf("/fs/%s/addr", FSID)
+	pKey = fmt.Sprintf("/fs/%s/addr", fs.ID)
+	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+	items, err := o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	if !store.IsNotFound(err) {
+		// No addr granted
+		aList = make([]string, len(items))
+		for k, v := range items {
+			err = json.Unmarshal(v.Value, &addrData)
+			if err != nil {
+				return err
+			}
+			aList[k] = addrData.Addr
+		}
+	}
+	if err != nil {
+		return err
+	}
+	fs.Addr = aList
+	// Return File System
+	fsJSON, jerr := json.Marshal(&fs)
+	if jerr != nil {
+		return jerr
+	}
+	resp.Data = string(fsJSON)
 	return nil
 }
 

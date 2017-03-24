@@ -679,6 +679,29 @@ func (f *Formic) Setxattr(stream newproto.Formic_SetxattrServer) error {
 	}
 }
 
+func (f *Formic) ShowFS(stream newproto.Formic_ShowFSServer) error {
+	var resp newproto.ShowFSResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		// No need to validateIP for ShowFS calls; token validation happens
+		// later.
+		if err = f.fs.NewShowFS(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
 func (f *Formic) Statfs(stream newproto.Formic_StatfsServer) error {
 	var resp newproto.StatfsResponse
 	for {
