@@ -4,7 +4,6 @@ package formicproto;
 
 // Message service definition for the FileSystemApi
 service FileSystemAPI {
-  rpc GrantAddrFS (GrantAddrFSRequest) returns (GrantAddrFSResponse) {}
   rpc RevokeAddrFS (RevokeAddrFSRequest) returns (RevokeAddrFSResponse) {}
 }
 
@@ -80,18 +79,6 @@ message FileBlock {
     uint32 version  = 1;
     bytes  data     = 2;
     uint32 checksum = 3;
-}
-
-// Request grant an ip address access to a file system
-message GrantAddrFSRequest {
-  string  Token      = 1;
-  string  FSid       = 2;
-  string  Addr       = 3;
-}
-
-// Response from granting ip address access to a file system
-message GrantAddrFSResponse {
-  string  Data          = 1;
 }
 
 // Request revoke an ip address access to a file system

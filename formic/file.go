@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"bazil.org/fuse"
@@ -22,6 +23,7 @@ import (
 	"github.com/spaolacci/murmur3"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/peer"
 )
 
 const (
@@ -43,6 +45,7 @@ type FileService interface {
 	NewDeleteFS(context.Context, *newproto.DeleteFSRequest, *newproto.DeleteFSResponse) error
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewGetxattr(context.Context, *newproto.GetxattrRequest, *newproto.GetxattrResponse) error
+	NewGrantAddrFS(context.Context, *newproto.GrantAddrFSRequest, *newproto.GrantAddrFSResponse) error
 	NewInitFs(context.Context, *newproto.InitFsRequest, *newproto.InitFsResponse) error
 	NewListFS(context.Context, *newproto.ListFSRequest, *newproto.ListFSResponse) error
 	NewListxattr(context.Context, *newproto.ListxattrRequest, *newproto.ListxattrResponse) error
@@ -613,6 +616,68 @@ func (o *OortFS) NewGetxattr(ctx context.Context, req *newproto.GetxattrRequest,
 		return err
 	}
 	resp.Xattr = n.Xattr[req.Name]
+	return nil
+}
+
+func (o *OortFS) NewGrantAddrFS(ctx context.Context, req *newproto.GrantAddrFSRequest, resp *newproto.GrantAddrFSResponse) error {
+	var err error
+	var acctID string
+	var fsRef FileSysRef
+	var value []byte
+	var addrData AddrRef
+	var addrByte []byte
+	srcAddr := ""
+	srcAddrIP := ""
+	// Get incomming ip
+	pr, ok := peer.FromContext(ctx)
+	if ok {
+		srcAddr = pr.Addr.String()
+	}
+	// validate token
+	acctID, err = o.validateToken(req.Token)
+	if err != nil {
+		return err
+	}
+	// Read FileSysRef entry to determine if it exists and Account matches
+	pKey := fmt.Sprintf("/fs")
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(req.Fsid))
+	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
+	if store.IsNotFound(err) {
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(value, &fsRef)
+	if err != nil {
+		return err
+	}
+	if fsRef.AcctID != acctID {
+		return errors.New("permission denied")
+	}
+	// GRANT an file system entry for the addr
+	// 		write /fs/FSID/addr			addr						AddrRef
+	if req.Addr == "" {
+		srcAddrIP = strings.Split(srcAddr, ":")[0]
+	} else {
+		srcAddrIP = req.Addr
+	}
+	pKey = fmt.Sprintf("/fs/%s/addr", req.Fsid)
+	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
+	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
+	addrData.Addr = srcAddrIP
+	addrData.FSID = req.Fsid
+	addrByte, err = json.Marshal(addrData)
+	if err != nil {
+		return err
+	}
+	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, addrByte)
+	if err != nil {
+		return err
+	}
+	resp.Data = srcAddrIP
 	return nil
 }
 
