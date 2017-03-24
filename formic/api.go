@@ -170,15 +170,3 @@ func (s *apiServer) Check(ctx context.Context, r *pb.CheckRequest) (*pb.CheckRes
 	// If we get here then everything is fine
 	return &pb.CheckResponse{Response: "No issues found."}, nil
 }
-
-func (s *apiServer) InitFs(ctx context.Context, r *pb.InitFsRequest) (*pb.InitFsResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.InitFsResponse{}, s.fs.InitFs(ctx, fsid.Bytes())
-}

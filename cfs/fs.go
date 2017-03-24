@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"sync"
@@ -216,15 +217,34 @@ func (f *fs) getContext() context.Context {
 }
 
 func (f *fs) InitFs() error {
+	// TODO: Should this really be a client side thing?
 	logger.Debug("Inside InitFs")
-	_, err := f.rpc.api().InitFs(f.getContext(), &pb.InitFsRequest{})
-	return err
+	// TODO: Placeholder code to get things working; needs to be replaced to be
+	// more like oort's client code.
+	stream, err := f.rpc.newClient.InitFs(f.getContext())
+	if err != nil {
+		logger.Debug("InitFs failed", zap.Error(err))
+		return err
+	}
+	if err = stream.Send(&newproto.InitFsRequest{Rpcid: 1}); err != nil {
+		logger.Debug("InitFs failed", zap.Error(err))
+		return err
+	}
+	initFsResp, err := stream.Recv()
+	if err != nil {
+		logger.Debug("InitFs failed", zap.Error(err))
+		return err
+	}
+	if initFsResp.Err != "" {
+		logger.Debug("InitFs failed", zap.String("Err", initFsResp.Err))
+		return errors.New(initFsResp.Err)
+	}
+	return nil
 }
 
 func (f *fs) handleGetattr(r *fuse.GetattrRequest) {
 	logger.Debug("Inside handleGetattr", zap.Any("request", r))
 	resp := &fuse.GetattrResponse{}
-
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
 	stream, err := f.rpc.newClient.GetAttr(f.getContext())

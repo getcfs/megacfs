@@ -36,6 +36,7 @@ type FileService interface {
 	NewCreate(context.Context, *newproto.CreateRequest, *newproto.CreateResponse) error
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewGetxattr(context.Context, *newproto.GetxattrRequest, *newproto.GetxattrResponse) error
+	NewInitFs(context.Context, *newproto.InitFsRequest, *newproto.InitFsResponse) error
 	NewListxattr(context.Context, *newproto.ListxattrRequest, *newproto.ListxattrResponse) error
 	NewLookup(context.Context, *newproto.LookupRequest, *newproto.LookupResponse) error
 	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
@@ -354,6 +355,14 @@ func (o *OortFS) NewGetxattr(ctx context.Context, req *newproto.GetxattrRequest,
 	}
 	resp.Xattr = n.Xattr[req.Name]
 	return nil
+}
+
+func (o *OortFS) NewInitFs(ctx context.Context, req *newproto.InitFsRequest, resp *newproto.InitFsResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	return o.InitFs(ctx, fsid.Bytes())
 }
 
 func (o *OortFS) NewListxattr(ctx context.Context, req *newproto.ListxattrRequest, resp *newproto.ListxattrResponse) error {
