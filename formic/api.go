@@ -10,17 +10,14 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
-
 	"github.com/getcfs/megacfs/flother"
-	pb "github.com/getcfs/megacfs/formic/formicproto"
-	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spaolacci/murmur3"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 )
 
 // ErrUnauthorized ...
@@ -133,40 +130,4 @@ func min(a, b int64) int64 {
 		return a
 	}
 	return b
-}
-
-func (s *apiServer) Check(ctx context.Context, r *pb.CheckRequest) (*pb.CheckResponse, error) {
-	err := s.validateIP(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fsid, err := GetFsId(ctx)
-	if err != nil {
-		return nil, err
-	}
-	s.log.Debug("Check Initiated", zap.Uint64("Parent", r.Inode), zap.String("Name", r.Name))
-	// Try looking up the dirent
-	dirent, err := s.fs.GetDirent(ctx, GetID(fsid.Bytes(), r.Inode, 0), r.Name)
-	if err != nil {
-		s.log.Debug("Check failed to find the Dirent", zap.Error(err))
-		return &pb.CheckResponse{Response: "Error: Could not find dirent."}, nil
-	}
-	// Read the inode block
-	_, err = s.fs.GetInode(ctx, dirent.Id)
-	if err != nil {
-		s.log.Debug("Check failed to find the Inode", zap.Error(err))
-		// Note: Unfortunately if we lose the inode block, there is no way to recover because we do not know the inode of the file itself
-		// Delete the entry
-		err = s.fs.DeleteListing(ctx, GetID(fsid.Bytes(), r.Inode, 0), r.Name, brimtime.TimeToUnixMicro(time.Now()))
-		if err != nil {
-			s.log.Debug("Check error removing listing", zap.Error(err))
-			return &pb.CheckResponse{Response: fmt.Sprintf("Error: Inode not found but could not delete the listing: %v", err)}, nil
-		} else {
-			s.log.Debug("Check removed dir entry", zap.Uint64("Parent", r.Inode), zap.String("Name", r.Name))
-			return &pb.CheckResponse{Response: "Inode could not be found, and dir entry removed."}, nil
-		}
-	}
-
-	// If we get here then everything is fine
-	return &pb.CheckResponse{Response: "No issues found."}, nil
 }

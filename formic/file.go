@@ -33,6 +33,7 @@ const (
 
 // FileService ...
 type FileService interface {
+	NewCheck(context.Context, *newproto.CheckRequest, *newproto.CheckResponse) error
 	NewCreate(context.Context, *newproto.CreateRequest, *newproto.CreateResponse) error
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewGetxattr(context.Context, *newproto.GetxattrRequest, *newproto.GetxattrResponse) error
@@ -264,6 +265,34 @@ func (o *OortFS) InitFs(ctx context.Context, fsid []byte) error {
 		// }
 		return errors.New("Root Entry does not Exist")
 	}
+	return nil
+}
+
+func (o *OortFS) NewCheck(ctx context.Context, req *newproto.CheckRequest, resp *newproto.CheckResponse) error {
+	fsid, err := GetFsId(ctx)
+	if err != nil {
+		return err
+	}
+	fsidb := fsid.Bytes()
+	// Try looking up the dirent
+	dirent, err := o.GetDirent(ctx, GetID(fsidb, req.Inode, 0), req.Name)
+	if err != nil {
+		return fmt.Errorf("Check failed to find the Dirent: %s", err)
+	}
+	// Read the inode block
+	_, err = o.GetInode(ctx, dirent.Id)
+	if err != nil {
+		// Note: Unfortunately if we lose the inode block, there is no way to
+		// recover because we do not know the inode of the file itself.
+		// Delete the entry.
+		err = o.DeleteListing(ctx, GetID(fsidb, req.Inode, 0), req.Name, brimtime.TimeToUnixMicro(time.Now()))
+		if err != nil {
+			return fmt.Errorf("Error: Inode not found but could not delete the listing: %s", err)
+		}
+		resp.Response = "Inode could not be found, and dir entry removed."
+	}
+	// If we get here then everything is fine
+	resp.Response = "No issues found."
 	return nil
 }
 
