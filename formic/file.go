@@ -43,6 +43,7 @@ type FileService interface {
 	NewGetAttr(context.Context, *newproto.GetAttrRequest, *newproto.GetAttrResponse) error
 	NewGetxattr(context.Context, *newproto.GetxattrRequest, *newproto.GetxattrResponse) error
 	NewInitFs(context.Context, *newproto.InitFsRequest, *newproto.InitFsResponse) error
+	NewListFS(context.Context, *newproto.ListFSRequest, *newproto.ListFSResponse) error
 	NewListxattr(context.Context, *newproto.ListxattrRequest, *newproto.ListxattrResponse) error
 	NewLookup(context.Context, *newproto.LookupRequest, *newproto.LookupResponse) error
 	NewMkDir(context.Context, *newproto.MkDirRequest, *newproto.MkDirResponse) error
@@ -513,6 +514,80 @@ func (o *OortFS) NewInitFs(ctx context.Context, req *newproto.InitFsRequest, res
 		return err
 	}
 	return o.InitFs(ctx, fsid.Bytes())
+}
+
+func (o *OortFS) NewListFS(ctx context.Context, req *newproto.ListFSRequest, resp *newproto.ListFSResponse) error {
+	acctID, err := o.validateToken(req.Token)
+	if err != nil {
+		return err
+	}
+	var value []byte
+	var fsRef FileSysRef
+	var addrData AddrRef
+	var fsAttrData FileSysAttr
+	var aList []string
+	// Read Group /acct/acctID				_						FileSysRef
+	pKey := fmt.Sprintf("/acct/%s", acctID)
+	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	list, err := o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	if err != nil {
+		return err
+	}
+	fsList := make([]FileSysMeta, len(list))
+	for k, v := range list {
+		clear(&fsRef)
+		clear(&addrData)
+		clear(&fsAttrData)
+		clear(&aList)
+		err = json.Unmarshal(v.Value, &fsRef)
+		if err != nil {
+			return err
+		}
+		fsList[k].AcctID = acctID
+		fsList[k].ID = fsRef.FSID
+		// Get File System Name
+		pKey = fmt.Sprintf("/fs/%s", fsList[k].ID)
+		pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+		cKeyA, cKeyB := murmur3.Sum128([]byte("name"))
+		_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
+		if store.IsNotFound(err) {
+			return err
+		}
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(value, &fsAttrData)
+		if err != nil {
+			return err
+		}
+		fsList[k].Name = fsAttrData.Value
+		// Get List of addrs
+		pKey = fmt.Sprintf("/fs/%s/addr", fsList[k].ID)
+		pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
+		items, err := o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+		if !store.IsNotFound(err) {
+			// No addr granted
+			aList = make([]string, len(items))
+			for sk, sv := range items {
+				err = json.Unmarshal(sv.Value, &addrData)
+				if err != nil {
+					return err
+				}
+				aList[sk] = addrData.Addr
+			}
+		}
+		if err != nil {
+			return err
+		}
+		fsList[k].Addr = aList
+	}
+	// Return a File System List
+	fsListJSON, jerr := json.Marshal(&fsList)
+	if jerr != nil {
+		return jerr
+	}
+	resp.Data = string(fsListJSON)
+	return nil
 }
 
 func (o *OortFS) NewListxattr(ctx context.Context, req *newproto.ListxattrRequest, resp *newproto.ListxattrResponse) error {

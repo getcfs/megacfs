@@ -4,7 +4,6 @@ package formicproto;
 
 // Message service definition for the FileSystemApi
 service FileSystemAPI {
-  rpc ListFS (ListFSRequest) returns (ListFSResponse) {}
   rpc ShowFS (ShowFSRequest) returns (ShowFSResponse) {}
   rpc DeleteFS (DeleteFSRequest) returns (DeleteFSResponse) {}
   rpc UpdateFS (UpdateFSRequest) returns (UpdateFSResponse) {}
@@ -90,16 +89,6 @@ message FileBlock {
 message ModFS {
   string    Name         = 1;
   string    Status       = 2;
-}
-
-// Request a list of all file systems for a given account
-message ListFSRequest{
-  string  Token           = 1;
-}
-
-// Response for displaying a list of all an accounts file systems.
-message ListFSResponse {
-  string  Data    = 1;
 }
 
 // Request to show the specific details about a file system

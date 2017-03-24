@@ -299,7 +299,8 @@ func (f *Formic) CreateFS(stream newproto.Formic_CreateFSServer) error {
 			return err
 		}
 		resp.Reset()
-		// No need to validateIP for CreateFS calls.
+		// No need to validateIP for CreateFS calls; token validation happens
+		// later.
 		if err = f.fs.NewCreateFS(stream.Context(), req, &resp); err != nil {
 			resp.Err = err.Error()
 		}
@@ -393,6 +394,29 @@ func (f *Formic) InitFs(stream newproto.Formic_InitFsServer) error {
 		if err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
 		} else if err = f.fs.NewInitFs(stream.Context(), req, &resp); err != nil {
+			resp.Err = err.Error()
+		}
+		resp.Rpcid = req.Rpcid
+		if err := stream.Send(&resp); err != nil {
+			return err
+		}
+	}
+}
+
+func (f *Formic) ListFS(stream newproto.Formic_ListFSServer) error {
+	var resp newproto.ListFSResponse
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		resp.Reset()
+		// No need to validateIP for ListFS calls; token validation happens
+		// later.
+		if err = f.fs.NewListFS(stream.Context(), req, &resp); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
