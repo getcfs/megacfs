@@ -36,32 +36,32 @@ const (
 
 // FileService ...
 type FileService interface {
-	NewCheck(context.Context, *formicproto.CheckRequest, *formicproto.CheckResponse, string) error
-	NewCreateFS(context.Context, *formicproto.CreateFSRequest, *formicproto.CreateFSResponse, string) error
-	NewCreate(context.Context, *formicproto.CreateRequest, *formicproto.CreateResponse, string) error
-	NewDeleteFS(context.Context, *formicproto.DeleteFSRequest, *formicproto.DeleteFSResponse, string) error
-	NewGetAttr(context.Context, *formicproto.GetAttrRequest, *formicproto.GetAttrResponse, string) error
-	NewGetxattr(context.Context, *formicproto.GetxattrRequest, *formicproto.GetxattrResponse, string) error
-	NewGrantAddrFS(context.Context, *formicproto.GrantAddrFSRequest, *formicproto.GrantAddrFSResponse, string) error
-	NewInitFs(context.Context, *formicproto.InitFsRequest, *formicproto.InitFsResponse, string) error
-	NewListFS(context.Context, *formicproto.ListFSRequest, *formicproto.ListFSResponse, string) error
-	NewListxattr(context.Context, *formicproto.ListxattrRequest, *formicproto.ListxattrResponse, string) error
-	NewLookup(context.Context, *formicproto.LookupRequest, *formicproto.LookupResponse, string) error
-	NewMkDir(context.Context, *formicproto.MkDirRequest, *formicproto.MkDirResponse, string) error
-	NewReadDirAll(context.Context, *formicproto.ReadDirAllRequest, *formicproto.ReadDirAllResponse, string) error
-	NewReadlink(context.Context, *formicproto.ReadlinkRequest, *formicproto.ReadlinkResponse, string) error
-	NewRead(context.Context, *formicproto.ReadRequest, *formicproto.ReadResponse, string) error
-	NewRemove(context.Context, *formicproto.RemoveRequest, *formicproto.RemoveResponse, string) error
-	NewRemovexattr(context.Context, *formicproto.RemovexattrRequest, *formicproto.RemovexattrResponse, string) error
-	NewRename(context.Context, *formicproto.RenameRequest, *formicproto.RenameResponse, string) error
-	NewRevokeAddrFS(context.Context, *formicproto.RevokeAddrFSRequest, *formicproto.RevokeAddrFSResponse, string) error
-	NewSetAttr(context.Context, *formicproto.SetAttrRequest, *formicproto.SetAttrResponse, string) error
-	NewSetxattr(context.Context, *formicproto.SetxattrRequest, *formicproto.SetxattrResponse, string) error
-	NewShowFS(context.Context, *formicproto.ShowFSRequest, *formicproto.ShowFSResponse, string) error
-	NewStatfs(context.Context, *formicproto.StatfsRequest, *formicproto.StatfsResponse, string) error
-	NewSymlink(context.Context, *formicproto.SymlinkRequest, *formicproto.SymlinkResponse, string) error
-	NewUpdateFS(context.Context, *formicproto.UpdateFSRequest, *formicproto.UpdateFSResponse, string) error
-	NewWrite(context.Context, *formicproto.WriteRequest, *formicproto.WriteResponse, string) error
+	Check(context.Context, *formicproto.CheckRequest, *formicproto.CheckResponse, string) error
+	CreateFS(context.Context, *formicproto.CreateFSRequest, *formicproto.CreateFSResponse, string) error
+	Create(context.Context, *formicproto.CreateRequest, *formicproto.CreateResponse, string) error
+	DeleteFS(context.Context, *formicproto.DeleteFSRequest, *formicproto.DeleteFSResponse, string) error
+	GetAttr(context.Context, *formicproto.GetAttrRequest, *formicproto.GetAttrResponse, string) error
+	Getxattr(context.Context, *formicproto.GetxattrRequest, *formicproto.GetxattrResponse, string) error
+	GrantAddrFS(context.Context, *formicproto.GrantAddrFSRequest, *formicproto.GrantAddrFSResponse, string) error
+	InitFs(context.Context, *formicproto.InitFsRequest, *formicproto.InitFsResponse, string) error
+	ListFS(context.Context, *formicproto.ListFSRequest, *formicproto.ListFSResponse, string) error
+	Listxattr(context.Context, *formicproto.ListxattrRequest, *formicproto.ListxattrResponse, string) error
+	Lookup(context.Context, *formicproto.LookupRequest, *formicproto.LookupResponse, string) error
+	MkDir(context.Context, *formicproto.MkDirRequest, *formicproto.MkDirResponse, string) error
+	ReadDirAll(context.Context, *formicproto.ReadDirAllRequest, *formicproto.ReadDirAllResponse, string) error
+	Readlink(context.Context, *formicproto.ReadlinkRequest, *formicproto.ReadlinkResponse, string) error
+	Read(context.Context, *formicproto.ReadRequest, *formicproto.ReadResponse, string) error
+	Remove(context.Context, *formicproto.RemoveRequest, *formicproto.RemoveResponse, string) error
+	Removexattr(context.Context, *formicproto.RemovexattrRequest, *formicproto.RemovexattrResponse, string) error
+	Rename(context.Context, *formicproto.RenameRequest, *formicproto.RenameResponse, string) error
+	RevokeAddrFS(context.Context, *formicproto.RevokeAddrFSRequest, *formicproto.RevokeAddrFSResponse, string) error
+	SetAttr(context.Context, *formicproto.SetAttrRequest, *formicproto.SetAttrResponse, string) error
+	Setxattr(context.Context, *formicproto.SetxattrRequest, *formicproto.SetxattrResponse, string) error
+	ShowFS(context.Context, *formicproto.ShowFSRequest, *formicproto.ShowFSResponse, string) error
+	Statfs(context.Context, *formicproto.StatfsRequest, *formicproto.StatfsResponse, string) error
+	Symlink(context.Context, *formicproto.SymlinkRequest, *formicproto.SymlinkResponse, string) error
+	UpdateFS(context.Context, *formicproto.UpdateFSRequest, *formicproto.UpdateFSResponse, string) error
+	Write(context.Context, *formicproto.WriteRequest, *formicproto.WriteResponse, string) error
 
 	create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *formicproto.Attr, isdir bool) (string, *formicproto.Attr, error)
 	update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
@@ -237,7 +237,7 @@ func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteIte
 	return o
 }
 
-func (o *OortFS) NewCheck(ctx context.Context, req *formicproto.CheckRequest, resp *formicproto.CheckResponse, fsid string) error {
+func (o *OortFS) Check(ctx context.Context, req *formicproto.CheckRequest, resp *formicproto.CheckResponse, fsid string) error {
 	b, err := o.comms.ReadGroupItem(ctx, GetID(fsid, req.Inode, 0), []byte(req.Name))
 	if store.IsNotFound(err) {
 		resp.Response = "not found"
@@ -267,7 +267,7 @@ func (o *OortFS) NewCheck(ctx context.Context, req *formicproto.CheckRequest, re
 	return nil
 }
 
-func (o *OortFS) NewCreateFS(ctx context.Context, req *formicproto.CreateFSRequest, resp *formicproto.CreateFSResponse, acctID string) error {
+func (o *OortFS) CreateFS(ctx context.Context, req *formicproto.CreateFSRequest, resp *formicproto.CreateFSResponse, acctID string) error {
 	var err error
 	var fsRef FileSysRef
 	var fsRefByte []byte
@@ -370,7 +370,7 @@ func (o *OortFS) NewCreateFS(ctx context.Context, req *formicproto.CreateFSReque
 	return nil
 }
 
-func (o *OortFS) NewCreate(ctx context.Context, req *formicproto.CreateRequest, resp *formicproto.CreateResponse, fsid string) error {
+func (o *OortFS) Create(ctx context.Context, req *formicproto.CreateRequest, resp *formicproto.CreateResponse, fsid string) error {
 	ts := time.Now().Unix()
 	inode := o.fl.GetID()
 	attr := &formicproto.Attr{
@@ -406,7 +406,7 @@ func (o *OortFS) NewCreate(ctx context.Context, req *formicproto.CreateRequest, 
 	return nil
 }
 
-func (o *OortFS) NewDeleteFS(ctx context.Context, req *formicproto.DeleteFSRequest, resp *formicproto.DeleteFSResponse, acctID string) error {
+func (o *OortFS) DeleteFS(ctx context.Context, req *formicproto.DeleteFSRequest, resp *formicproto.DeleteFSResponse, acctID string) error {
 	var err error
 	var value []byte
 	var fsRef FileSysRef
@@ -506,7 +506,7 @@ func (o *OortFS) NewDeleteFS(ctx context.Context, req *formicproto.DeleteFSReque
 	return nil
 }
 
-func (o *OortFS) NewGetAttr(ctx context.Context, req *formicproto.GetAttrRequest, resp *formicproto.GetAttrResponse, fsid string) error {
+func (o *OortFS) GetAttr(ctx context.Context, req *formicproto.GetAttrRequest, resp *formicproto.GetAttrResponse, fsid string) error {
 	b, err := o.getChunk(ctx, GetID(fsid, req.Inode, 0))
 	if err != nil {
 		return err
@@ -533,7 +533,7 @@ func (o *OortFS) NewGetAttr(ctx context.Context, req *formicproto.GetAttrRequest
 	return nil
 }
 
-func (o *OortFS) NewGetxattr(ctx context.Context, req *formicproto.GetxattrRequest, resp *formicproto.GetxattrResponse, fsid string) error {
+func (o *OortFS) Getxattr(ctx context.Context, req *formicproto.GetxattrRequest, resp *formicproto.GetxattrResponse, fsid string) error {
 	id := GetID(fsid, req.Inode, 0)
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
@@ -548,7 +548,7 @@ func (o *OortFS) NewGetxattr(ctx context.Context, req *formicproto.GetxattrReque
 	return nil
 }
 
-func (o *OortFS) NewGrantAddrFS(ctx context.Context, req *formicproto.GrantAddrFSRequest, resp *formicproto.GrantAddrFSResponse, acctID string) error {
+func (o *OortFS) GrantAddrFS(ctx context.Context, req *formicproto.GrantAddrFSRequest, resp *formicproto.GrantAddrFSResponse, acctID string) error {
 	var err error
 	var fsRef FileSysRef
 	var value []byte
@@ -604,7 +604,7 @@ func (o *OortFS) NewGrantAddrFS(ctx context.Context, req *formicproto.GrantAddrF
 	return nil
 }
 
-func (o *OortFS) NewInitFs(ctx context.Context, req *formicproto.InitFsRequest, resp *formicproto.InitFsResponse, fsid string) error {
+func (o *OortFS) InitFs(ctx context.Context, req *formicproto.InitFsRequest, resp *formicproto.InitFsResponse, fsid string) error {
 	id := GetID(fsid, 1, 0)
 	n, _ := o.getChunk(ctx, id)
 	if len(n) == 0 {
@@ -613,7 +613,7 @@ func (o *OortFS) NewInitFs(ctx context.Context, req *formicproto.InitFsRequest, 
 	return nil
 }
 
-func (o *OortFS) NewListFS(ctx context.Context, req *formicproto.ListFSRequest, resp *formicproto.ListFSResponse, acctID string) error {
+func (o *OortFS) ListFS(ctx context.Context, req *formicproto.ListFSRequest, resp *formicproto.ListFSResponse, acctID string) error {
 	var value []byte
 	// Read Group /acct/acctID				_						FileSysRef
 	pKey := fmt.Sprintf("/acct/%s", acctID)
@@ -679,7 +679,7 @@ func (o *OortFS) NewListFS(ctx context.Context, req *formicproto.ListFSRequest, 
 	return nil
 }
 
-func (o *OortFS) NewListxattr(ctx context.Context, req *formicproto.ListxattrRequest, resp *formicproto.ListxattrResponse, fsid string) error {
+func (o *OortFS) Listxattr(ctx context.Context, req *formicproto.ListxattrRequest, resp *formicproto.ListxattrResponse, fsid string) error {
 	id := GetID(fsid, req.Inode, 0)
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
@@ -700,7 +700,7 @@ func (o *OortFS) NewListxattr(ctx context.Context, req *formicproto.ListxattrReq
 	return nil
 }
 
-func (o *OortFS) NewLookup(ctx context.Context, req *formicproto.LookupRequest, resp *formicproto.LookupResponse, fsid string) error {
+func (o *OortFS) Lookup(ctx context.Context, req *formicproto.LookupRequest, resp *formicproto.LookupResponse, fsid string) error {
 	var err error
 	parent := GetID(fsid, req.Parent, 0)
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(req.Name))
@@ -739,7 +739,7 @@ func (o *OortFS) NewLookup(ctx context.Context, req *formicproto.LookupRequest, 
 	return nil
 }
 
-func (o *OortFS) NewReadDirAll(ctx context.Context, req *formicproto.ReadDirAllRequest, resp *formicproto.ReadDirAllResponse, fsid string) error {
+func (o *OortFS) ReadDirAll(ctx context.Context, req *formicproto.ReadDirAllRequest, resp *formicproto.ReadDirAllResponse, fsid string) error {
 	id := GetID(fsid, req.Inode, 0)
 	// Get the keys from the group
 	items, err := o.comms.ReadGroup(ctx, id)
@@ -759,7 +759,7 @@ func (o *OortFS) NewReadDirAll(ctx context.Context, req *formicproto.ReadDirAllR
 	return nil
 }
 
-func (o *OortFS) NewReadlink(ctx context.Context, req *formicproto.ReadlinkRequest, resp *formicproto.ReadlinkResponse, fsid string) error {
+func (o *OortFS) Readlink(ctx context.Context, req *formicproto.ReadlinkRequest, resp *formicproto.ReadlinkResponse, fsid string) error {
 	id := GetID(fsid, req.Inode, 0)
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
@@ -774,7 +774,7 @@ func (o *OortFS) NewReadlink(ctx context.Context, req *formicproto.ReadlinkReque
 	return nil
 }
 
-func (o *OortFS) NewMkDir(ctx context.Context, req *formicproto.MkDirRequest, resp *formicproto.MkDirResponse, fsid string) error {
+func (o *OortFS) MkDir(ctx context.Context, req *formicproto.MkDirRequest, resp *formicproto.MkDirResponse, fsid string) error {
 	ts := time.Now().Unix()
 	inode := o.fl.GetID()
 	attr := &formicproto.Attr{
@@ -810,7 +810,7 @@ func (o *OortFS) NewMkDir(ctx context.Context, req *formicproto.MkDirRequest, re
 	return nil
 }
 
-func (o *OortFS) NewRead(ctx context.Context, req *formicproto.ReadRequest, resp *formicproto.ReadResponse, fsid string) error {
+func (o *OortFS) Read(ctx context.Context, req *formicproto.ReadRequest, resp *formicproto.ReadResponse, fsid string) error {
 	block := uint64(req.Offset / o.blocksize)
 	resp.Payload = make([]byte, 0, req.Size)
 	firstOffset := int64(0)
@@ -844,7 +844,7 @@ func (o *OortFS) NewRead(ctx context.Context, req *formicproto.ReadRequest, resp
 	return nil
 }
 
-func (o *OortFS) NewRemove(ctx context.Context, req *formicproto.RemoveRequest, resp *formicproto.RemoveResponse, fsid string) error {
+func (o *OortFS) Remove(ctx context.Context, req *formicproto.RemoveRequest, resp *formicproto.RemoveResponse, fsid string) error {
 	// TODO: No need for this status thing; can refactor to just return errors.
 	status, err := o.remove(ctx, fsid, GetID(fsid, req.Parent, 0), req.Name)
 	if err != nil {
@@ -856,7 +856,7 @@ func (o *OortFS) NewRemove(ctx context.Context, req *formicproto.RemoveRequest, 
 	return nil
 }
 
-func (o *OortFS) NewRemovexattr(ctx context.Context, req *formicproto.RemovexattrRequest, resp *formicproto.RemovexattrResponse, fsid string) error {
+func (o *OortFS) Removexattr(ctx context.Context, req *formicproto.RemovexattrRequest, resp *formicproto.RemovexattrResponse, fsid string) error {
 	id := GetID(fsid, req.Inode, 0)
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
@@ -879,7 +879,7 @@ func (o *OortFS) NewRemovexattr(ctx context.Context, req *formicproto.Removexatt
 	return nil
 }
 
-func (o *OortFS) NewRename(ctx context.Context, req *formicproto.RenameRequest, resp *formicproto.RenameResponse, fsid string) error {
+func (o *OortFS) Rename(ctx context.Context, req *formicproto.RenameRequest, resp *formicproto.RenameResponse, fsid string) error {
 	// TODO: Note that renames are not atomic!
 	oldParent := GetID(fsid, req.OldParent, 0)
 	newParent := GetID(fsid, req.NewParent, 0)
@@ -919,7 +919,7 @@ func (o *OortFS) NewRename(ctx context.Context, req *formicproto.RenameRequest, 
 	return nil
 }
 
-func (o *OortFS) NewRevokeAddrFS(ctx context.Context, req *formicproto.RevokeAddrFSRequest, resp *formicproto.RevokeAddrFSResponse, acctID string) error {
+func (o *OortFS) RevokeAddrFS(ctx context.Context, req *formicproto.RevokeAddrFSRequest, resp *formicproto.RevokeAddrFSResponse, acctID string) error {
 	var err error
 	var value []byte
 	var fsRef FileSysRef
@@ -971,7 +971,7 @@ func (o *OortFS) NewRevokeAddrFS(ctx context.Context, req *formicproto.RevokeAdd
 	return nil
 }
 
-func (o *OortFS) NewSetAttr(ctx context.Context, req *formicproto.SetAttrRequest, resp *formicproto.SetAttrResponse, fsid string) error {
+func (o *OortFS) SetAttr(ctx context.Context, req *formicproto.SetAttrRequest, resp *formicproto.SetAttrResponse, fsid string) error {
 	id := GetID(fsid, req.Attr.Inode, 0)
 	attr := req.Attr
 	valid := fuse.SetattrValid(req.Valid)
@@ -1049,7 +1049,7 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *formicproto.SetAttrRequest
 	return nil
 }
 
-func (o *OortFS) NewSetxattr(ctx context.Context, req *formicproto.SetxattrRequest, resp *formicproto.SetxattrResponse, fsid string) error {
+func (o *OortFS) Setxattr(ctx context.Context, req *formicproto.SetxattrRequest, resp *formicproto.SetxattrResponse, fsid string) error {
 	// NOTE: Setting xattrs is NOT concurrency safe!
 	id := GetID(fsid, req.Inode, 0)
 	b, err := o.getChunk(ctx, id)
@@ -1076,7 +1076,7 @@ func (o *OortFS) NewSetxattr(ctx context.Context, req *formicproto.SetxattrReque
 	return nil
 }
 
-func (o *OortFS) NewShowFS(ctx context.Context, req *formicproto.ShowFSRequest, resp *formicproto.ShowFSResponse, acctID string) error {
+func (o *OortFS) ShowFS(ctx context.Context, req *formicproto.ShowFSRequest, resp *formicproto.ShowFSResponse, acctID string) error {
 	var err error
 	var fs FileSysMeta
 	var value []byte
@@ -1151,7 +1151,7 @@ func (o *OortFS) NewShowFS(ctx context.Context, req *formicproto.ShowFSRequest, 
 	return nil
 }
 
-func (o *OortFS) NewStatfs(ctx context.Context, req *formicproto.StatfsRequest, resp *formicproto.StatfsResponse, fsid string) error {
+func (o *OortFS) Statfs(ctx context.Context, req *formicproto.StatfsRequest, resp *formicproto.StatfsResponse, fsid string) error {
 	resp.Blocks = 281474976710656 // 1 exabyte (asuming 4K block size)
 	resp.Bfree = 281474976710656
 	resp.Bavail = 281474976710656
@@ -1163,7 +1163,7 @@ func (o *OortFS) NewStatfs(ctx context.Context, req *formicproto.StatfsRequest, 
 	return nil
 }
 
-func (o *OortFS) NewSymlink(ctx context.Context, req *formicproto.SymlinkRequest, resp *formicproto.SymlinkResponse, fsid string) error {
+func (o *OortFS) Symlink(ctx context.Context, req *formicproto.SymlinkRequest, resp *formicproto.SymlinkResponse, fsid string) error {
 	parent := GetID(fsid, req.Parent, 0)
 	inode := o.fl.GetID()
 	id := GetID(fsid, inode, 0)
@@ -1236,7 +1236,7 @@ func (o *OortFS) NewSymlink(ctx context.Context, req *formicproto.SymlinkRequest
 	return nil
 }
 
-func (o *OortFS) NewUpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest, resp *formicproto.UpdateFSResponse, acctID string) error {
+func (o *OortFS) UpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest, resp *formicproto.UpdateFSResponse, acctID string) error {
 	var err error
 	var value []byte
 	var fsRef FileSysRef
@@ -1286,7 +1286,7 @@ func (o *OortFS) NewUpdateFS(ctx context.Context, req *formicproto.UpdateFSReque
 	return nil
 }
 
-func (o *OortFS) NewWrite(ctx context.Context, req *formicproto.WriteRequest, resp *formicproto.WriteResponse, fsid string) error {
+func (o *OortFS) Write(ctx context.Context, req *formicproto.WriteRequest, resp *formicproto.WriteResponse, fsid string) error {
 	block := uint64(req.Offset / o.blocksize)
 	firstOffset := int64(0)
 	if req.Offset%o.blocksize != 0 {
