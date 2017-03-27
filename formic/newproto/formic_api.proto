@@ -71,19 +71,6 @@ message CreateResponse {
     string err   = 4;
 }
 
-message Attr {
-    uint64 inode  = 1;
-    int64  atime  = 2;
-    int64  mtime  = 3;
-    int64  ctime  = 4;
-    int64  crtime = 5;
-    uint32 mode   = 6;
-    int32  valid  = 7;
-    uint64 size   = 8;
-    uint32 uid    = 9;
-    uint32 gid    = 10;
-}
-
 
 message DeleteFSRequest {
     uint32 rpcid = 1;
@@ -228,7 +215,7 @@ message ReadDirAllResponse {
 }
 
 message DirEnt {
-    string name   = 1;
+    string name   = 1; // TODO: Double check if this needs to be in the persistence section below.
     uint32 type   = 3;
 }
 
@@ -386,7 +373,7 @@ message UpdateFSResponse {
     string err   = 3;
 }
 
-message ModFS {
+message ModFS { // TODO: Does this really need to be a separate message?
   string name   = 1;
   string status = 2;
 }
@@ -403,4 +390,68 @@ message WriteRequest {
 message WriteResponse {
     uint32 rpcid  = 1;
     string err    = 2;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// The following messages are used for persisting data within the cluster and,
+// sometimes, for messaging with the formic service above.
+//
+
+message InodeEntry {
+    uint32 version            = 1;
+    bool   isDir              = 2;
+    Attr   attr               = 3;
+    uint64 parent             = 4;
+    uint64 inode              = 5;
+    uint64 nodeCount          = 6;
+    bool   isLink             = 7;
+    string target             = 8;
+    map<string, bytes>  xattr = 9; // NOTE: Probably not the best long term way to do this
+    uint64 blocks             = 10;
+    uint64 blockSize          = 11;
+    bytes  fsId               = 13;
+}
+
+message Attr {
+    uint64 inode  = 1;
+    int64  atime  = 2;
+    int64  mtime  = 3;
+    int64  ctime  = 4;
+    int64  crtime = 5;
+    uint32 mode   = 6;
+    int32  valid  = 7;
+    uint64 size   = 8;
+    uint32 uid    = 9;
+    uint32 gid    = 10;
+}
+
+message DirEntry {
+    uint32    version   = 1;
+    string    name      = 2;
+    bytes     id        = 3;
+    Tombstone tombstone = 4; // If set, this record has been deleted
+    uint32    type      = 5;
+}
+
+message Tombstone {
+    int64  dtime  = 1; // Timestamp micro the delete request was made
+    int64  qtime  = 2; // Timestamp micro of the most recent queing of delete
+    bytes  fsId   = 3; // Needed to get the block IDs
+    uint64 inode  = 4;
+    uint64 blocks = 5; // Blocks from the original object that need to be deleted
+}
+
+message FileBlock {
+    uint32 version  = 1;
+    bytes  data     = 2;
+    uint32 checksum = 3;
+}
+
+message Dirty {
+    int64  dtime  = 1; // Timestamp micro the update was made
+    int64  qtime  = 2; // Timestamp micro of the most recent queing of delete
+    bytes  fsId   = 3; // Needed to get the block IDs
+    uint64 inode  = 4;
+    uint64 blocks = 5; // Blocks from the original object that was dirty
 }

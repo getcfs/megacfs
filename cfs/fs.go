@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fuseutil"
-	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/formic/newproto"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -192,7 +192,7 @@ func copyNewAttr(dst *fuse.Attr, src *newproto.Attr) {
 	dst.Blocks = dst.Size / 512 // set Blocks so df works without the --apparent-size flag
 }
 
-func copyAttr(dst *fuse.Attr, src *pb.Attr) {
+func copyAttr(dst *fuse.Attr, src *newproto.Attr) {
 	dst.Inode = src.Inode
 	dst.Mode = os.FileMode(src.Mode)
 	dst.Size = src.Size
@@ -299,7 +299,7 @@ func (f *fs) handleLookup(req *fuse.LookupRequest) {
 	}
 	if protoResp.Err != "" {
 		// TODO: Rework this and error codes like this to be more like oort.
-		if protoResp.Err == "rpc error: code = 5 desc = Not Found" {
+		if protoResp.Err == "not found by remote store" {
 			logger.Debug("ENOENT Lookup", zap.String("name", req.Name))
 			req.RespondError(fuse.ENOENT)
 			return
@@ -627,6 +627,11 @@ func (f *fs) handleRemove(req *fuse.RemoveRequest) {
 	if err != nil {
 		logger.Debug("Remove failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
+		return
+	}
+	if removeResp.Err == "not empty" {
+		logger.Debug("Remove failed", zap.String("Err", removeResp.Err))
+		req.RespondError(fuse.Errno(syscall.ENOTEMPTY))
 		return
 	}
 	if removeResp.Err != "" {
