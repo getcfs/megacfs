@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/getcfs/megacfs/formic"
-	"github.com/getcfs/megacfs/formic/newproto"
+	"github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/getcfs/megacfs/oort"
 	"github.com/gholt/ring"
@@ -209,7 +209,7 @@ func (f *Formic) Startup(ctx context.Context) error {
 		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
 		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
 	)
-	newproto.RegisterFormicServer(f.grpcServer, f)
+	formicproto.RegisterFormicServer(f.grpcServer, f)
 	grpc_prometheus.Register(f.grpcServer)
 	f.waitGroup.Add(1)
 	go func() {
@@ -241,7 +241,7 @@ func (f *Formic) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (f *Formic) Check(stream newproto.Formic_CheckServer) error {
+func (f *Formic) Check(stream formicproto.Formic_CheckServer) error {
 	// NOTE: Each of these streams is synchronized req1, resp1, req2, resp2.
 	// But it doesn't have to be that way, it was just simpler to code. Each
 	// client/server pair will have a stream for each request/response type, so
@@ -254,7 +254,7 @@ func (f *Formic) Check(stream newproto.Formic_CheckServer) error {
 	// set up and tear down streams for each request, but that's just a guess.
 	// We stopped looking into it once we noticed the speed gains from
 	// switching to streaming.
-	var resp newproto.CheckResponse
+	var resp formicproto.CheckResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -276,7 +276,7 @@ func (f *Formic) Check(stream newproto.Formic_CheckServer) error {
 	}
 }
 
-func (f *Formic) CreateFS(stream newproto.Formic_CreateFSServer) error {
+func (f *Formic) CreateFS(stream formicproto.Formic_CreateFSServer) error {
 	// NOTE: Each of these streams is synchronized req1, resp1, req2, resp2.
 	// But it doesn't have to be that way, it was just simpler to code. Each
 	// client/server pair will have a stream for each request/response type, so
@@ -289,7 +289,7 @@ func (f *Formic) CreateFS(stream newproto.Formic_CreateFSServer) error {
 	// set up and tear down streams for each request, but that's just a guess.
 	// We stopped looking into it once we noticed the speed gains from
 	// switching to streaming.
-	var resp newproto.CreateFSResponse
+	var resp formicproto.CreateFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -311,8 +311,8 @@ func (f *Formic) CreateFS(stream newproto.Formic_CreateFSServer) error {
 	}
 }
 
-func (f *Formic) Create(stream newproto.Formic_CreateServer) error {
-	var resp newproto.CreateResponse
+func (f *Formic) Create(stream formicproto.Formic_CreateServer) error {
+	var resp formicproto.CreateResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -334,8 +334,8 @@ func (f *Formic) Create(stream newproto.Formic_CreateServer) error {
 	}
 }
 
-func (f *Formic) DeleteFS(stream newproto.Formic_DeleteFSServer) error {
-	var resp newproto.DeleteFSResponse
+func (f *Formic) DeleteFS(stream formicproto.Formic_DeleteFSServer) error {
+	var resp formicproto.DeleteFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -357,8 +357,8 @@ func (f *Formic) DeleteFS(stream newproto.Formic_DeleteFSServer) error {
 	}
 }
 
-func (f *Formic) GetAttr(stream newproto.Formic_GetAttrServer) error {
-	var resp newproto.GetAttrResponse
+func (f *Formic) GetAttr(stream formicproto.Formic_GetAttrServer) error {
+	var resp formicproto.GetAttrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -380,8 +380,8 @@ func (f *Formic) GetAttr(stream newproto.Formic_GetAttrServer) error {
 	}
 }
 
-func (f *Formic) Getxattr(stream newproto.Formic_GetxattrServer) error {
-	var resp newproto.GetxattrResponse
+func (f *Formic) Getxattr(stream formicproto.Formic_GetxattrServer) error {
+	var resp formicproto.GetxattrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -403,8 +403,8 @@ func (f *Formic) Getxattr(stream newproto.Formic_GetxattrServer) error {
 	}
 }
 
-func (f *Formic) GrantAddrFS(stream newproto.Formic_GrantAddrFSServer) error {
-	var resp newproto.GrantAddrFSResponse
+func (f *Formic) GrantAddrFS(stream formicproto.Formic_GrantAddrFSServer) error {
+	var resp formicproto.GrantAddrFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -426,8 +426,8 @@ func (f *Formic) GrantAddrFS(stream newproto.Formic_GrantAddrFSServer) error {
 	}
 }
 
-func (f *Formic) InitFs(stream newproto.Formic_InitFsServer) error {
-	var resp newproto.InitFsResponse
+func (f *Formic) InitFs(stream formicproto.Formic_InitFsServer) error {
+	var resp formicproto.InitFsResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -449,8 +449,8 @@ func (f *Formic) InitFs(stream newproto.Formic_InitFsServer) error {
 	}
 }
 
-func (f *Formic) ListFS(stream newproto.Formic_ListFSServer) error {
-	var resp newproto.ListFSResponse
+func (f *Formic) ListFS(stream formicproto.Formic_ListFSServer) error {
+	var resp formicproto.ListFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -472,8 +472,8 @@ func (f *Formic) ListFS(stream newproto.Formic_ListFSServer) error {
 	}
 }
 
-func (f *Formic) Listxattr(stream newproto.Formic_ListxattrServer) error {
-	var resp newproto.ListxattrResponse
+func (f *Formic) Listxattr(stream formicproto.Formic_ListxattrServer) error {
+	var resp formicproto.ListxattrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -495,8 +495,8 @@ func (f *Formic) Listxattr(stream newproto.Formic_ListxattrServer) error {
 	}
 }
 
-func (f *Formic) Lookup(stream newproto.Formic_LookupServer) error {
-	var resp newproto.LookupResponse
+func (f *Formic) Lookup(stream formicproto.Formic_LookupServer) error {
+	var resp formicproto.LookupResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -518,8 +518,8 @@ func (f *Formic) Lookup(stream newproto.Formic_LookupServer) error {
 	}
 }
 
-func (f *Formic) MkDir(stream newproto.Formic_MkDirServer) error {
-	var resp newproto.MkDirResponse
+func (f *Formic) MkDir(stream formicproto.Formic_MkDirServer) error {
+	var resp formicproto.MkDirResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -541,8 +541,8 @@ func (f *Formic) MkDir(stream newproto.Formic_MkDirServer) error {
 	}
 }
 
-func (f *Formic) ReadDirAll(stream newproto.Formic_ReadDirAllServer) error {
-	var resp newproto.ReadDirAllResponse
+func (f *Formic) ReadDirAll(stream formicproto.Formic_ReadDirAllServer) error {
+	var resp formicproto.ReadDirAllResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -564,8 +564,8 @@ func (f *Formic) ReadDirAll(stream newproto.Formic_ReadDirAllServer) error {
 	}
 }
 
-func (f *Formic) Readlink(stream newproto.Formic_ReadlinkServer) error {
-	var resp newproto.ReadlinkResponse
+func (f *Formic) Readlink(stream formicproto.Formic_ReadlinkServer) error {
+	var resp formicproto.ReadlinkResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -587,8 +587,8 @@ func (f *Formic) Readlink(stream newproto.Formic_ReadlinkServer) error {
 	}
 }
 
-func (f *Formic) Read(stream newproto.Formic_ReadServer) error {
-	var resp newproto.ReadResponse
+func (f *Formic) Read(stream formicproto.Formic_ReadServer) error {
+	var resp formicproto.ReadResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -610,8 +610,8 @@ func (f *Formic) Read(stream newproto.Formic_ReadServer) error {
 	}
 }
 
-func (f *Formic) Remove(stream newproto.Formic_RemoveServer) error {
-	var resp newproto.RemoveResponse
+func (f *Formic) Remove(stream formicproto.Formic_RemoveServer) error {
+	var resp formicproto.RemoveResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -633,8 +633,8 @@ func (f *Formic) Remove(stream newproto.Formic_RemoveServer) error {
 	}
 }
 
-func (f *Formic) Removexattr(stream newproto.Formic_RemovexattrServer) error {
-	var resp newproto.RemovexattrResponse
+func (f *Formic) Removexattr(stream formicproto.Formic_RemovexattrServer) error {
+	var resp formicproto.RemovexattrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -656,8 +656,8 @@ func (f *Formic) Removexattr(stream newproto.Formic_RemovexattrServer) error {
 	}
 }
 
-func (f *Formic) Rename(stream newproto.Formic_RenameServer) error {
-	var resp newproto.RenameResponse
+func (f *Formic) Rename(stream formicproto.Formic_RenameServer) error {
+	var resp formicproto.RenameResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -679,8 +679,8 @@ func (f *Formic) Rename(stream newproto.Formic_RenameServer) error {
 	}
 }
 
-func (f *Formic) RevokeAddrFS(stream newproto.Formic_RevokeAddrFSServer) error {
-	var resp newproto.RevokeAddrFSResponse
+func (f *Formic) RevokeAddrFS(stream formicproto.Formic_RevokeAddrFSServer) error {
+	var resp formicproto.RevokeAddrFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -702,8 +702,8 @@ func (f *Formic) RevokeAddrFS(stream newproto.Formic_RevokeAddrFSServer) error {
 	}
 }
 
-func (f *Formic) SetAttr(stream newproto.Formic_SetAttrServer) error {
-	var resp newproto.SetAttrResponse
+func (f *Formic) SetAttr(stream formicproto.Formic_SetAttrServer) error {
+	var resp formicproto.SetAttrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -725,8 +725,8 @@ func (f *Formic) SetAttr(stream newproto.Formic_SetAttrServer) error {
 	}
 }
 
-func (f *Formic) Setxattr(stream newproto.Formic_SetxattrServer) error {
-	var resp newproto.SetxattrResponse
+func (f *Formic) Setxattr(stream formicproto.Formic_SetxattrServer) error {
+	var resp formicproto.SetxattrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -748,8 +748,8 @@ func (f *Formic) Setxattr(stream newproto.Formic_SetxattrServer) error {
 	}
 }
 
-func (f *Formic) ShowFS(stream newproto.Formic_ShowFSServer) error {
-	var resp newproto.ShowFSResponse
+func (f *Formic) ShowFS(stream formicproto.Formic_ShowFSServer) error {
+	var resp formicproto.ShowFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -771,8 +771,8 @@ func (f *Formic) ShowFS(stream newproto.Formic_ShowFSServer) error {
 	}
 }
 
-func (f *Formic) Statfs(stream newproto.Formic_StatfsServer) error {
-	var resp newproto.StatfsResponse
+func (f *Formic) Statfs(stream formicproto.Formic_StatfsServer) error {
+	var resp formicproto.StatfsResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -794,8 +794,8 @@ func (f *Formic) Statfs(stream newproto.Formic_StatfsServer) error {
 	}
 }
 
-func (f *Formic) Symlink(stream newproto.Formic_SymlinkServer) error {
-	var resp newproto.SymlinkResponse
+func (f *Formic) Symlink(stream formicproto.Formic_SymlinkServer) error {
+	var resp formicproto.SymlinkResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -817,8 +817,8 @@ func (f *Formic) Symlink(stream newproto.Formic_SymlinkServer) error {
 	}
 }
 
-func (f *Formic) UpdateFS(stream newproto.Formic_UpdateFSServer) error {
-	var resp newproto.UpdateFSResponse
+func (f *Formic) UpdateFS(stream formicproto.Formic_UpdateFSServer) error {
+	var resp formicproto.UpdateFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -840,8 +840,8 @@ func (f *Formic) UpdateFS(stream newproto.Formic_UpdateFSServer) error {
 	}
 }
 
-func (f *Formic) Write(stream newproto.Formic_WriteServer) error {
-	var resp newproto.WriteResponse
+func (f *Formic) Write(stream formicproto.Formic_WriteServer) error {
+	var resp formicproto.WriteResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {

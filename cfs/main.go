@@ -18,7 +18,7 @@ import (
 	"sync"
 
 	"bazil.org/fuse"
-	"github.com/getcfs/megacfs/formic/newproto"
+	"github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/gholt/brimtext"
 	"github.com/gholt/cpcp"
 	"github.com/gholt/dudu"
@@ -126,7 +126,7 @@ func (s *server) serve() error {
 }
 
 type rpc struct {
-	newClient newproto.FormicClient
+	newClient formicproto.FormicClient
 }
 
 func newrpc(addr string, newAddr string) *rpc {
@@ -143,7 +143,7 @@ func newrpc(addr string, newAddr string) *rpc {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	r.newClient = newproto.NewFormicClient(conn)
+	r.newClient = formicproto.NewFormicClient(conn)
 
 	return r
 }
