@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -19,7 +18,6 @@ import (
 	"sync"
 
 	"bazil.org/fuse"
-	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/formic/newproto"
 	"github.com/gholt/brimtext"
 	"github.com/gholt/cpcp"
@@ -128,8 +126,7 @@ func (s *server) serve() error {
 }
 
 type rpc struct {
-	apiClients []pb.ApiClient
-	newClient  newproto.FormicClient
+	newClient newproto.FormicClient
 }
 
 func newrpc(addr string, newAddr string) *rpc {
@@ -138,21 +135,7 @@ func newrpc(addr string, newAddr string) *rpc {
 		InsecureSkipVerify: true,
 	})
 	opts = append(opts, grpc.WithTransportCredentials(creds))
-	clients := []pb.ApiClient{}
-
-	// TODO: Rework this simplistic connection pooling
-	for i := 0; i < 1; i++ { // hardcoded to 1 connection for now
-		conn, err := grpc.Dial(addr, opts...)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		clients = append(clients, pb.NewApiClient(conn))
-	}
-	r := &rpc{
-		apiClients: clients,
-	}
-
+	r := &rpc{}
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
 	conn, err := grpc.Dial(newAddr, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
@@ -163,10 +146,6 @@ func newrpc(addr string, newAddr string) *rpc {
 	r.newClient = newproto.NewFormicClient(conn)
 
 	return r
-}
-
-func (r *rpc) api() pb.ApiClient {
-	return r.apiClients[rand.Intn(len(r.apiClients))]
 }
 
 // NullWriter ...

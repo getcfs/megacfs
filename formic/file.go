@@ -15,7 +15,6 @@ import (
 
 	"bazil.org/fuse"
 	"github.com/getcfs/megacfs/flother"
-	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/formic/newproto"
 	"github.com/gholt/brimtime"
 	"github.com/gholt/store"
@@ -67,16 +66,16 @@ type FileService interface {
 	NewWrite(context.Context, *newproto.WriteRequest, *newproto.WriteResponse) error
 
 	InitFs(ctx context.Context, fsid []byte) error
-	Create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *pb.Attr, isdir bool) (string, *pb.Attr, error)
+	Create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *newproto.Attr, isdir bool) (string, *newproto.Attr, error)
 	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
-	Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error)
+	Lookup(ctx context.Context, parent []byte, name string) (string, *newproto.Attr, error)
 	Remove(ctx context.Context, parent []byte, name string) (int32, error)
 	GetChunk(ctx context.Context, id []byte) ([]byte, error)
 	WriteChunk(ctx context.Context, id, data []byte) error
 	DeleteChunk(ctx context.Context, id []byte, tsm int64) error
 	DeleteListing(ctx context.Context, parent []byte, name string, tsm int64) error
-	GetInode(ctx context.Context, id []byte) (*pb.InodeEntry, error)
-	GetDirent(ctx context.Context, parent []byte, name string) (*pb.DirEntry, error)
+	GetInode(ctx context.Context, id []byte) (*newproto.InodeEntry, error)
+	GetDirent(ctx context.Context, parent []byte, name string) (*newproto.DirEntry, error)
 }
 
 // ErrStoreHasNewerValue ...
@@ -259,14 +258,14 @@ func (o *OortFS) InitFs(ctx context.Context, fsid []byte) error {
 	if len(n) == 0 {
 		//o.log.Debug("Creating new root", zap.Base64("root", id))
 		// // Need to create the root node
-		// r := &pb.InodeEntry{
+		// r := &newproto.InodeEntry{
 		//	 Version: InodeEntryVersion,
 		//   Inode:   1,
 		//	 IsDir:   true,
 		//	 FsId:    fsid,
 		// }
 		// ts := time.Now().Unix()
-		// r.Attr = &pb.Attr{
+		// r.Attr = &newproto.Attr{
 		//	 Inode:  1,
 		//	 Atime:  ts,
 		//	 Mtime:  ts,
@@ -381,14 +380,14 @@ func (o *OortFS) NewCreateFS(ctx context.Context, req *newproto.CreateFSRequest,
 	}
 	// Create the Root entry data
 	// Prepare the root node
-	nr := &pb.InodeEntry{
+	nr := &newproto.InodeEntry{
 		Version: InodeEntryVersion,
 		Inode:   1,
 		IsDir:   true,
 		FsId:    uuID.Bytes(),
 	}
 	ts := time.Now().Unix()
-	nr.Attr = &pb.Attr{
+	nr.Attr = &newproto.Attr{
 		Inode:  1,
 		Atime:  ts,
 		Mtime:  ts,
@@ -405,7 +404,7 @@ func (o *OortFS) NewCreateFS(ctx context.Context, req *newproto.CreateFSRequest,
 	// Use data to Create The First Block
 	crc := crc32.NewIEEE()
 	crc.Write(data)
-	fb := &pb.FileBlock{
+	fb := &newproto.FileBlock{
 		Version:  FileBlockVersion,
 		Data:     data,
 		Checksum: crc.Sum32(),
@@ -433,7 +432,7 @@ func (o *OortFS) NewCreate(ctx context.Context, req *newproto.CreateRequest, res
 	fsidb := fsid.Bytes()
 	ts := time.Now().Unix()
 	inode := o.fl.GetID()
-	attr := &pb.Attr{
+	attr := &newproto.Attr{
 		Inode:  inode,
 		Atime:  ts,
 		Mtime:  ts,
@@ -443,7 +442,7 @@ func (o *OortFS) NewCreate(ctx context.Context, req *newproto.CreateRequest, res
 		Uid:    req.Attr.Uid,
 		Gid:    req.Attr.Gid,
 	}
-	var rattr *pb.Attr
+	var rattr *newproto.Attr
 	resp.Name, rattr, err = o.Create(ctx, GetID(fsidb, req.Parent, 0), GetID(fsidb, inode, 0), inode, req.Name, attr, false)
 	if err != nil {
 		return err
@@ -579,7 +578,7 @@ func (o *OortFS) NewGetAttr(ctx context.Context, req *newproto.GetAttrRequest, r
 	if err != nil {
 		return err
 	}
-	n := &pb.InodeEntry{}
+	n := &newproto.InodeEntry{}
 	err = Unmarshal(b, n)
 	if err != nil {
 		return err
@@ -611,7 +610,7 @@ func (o *OortFS) NewGetxattr(ctx context.Context, req *newproto.GetxattrRequest,
 	if err != nil {
 		return err
 	}
-	n := &pb.InodeEntry{}
+	n := &newproto.InodeEntry{}
 	err = Unmarshal(b, n)
 	if err != nil {
 		return err
@@ -774,7 +773,7 @@ func (o *OortFS) NewListxattr(ctx context.Context, req *newproto.ListxattrReques
 	if err != nil {
 		return err
 	}
-	n := &pb.InodeEntry{}
+	n := &newproto.InodeEntry{}
 	err = Unmarshal(b, n)
 	if err != nil {
 		return err
@@ -794,7 +793,7 @@ func (o *OortFS) NewLookup(ctx context.Context, req *newproto.LookupRequest, res
 	if err != nil {
 		return err
 	}
-	var rattr *pb.Attr
+	var rattr *newproto.Attr
 	resp.Name, rattr, err = o.Lookup(ctx, GetID(fsid.Bytes(), req.Parent, 0), req.Name)
 	if err != nil {
 		return err
@@ -828,7 +827,7 @@ func (o *OortFS) NewReadDirAll(ctx context.Context, req *newproto.ReadDirAllRequ
 		return err
 	}
 	// Iterate over each item, getting the ID then the Inode Entry
-	de := &pb.DirEntry{}
+	de := &newproto.DirEntry{}
 	for _, item := range items {
 		err = Unmarshal(item.Value, de)
 		if err != nil {
@@ -850,7 +849,7 @@ func (o *OortFS) NewReadlink(ctx context.Context, req *newproto.ReadlinkRequest,
 	if err != nil {
 		return err
 	}
-	n := &pb.InodeEntry{}
+	n := &newproto.InodeEntry{}
 	err = Unmarshal(b, n)
 	if err != nil {
 		return err
@@ -867,7 +866,7 @@ func (o *OortFS) NewMkDir(ctx context.Context, req *newproto.MkDirRequest, resp 
 	fsidb := fsid.Bytes()
 	ts := time.Now().Unix()
 	inode := o.fl.GetID()
-	attr := &pb.Attr{
+	attr := &newproto.Attr{
 		Inode:  inode,
 		Atime:  ts,
 		Mtime:  ts,
@@ -877,7 +876,7 @@ func (o *OortFS) NewMkDir(ctx context.Context, req *newproto.MkDirRequest, resp 
 		Uid:    req.Attr.Uid,
 		Gid:    req.Attr.Gid,
 	}
-	var rattr *pb.Attr
+	var rattr *newproto.Attr
 	resp.Name, rattr, err = o.Create(ctx, GetID(fsidb, req.Parent, 0), GetID(fsidb, inode, 0), inode, req.Name, attr, true)
 	if err != nil {
 		return err
@@ -964,7 +963,7 @@ func (o *OortFS) NewRemovexattr(ctx context.Context, req *newproto.RemovexattrRe
 	if err != nil {
 		return err
 	}
-	n := &pb.InodeEntry{}
+	n := &newproto.InodeEntry{}
 	err = Unmarshal(b, n)
 	if err != nil {
 		return err
@@ -998,7 +997,7 @@ func (o *OortFS) NewRename(ctx context.Context, req *newproto.RenameRequest, res
 	if err != nil {
 		return err
 	}
-	d := &pb.DirEntry{}
+	d := &newproto.DirEntry{}
 	err = Unmarshal(b, d)
 	if err != nil {
 		return err
@@ -1104,7 +1103,7 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *newproto.SetAttrRequest, r
 		if attr.Size < n.Attr.Size {
 			// We need to mark this file as dirty to clean up unused blocks
 			tsm := brimtime.TimeToUnixMicro(time.Now())
-			d := &pb.Dirty{
+			d := &newproto.Dirty{
 				Dtime:  tsm,
 				Qtime:  tsm,
 				FsId:   fsidb,
@@ -1179,7 +1178,7 @@ func (o *OortFS) NewSetxattr(ctx context.Context, req *newproto.SetxattrRequest,
 	if err != nil {
 		return err
 	}
-	n := &pb.InodeEntry{}
+	n := &newproto.InodeEntry{}
 	err = Unmarshal(b, n)
 	if err != nil {
 		return err
@@ -1302,7 +1301,7 @@ func (o *OortFS) NewSymlink(ctx context.Context, req *newproto.SymlinkRequest, r
 	inode := o.fl.GetID()
 	id := GetID(fsidb, inode, 0)
 	ts := time.Now().Unix()
-	attr := &pb.Attr{
+	attr := &newproto.Attr{
 		Inode:  inode,
 		Atime:  ts,
 		Mtime:  ts,
@@ -1322,7 +1321,7 @@ func (o *OortFS) NewSymlink(ctx context.Context, req *newproto.SymlinkRequest, r
 	if len(val) > 1 { // Exists already
 		return nil
 	}
-	n := &pb.InodeEntry{
+	n := &newproto.InodeEntry{
 		Version: InodeEntryVersion,
 		Inode:   inode,
 		IsDir:   false,
@@ -1339,7 +1338,7 @@ func (o *OortFS) NewSymlink(ctx context.Context, req *newproto.SymlinkRequest, r
 		return err
 	}
 	// Add the name to the group
-	d := &pb.DirEntry{
+	d := &newproto.DirEntry{
 		Version: DirEntryVersion,
 		Name:    req.Name,
 		Id:      id,
@@ -1493,18 +1492,18 @@ func (o *OortFS) NewWrite(ctx context.Context, req *newproto.WriteRequest, resp 
 }
 
 // Create ...
-func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *pb.Attr, isdir bool) (string, *pb.Attr, error) {
+func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *newproto.Attr, isdir bool) (string, *newproto.Attr, error) {
 	// Check to see if the name already exists
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
 	if err != nil && !store.IsNotFound(err) {
 		// TODO: Needs beter error handling
-		return "", &pb.Attr{}, err
+		return "", &newproto.Attr{}, err
 	}
 	if len(b) > 0 {
-		p := &pb.DirEntry{}
+		p := &newproto.DirEntry{}
 		err = Unmarshal(b, p)
 		if err != nil {
-			return "", &pb.Attr{}, err
+			return "", &newproto.Attr{}, err
 		}
 	}
 	var direntType fuse.DirentType
@@ -1514,7 +1513,7 @@ func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, na
 		direntType = fuse.DT_File
 	}
 	// Add the name to the group
-	d := &pb.DirEntry{
+	d := &newproto.DirEntry{
 		Version: DirEntryVersion,
 		Name:    name,
 		Id:      id,
@@ -1522,14 +1521,14 @@ func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, na
 	}
 	b, err = Marshal(d)
 	if err != nil {
-		return "", &pb.Attr{}, err
+		return "", &newproto.Attr{}, err
 	}
 	err = o.comms.WriteGroup(ctx, parent, []byte(name), b)
 	if err != nil {
-		return "", &pb.Attr{}, err
+		return "", &newproto.Attr{}, err
 	}
 	// Add the inode entry
-	n := &pb.InodeEntry{
+	n := &newproto.InodeEntry{
 		Version: InodeEntryVersion,
 		Inode:   inode,
 		IsDir:   isdir,
@@ -1538,38 +1537,38 @@ func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, na
 	}
 	b, err = Marshal(n)
 	if err != nil {
-		return "", &pb.Attr{}, err
+		return "", &newproto.Attr{}, err
 	}
 	err = o.WriteChunk(ctx, id, b)
 	if err != nil {
-		return "", &pb.Attr{}, err
+		return "", &newproto.Attr{}, err
 	}
 	return name, attr, nil
 }
 
 // Lookup ...
-func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string, *pb.Attr, error) {
+func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string, *newproto.Attr, error) {
 	// Get the id
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
 	if store.IsNotFound(err) {
-		return "", &pb.Attr{}, ErrGRPCNotFound
+		return "", &newproto.Attr{}, err
 	} else if err != nil {
-		return "", &pb.Attr{}, err
+		return "", &newproto.Attr{}, err
 	}
-	d := &pb.DirEntry{}
+	d := &newproto.DirEntry{}
 	err = Unmarshal(b, d)
 	if err != nil {
-		return "", &pb.Attr{}, err
+		return "", &newproto.Attr{}, err
 	}
 	// Get the Inode entry
 	b, err = o.GetChunk(ctx, d.Id)
 	if err != nil {
-		return "", &pb.Attr{}, err
+		return "", &newproto.Attr{}, err
 	}
-	n := &pb.InodeEntry{}
+	n := &newproto.InodeEntry{}
 	err = Unmarshal(b, n)
 	if err != nil {
-		return "", &pb.Attr{}, err
+		return "", &newproto.Attr{}, err
 	}
 	return d.Name, n.Attr, nil
 }
@@ -1600,7 +1599,7 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 	} else if err != nil {
 		return 1, err
 	}
-	d := &pb.DirEntry{}
+	d := &newproto.DirEntry{}
 	err = Unmarshal(b, d)
 	if err != nil {
 		return 1, err
@@ -1620,12 +1619,12 @@ func (o *OortFS) Remove(ctx context.Context, parent []byte, name string) (int32,
 		}
 		// return error if directory is not empty
 		if len(items) > 0 {
-			return 1, ErrNotEmpty
+			return 1, errors.New("not empty")
 		}
 	}
 	// TODO: More error handling needed
 	// TODO: Handle possible race conditions where user writes and deletes the same file over and over
-	t := &pb.Tombstone{}
+	t := &newproto.Tombstone{}
 	tsm := brimtime.TimeToUnixMicro(time.Now())
 	t.Dtime = tsm
 	t.Qtime = tsm
@@ -1669,7 +1668,7 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 	if err != nil {
 		return err
 	}
-	n := &pb.InodeEntry{}
+	n := &newproto.InodeEntry{}
 	err = Unmarshal(b, n)
 	if err != nil {
 		return err
@@ -1704,7 +1703,7 @@ func (o *OortFS) GetChunk(ctx context.Context, id []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	fb := &pb.FileBlock{}
+	fb := &newproto.FileBlock{}
 	err = Unmarshal(b, fb)
 	if err != nil {
 		return nil, err
@@ -1717,7 +1716,7 @@ func (o *OortFS) GetChunk(ctx context.Context, id []byte) ([]byte, error) {
 func (o *OortFS) WriteChunk(ctx context.Context, id, data []byte) error {
 	crc := o.hasher()
 	crc.Write(data)
-	fb := &pb.FileBlock{
+	fb := &newproto.FileBlock{
 		Version:  FileBlockVersion,
 		Data:     data,
 		Checksum: crc.Sum32(),
@@ -1740,13 +1739,13 @@ func (o *OortFS) DeleteListing(ctx context.Context, parent []byte, name string, 
 }
 
 // GetInode ...
-func (o *OortFS) GetInode(ctx context.Context, id []byte) (*pb.InodeEntry, error) {
+func (o *OortFS) GetInode(ctx context.Context, id []byte) (*newproto.InodeEntry, error) {
 	// Get the Inode entry
 	b, err := o.GetChunk(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	n := &pb.InodeEntry{}
+	n := &newproto.InodeEntry{}
 	err = Unmarshal(b, n)
 	if err != nil {
 		return nil, err
@@ -1755,18 +1754,18 @@ func (o *OortFS) GetInode(ctx context.Context, id []byte) (*pb.InodeEntry, error
 }
 
 // GetDirent ...
-func (o *OortFS) GetDirent(ctx context.Context, parent []byte, name string) (*pb.DirEntry, error) {
+func (o *OortFS) GetDirent(ctx context.Context, parent []byte, name string) (*newproto.DirEntry, error) {
 	// Get the Dir Entry
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
 	if store.IsNotFound(err) {
-		return &pb.DirEntry{}, nil
+		return &newproto.DirEntry{}, nil
 	} else if err != nil {
-		return &pb.DirEntry{}, err
+		return &newproto.DirEntry{}, err
 	}
-	d := &pb.DirEntry{}
+	d := &newproto.DirEntry{}
 	err = Unmarshal(b, d)
 	if err != nil {
-		return &pb.DirEntry{}, err
+		return &newproto.DirEntry{}, err
 	}
 	return d, nil
 }

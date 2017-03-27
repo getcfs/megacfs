@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/getcfs/megacfs/formic"
 	formicserver "github.com/getcfs/megacfs/formic/server"
 	oortserver "github.com/getcfs/megacfs/oort/server"
 	"github.com/gholt/brimtext"
@@ -333,25 +332,6 @@ FIND_LOCAL_NODE:
 		ctx, _ = context.WithTimeout(context.Background(), time.Minute)
 		newFormic.Shutdown(ctx)
 		logger.Fatal("Error starting formic", zap.Error(err))
-	}
-
-	// Startup formic
-	formicCfg := formic.NewConfig()
-	formicCfg.FormicAddressIndex = ADDR_FORMIC_GRPC
-	formicCfg.ValueAddressIndex = ADDR_VALUE_GRPC
-	formicCfg.GroupAddressIndex = ADDR_GROUP_GRPC
-	formicCfg.CertFile = grpcFormicCertPath
-	formicCfg.KeyFile = grpcFormicKeyPath
-	formicCfg.CAFile = caPath
-	formicCfg.Ring = oneRing
-	formicCfg.RingPath = ringPath
-	formicCfg.IpAddr = formicIP
-	formicCfg.AuthUrl = "http://localhost:5000"
-	formicCfg.AuthUser = "admin"
-	formicCfg.AuthPassword = "admin"
-	err = formic.NewFormicServer(formicCfg, logger)
-	if err != nil {
-		logger.Fatal("Couldn't start up formic", zap.Error(err))
 	}
 
 	ch := make(chan os.Signal)

@@ -5,10 +5,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/getcfs/megacfs/formic/newproto"
 	"github.com/gholt/store"
 	"go.uber.org/zap"
-
-	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"golang.org/x/net/context"
 )
 
@@ -52,7 +51,7 @@ func (u *Updatinator) Run() {
 
 // DirtyItem ...
 type DirtyItem struct {
-	dirty *pb.Dirty
+	dirty *newproto.Dirty
 }
 
 // TODO: Crawl the dirty folders to look for dirty objects to cleanup
@@ -112,7 +111,7 @@ func (c *Cleaninator) Run() {
 
 // DeleteItem ...
 type DeleteItem struct {
-	ts *pb.Tombstone
+	ts *newproto.Tombstone
 }
 
 // TODO: Crawl the deleted folders to look for deletes to cleanup
