@@ -665,10 +665,6 @@ func (o *OortFS) NewInitFs(ctx context.Context, req *formicproto.InitFsRequest, 
 
 func (o *OortFS) NewListFS(ctx context.Context, req *formicproto.ListFSRequest, resp *formicproto.ListFSResponse, acctID string) error {
 	var value []byte
-	var fsRef FileSysRef
-	var addrData AddrRef
-	var fsAttrData FileSysAttr
-	var aList []string
 	// Read Group /acct/acctID				_						FileSysRef
 	pKey := fmt.Sprintf("/acct/%s", acctID)
 	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
@@ -678,10 +674,10 @@ func (o *OortFS) NewListFS(ctx context.Context, req *formicproto.ListFSRequest, 
 	}
 	fsList := make([]FileSysMeta, len(list))
 	for k, v := range list {
-		clear(&fsRef)
-		clear(&addrData)
-		clear(&fsAttrData)
-		clear(&aList)
+		var fsRef FileSysRef
+		var addrData AddrRef
+		var fsAttrData FileSysAttr
+		var aList []string
 		err = json.Unmarshal(v.Value, &fsRef)
 		if err != nil {
 			return err
