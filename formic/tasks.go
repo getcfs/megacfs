@@ -41,7 +41,7 @@ func (u *Updatinator) Run() {
 		log.Println("Updating: ", toupdate)
 		// TODO: Need better context
 		ctx := context.Background()
-		err := u.fs.Update(ctx, toupdate.id, toupdate.block, toupdate.blocksize, toupdate.size, toupdate.mtime)
+		err := u.fs.update(ctx, toupdate.id, toupdate.block, toupdate.blocksize, toupdate.size, toupdate.mtime)
 		if err != nil {
 			log.Println("Update failed, requeing: ", err)
 			u.in <- toupdate
@@ -84,7 +84,7 @@ func (c *Cleaninator) Run() {
 		for b := dirty.Blocks + 1; b > 0; b-- {
 			// Try to delete the old block
 			id := GetID(dirty.FSID, dirty.Inode, b)
-			err := c.fs.DeleteChunk(ctx, id, dirty.Dtime)
+			err := c.fs.deleteChunk(ctx, id, dirty.Dtime)
 			if err == ErrStoreHasNewerValue {
 				// Something has already been writte, so we are good
 				break
@@ -145,7 +145,7 @@ func (d *Deletinator) Run() {
 		for b := uint64(0); b < ts.Blocks; b++ {
 			// Delete each block
 			id := GetID(ts.FSID, ts.Inode, b+1)
-			err := d.fs.DeleteChunk(ctx, id, ts.Dtime)
+			err := d.fs.deleteChunk(ctx, id, ts.Dtime)
 			if err != nil && !store.IsNotFound(err) && err != ErrStoreHasNewerValue {
 				continue
 			}
@@ -153,7 +153,7 @@ func (d *Deletinator) Run() {
 		}
 		if deleted == ts.Blocks {
 			// Everything is deleted so delete the entry
-			err := d.fs.DeleteChunk(ctx, GetID(ts.FSID, ts.Inode, 0), ts.Dtime)
+			err := d.fs.deleteChunk(ctx, GetID(ts.FSID, ts.Inode, 0), ts.Dtime)
 			if err != nil && !store.IsNotFound(err) && err != ErrStoreHasNewerValue {
 				// Couldn't delete the inode entry so try again later
 				d.in <- todelete

@@ -63,17 +63,13 @@ type FileService interface {
 	NewUpdateFS(context.Context, *formicproto.UpdateFSRequest, *formicproto.UpdateFSResponse, string) error
 	NewWrite(context.Context, *formicproto.WriteRequest, *formicproto.WriteResponse, string) error
 
-	InitFs(ctx context.Context, fsid string) error
-	Create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *formicproto.Attr, isdir bool) (string, *formicproto.Attr, error)
-	Update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
-	Lookup(ctx context.Context, parent []byte, name string) (string, *formicproto.Attr, error)
-	Remove(ctx context.Context, fsid string, parent []byte, name string) (int32, error)
-	GetChunk(ctx context.Context, id []byte) ([]byte, error)
-	WriteChunk(ctx context.Context, id, data []byte) error
-	DeleteChunk(ctx context.Context, id []byte, tsm int64) error
-	DeleteListing(ctx context.Context, parent []byte, name string, tsm int64) error
-	GetInode(ctx context.Context, id []byte) (*formicproto.InodeEntry, error)
-	GetDirent(ctx context.Context, parent []byte, name string) (*formicproto.DirEntry, error)
+	create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *formicproto.Attr, isdir bool) (string, *formicproto.Attr, error)
+	update(ctx context.Context, id []byte, block, size, blocksize uint64, mtime int64) error
+	remove(ctx context.Context, fsid string, parent []byte, name string) (int32, error)
+	getChunk(ctx context.Context, id []byte) ([]byte, error)
+	writeChunk(ctx context.Context, id, data []byte) error
+	deleteChunk(ctx context.Context, id []byte, tsm int64) error
+	getInode(ctx context.Context, id []byte) (*formicproto.InodeEntry, error)
 }
 
 // ErrStoreHasNewerValue ...
@@ -241,56 +237,26 @@ func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteIte
 	return o
 }
 
-// InitFs ...
-func (o *OortFS) InitFs(ctx context.Context, fsid string) error {
-	id := GetID(fsid, 1, 0)
-	n, _ := o.GetChunk(ctx, id)
-	if len(n) == 0 {
-		//o.log.Debug("Creating new root", zap.Base64("root", id))
-		// // Need to create the root node
-		// r := &formicproto.InodeEntry{
-		//	 Version: InodeEntryVersion,
-		//   Inode:   1,
-		//	 IsDir:   true,
-		//	 FSID:    fsid,
-		// }
-		// ts := time.Now().Unix()
-		// r.Attr = &formicproto.Attr{
-		//	 Inode:  1,
-		//	 Atime:  ts,
-		//	 Mtime:  ts,
-		//	 Ctime:  ts,
-		//	 Crtime: ts,
-		// 	 Mode:   uint32(os.ModeDir | 0775),
-		//	 Uid:    1001, // TODO: need to config default user/group id
-		//	 Gid:    1001,
-		// }
-		// b, err := Marshal(r)
-		// if err != nil {
-		// 	 return err
-		// }
-		// err = o.WriteChunk(ctx, id, b)
-		// if err != nil {
-		//	 return err
-		// }
-		return errors.New("Root Entry does not Exist")
-	}
-	return nil
-}
-
 func (o *OortFS) NewCheck(ctx context.Context, req *formicproto.CheckRequest, resp *formicproto.CheckResponse, fsid string) error {
-	// Try looking up the dirent
-	dirent, err := o.GetDirent(ctx, GetID(fsid, req.Inode, 0), req.Name)
-	if err != nil {
-		return fmt.Errorf("Check failed to find the Dirent: %s", err)
+	b, err := o.comms.ReadGroupItem(ctx, GetID(fsid, req.Inode, 0), []byte(req.Name))
+	if store.IsNotFound(err) {
+		resp.Response = "not found"
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("failed to load directory entry: %s", err)
+	}
+	dirent := &formicproto.DirEntry{}
+	if err = Unmarshal(b, dirent); err != nil {
+		// TODO: We should remove this dirent here shouldn't we?
+		return fmt.Errorf("corrupted directory entry: %s", err)
 	}
 	// Read the inode block
-	_, err = o.GetInode(ctx, dirent.Id)
+	_, err = o.getInode(ctx, dirent.Id)
 	if err != nil {
 		// Note: Unfortunately if we lose the inode block, there is no way to
 		// recover because we do not know the inode of the file itself.
 		// Delete the entry.
-		err = o.DeleteListing(ctx, GetID(fsid, req.Inode, 0), req.Name, brimtime.TimeToUnixMicro(time.Now()))
+		err = o.comms.DeleteGroupItemTS(ctx, GetID(fsid, req.Inode, 0), []byte(req.Name), brimtime.TimeToUnixMicro(time.Now()))
 		if err != nil {
 			return fmt.Errorf("Error: Inode not found but could not delete the listing: %s", err)
 		}
@@ -419,7 +385,7 @@ func (o *OortFS) NewCreate(ctx context.Context, req *formicproto.CreateRequest, 
 	}
 	var rattr *formicproto.Attr
 	var err error
-	resp.Name, rattr, err = o.Create(ctx, GetID(fsid, req.Parent, 0), GetID(fsid, inode, 0), inode, req.Name, attr, false)
+	resp.Name, rattr, err = o.create(ctx, GetID(fsid, req.Parent, 0), GetID(fsid, inode, 0), inode, req.Name, attr, false)
 	if err != nil {
 		return err
 	}
@@ -541,7 +507,7 @@ func (o *OortFS) NewDeleteFS(ctx context.Context, req *formicproto.DeleteFSReque
 }
 
 func (o *OortFS) NewGetAttr(ctx context.Context, req *formicproto.GetAttrRequest, resp *formicproto.GetAttrResponse, fsid string) error {
-	b, err := o.GetChunk(ctx, GetID(fsid, req.Inode, 0))
+	b, err := o.getChunk(ctx, GetID(fsid, req.Inode, 0))
 	if err != nil {
 		return err
 	}
@@ -569,7 +535,7 @@ func (o *OortFS) NewGetAttr(ctx context.Context, req *formicproto.GetAttrRequest
 
 func (o *OortFS) NewGetxattr(ctx context.Context, req *formicproto.GetxattrRequest, resp *formicproto.GetxattrResponse, fsid string) error {
 	id := GetID(fsid, req.Inode, 0)
-	b, err := o.GetChunk(ctx, id)
+	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -639,7 +605,12 @@ func (o *OortFS) NewGrantAddrFS(ctx context.Context, req *formicproto.GrantAddrF
 }
 
 func (o *OortFS) NewInitFs(ctx context.Context, req *formicproto.InitFsRequest, resp *formicproto.InitFsResponse, fsid string) error {
-	return o.InitFs(ctx, fsid)
+	id := GetID(fsid, 1, 0)
+	n, _ := o.getChunk(ctx, id)
+	if len(n) == 0 {
+		return errors.New("root entry does not exist")
+	}
+	return nil
 }
 
 func (o *OortFS) NewListFS(ctx context.Context, req *formicproto.ListFSRequest, resp *formicproto.ListFSResponse, acctID string) error {
@@ -710,7 +681,7 @@ func (o *OortFS) NewListFS(ctx context.Context, req *formicproto.ListFSRequest, 
 
 func (o *OortFS) NewListxattr(ctx context.Context, req *formicproto.ListxattrRequest, resp *formicproto.ListxattrResponse, fsid string) error {
 	id := GetID(fsid, req.Inode, 0)
-	b, err := o.GetChunk(ctx, id)
+	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -730,25 +701,40 @@ func (o *OortFS) NewListxattr(ctx context.Context, req *formicproto.ListxattrReq
 }
 
 func (o *OortFS) NewLookup(ctx context.Context, req *formicproto.LookupRequest, resp *formicproto.LookupResponse, fsid string) error {
-	var rattr *formicproto.Attr
 	var err error
-	resp.Name, rattr, err = o.Lookup(ctx, GetID(fsid, req.Parent, 0), req.Name)
+	parent := GetID(fsid, req.Parent, 0)
+	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(req.Name))
 	if err != nil {
 		return err
 	}
+	d := &formicproto.DirEntry{}
+	err = Unmarshal(b, d)
+	if err != nil {
+		return err
+	}
+	b, err = o.getChunk(ctx, d.Id)
+	if err != nil {
+		return err
+	}
+	n := &formicproto.InodeEntry{}
+	err = Unmarshal(b, n)
+	if err != nil {
+		return err
+	}
+	resp.Name = d.Name
 	// TODO: Set everything explicitly for now since the structs are different
 	// until the formicproto becomes theproto.
 	resp.Attr = &formicproto.Attr{
-		Inode:  rattr.Inode,
-		Atime:  rattr.Atime,
-		Mtime:  rattr.Mtime,
-		Ctime:  rattr.Ctime,
-		Crtime: rattr.Crtime,
-		Mode:   rattr.Mode,
-		Valid:  rattr.Valid,
-		Size:   rattr.Size,
-		Uid:    rattr.Uid,
-		Gid:    rattr.Gid,
+		Inode:  n.Attr.Inode,
+		Atime:  n.Attr.Atime,
+		Mtime:  n.Attr.Mtime,
+		Ctime:  n.Attr.Ctime,
+		Crtime: n.Attr.Crtime,
+		Mode:   n.Attr.Mode,
+		Valid:  n.Attr.Valid,
+		Size:   n.Attr.Size,
+		Uid:    n.Attr.Uid,
+		Gid:    n.Attr.Gid,
 	}
 	return nil
 }
@@ -775,7 +761,7 @@ func (o *OortFS) NewReadDirAll(ctx context.Context, req *formicproto.ReadDirAllR
 
 func (o *OortFS) NewReadlink(ctx context.Context, req *formicproto.ReadlinkRequest, resp *formicproto.ReadlinkResponse, fsid string) error {
 	id := GetID(fsid, req.Inode, 0)
-	b, err := o.GetChunk(ctx, id)
+	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -803,7 +789,7 @@ func (o *OortFS) NewMkDir(ctx context.Context, req *formicproto.MkDirRequest, re
 	}
 	var rattr *formicproto.Attr
 	var err error
-	resp.Name, rattr, err = o.Create(ctx, GetID(fsid, req.Parent, 0), GetID(fsid, inode, 0), inode, req.Name, attr, true)
+	resp.Name, rattr, err = o.create(ctx, GetID(fsid, req.Parent, 0), GetID(fsid, inode, 0), inode, req.Name, attr, true)
 	if err != nil {
 		return err
 	}
@@ -835,7 +821,7 @@ func (o *OortFS) NewRead(ctx context.Context, req *formicproto.ReadRequest, resp
 	cur := int64(0)
 	for cur < req.Size {
 		id := GetID(fsid, req.Inode, block+1) // block 0 is for inode data
-		chunk, err := o.GetChunk(ctx, id)
+		chunk, err := o.getChunk(ctx, id)
 		if err != nil {
 			// NOTE: This returns basically 0's to the client.for this block in
 			// this case. It is totally valid for a fs to request an invalid
@@ -860,7 +846,7 @@ func (o *OortFS) NewRead(ctx context.Context, req *formicproto.ReadRequest, resp
 
 func (o *OortFS) NewRemove(ctx context.Context, req *formicproto.RemoveRequest, resp *formicproto.RemoveResponse, fsid string) error {
 	// TODO: No need for this status thing; can refactor to just return errors.
-	status, err := o.Remove(ctx, fsid, GetID(fsid, req.Parent, 0), req.Name)
+	status, err := o.remove(ctx, fsid, GetID(fsid, req.Parent, 0), req.Name)
 	if err != nil {
 		return err
 	}
@@ -872,7 +858,7 @@ func (o *OortFS) NewRemove(ctx context.Context, req *formicproto.RemoveRequest, 
 
 func (o *OortFS) NewRemovexattr(ctx context.Context, req *formicproto.RemovexattrRequest, resp *formicproto.RemovexattrResponse, fsid string) error {
 	id := GetID(fsid, req.Inode, 0)
-	b, err := o.GetChunk(ctx, id)
+	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -886,7 +872,7 @@ func (o *OortFS) NewRemovexattr(ctx context.Context, req *formicproto.Removexatt
 	if err != nil {
 		return nil
 	}
-	err = o.WriteChunk(ctx, id, b)
+	err = o.writeChunk(ctx, id, b)
 	if err != nil {
 		return err
 	}
@@ -912,7 +898,7 @@ func (o *OortFS) NewRename(ctx context.Context, req *formicproto.RenameRequest, 
 	}
 	// Be sure that old data is deleted
 	// TODO: It would be better to create the tombstone for the delete, and only queue the delete if the are sure the new write happens
-	_, err = o.Remove(ctx, fsid, newParent, req.NewName)
+	_, err = o.remove(ctx, fsid, newParent, req.NewName)
 	if err != nil {
 		return err
 	}
@@ -989,7 +975,7 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *formicproto.SetAttrRequest
 	id := GetID(fsid, req.Attr.Inode, 0)
 	attr := req.Attr
 	valid := fuse.SetattrValid(req.Valid)
-	n, err := o.GetInode(ctx, id)
+	n, err := o.getInode(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -1042,7 +1028,7 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *formicproto.SetAttrRequest
 	if err != nil {
 		return err
 	}
-	err = o.WriteChunk(ctx, id, b)
+	err = o.writeChunk(ctx, id, b)
 	if err != nil {
 		return err
 	}
@@ -1066,7 +1052,7 @@ func (o *OortFS) NewSetAttr(ctx context.Context, req *formicproto.SetAttrRequest
 func (o *OortFS) NewSetxattr(ctx context.Context, req *formicproto.SetxattrRequest, resp *formicproto.SetxattrResponse, fsid string) error {
 	// NOTE: Setting xattrs is NOT concurrency safe!
 	id := GetID(fsid, req.Inode, 0)
-	b, err := o.GetChunk(ctx, id)
+	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -1083,7 +1069,7 @@ func (o *OortFS) NewSetxattr(ctx context.Context, req *formicproto.SetxattrReque
 	if err != nil {
 		return err
 	}
-	err = o.WriteChunk(ctx, id, b)
+	err = o.writeChunk(ctx, id, b)
 	if err != nil {
 		return err
 	}
@@ -1214,7 +1200,7 @@ func (o *OortFS) NewSymlink(ctx context.Context, req *formicproto.SymlinkRequest
 	if err != nil {
 		return err
 	}
-	err = o.WriteChunk(ctx, id, b)
+	err = o.writeChunk(ctx, id, b)
 	if err != nil {
 		return err
 	}
@@ -1321,7 +1307,7 @@ func (o *OortFS) NewWrite(ctx context.Context, req *formicproto.WriteRequest, re
 		if firstOffset > 0 || sendSize < o.blocksize {
 			// need to get the block and update
 			chunk := make([]byte, firstOffset+int64(len(payload)))
-			data, err := o.GetChunk(ctx, id)
+			data, err := o.getChunk(ctx, id)
 			if firstOffset > 0 && err != nil {
 				// TODO: How do we differentiate a block that hasn't been created yet, and a block that is truely missing?
 			} else {
@@ -1335,12 +1321,12 @@ func (o *OortFS) NewWrite(ctx context.Context, req *formicproto.WriteRequest, re
 			payload = chunk
 			firstOffset = 0
 		}
-		err := o.WriteChunk(ctx, id, payload)
+		err := o.writeChunk(ctx, id, payload)
 		// TODO: Need better error handling for failing with multiple chunks
 		if err != nil {
 			return err
 		}
-		err = o.Update(
+		err = o.update(
 			ctx,
 			GetID(fsid, req.Inode, 0),
 			block,
@@ -1366,8 +1352,7 @@ func (o *OortFS) NewWrite(ctx context.Context, req *formicproto.WriteRequest, re
 	return nil
 }
 
-// Create ...
-func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *formicproto.Attr, isdir bool) (string, *formicproto.Attr, error) {
+func (o *OortFS) create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *formicproto.Attr, isdir bool) (string, *formicproto.Attr, error) {
 	// Check to see if the name already exists
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
 	if err != nil && !store.IsNotFound(err) {
@@ -1414,38 +1399,11 @@ func (o *OortFS) Create(ctx context.Context, parent, id []byte, inode uint64, na
 	if err != nil {
 		return "", &formicproto.Attr{}, err
 	}
-	err = o.WriteChunk(ctx, id, b)
+	err = o.writeChunk(ctx, id, b)
 	if err != nil {
 		return "", &formicproto.Attr{}, err
 	}
 	return name, attr, nil
-}
-
-// Lookup ...
-func (o *OortFS) Lookup(ctx context.Context, parent []byte, name string) (string, *formicproto.Attr, error) {
-	// Get the id
-	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
-	if store.IsNotFound(err) {
-		return "", &formicproto.Attr{}, err
-	} else if err != nil {
-		return "", &formicproto.Attr{}, err
-	}
-	d := &formicproto.DirEntry{}
-	err = Unmarshal(b, d)
-	if err != nil {
-		return "", &formicproto.Attr{}, err
-	}
-	// Get the Inode entry
-	b, err = o.GetChunk(ctx, d.Id)
-	if err != nil {
-		return "", &formicproto.Attr{}, err
-	}
-	n := &formicproto.InodeEntry{}
-	err = Unmarshal(b, n)
-	if err != nil {
-		return "", &formicproto.Attr{}, err
-	}
-	return d.Name, n.Attr, nil
 }
 
 // Needed to be able to sort the dirents
@@ -1465,8 +1423,7 @@ func (d ByDirent) Less(i, j int) bool {
 	return d[i].Name < d[j].Name
 }
 
-// Remove ...
-func (o *OortFS) Remove(ctx context.Context, fsid string, parent []byte, name string) (int32, error) {
+func (o *OortFS) remove(ctx context.Context, fsid string, parent []byte, name string) (int32, error) {
 	// Get the ID from the group list
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
 	if store.IsNotFound(err) {
@@ -1480,7 +1437,7 @@ func (o *OortFS) Remove(ctx context.Context, fsid string, parent []byte, name st
 		return 1, err
 	}
 	if fuse.DirentType(d.Type) == fuse.DT_Dir {
-		inode, err := o.GetInode(ctx, d.Id)
+		inode, err := o.getInode(ctx, d.Id)
 		if err != nil {
 			return 1, err
 		}
@@ -1500,7 +1457,7 @@ func (o *OortFS) Remove(ctx context.Context, fsid string, parent []byte, name st
 	t.Dtime = tsm
 	t.Qtime = tsm
 	t.FSID = fsid
-	inode, err := o.GetInode(ctx, d.Id)
+	inode, err := o.getInode(ctx, d.Id)
 	if store.IsNotFound(err) {
 		// file wasn't found. attempt to remove the group store entry
 		err = o.comms.DeleteGroupItem(ctx, parent, []byte(name))
@@ -1533,9 +1490,8 @@ func (o *OortFS) Remove(ctx context.Context, fsid string, parent []byte, name st
 	return 0, nil
 }
 
-// Update ...
-func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size uint64, mtime int64) error {
-	b, err := o.GetChunk(ctx, id)
+func (o *OortFS) update(ctx context.Context, id []byte, block, blocksize, size uint64, mtime int64) error {
+	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -1558,15 +1514,15 @@ func (o *OortFS) Update(ctx context.Context, id []byte, block, blocksize, size u
 	if err != nil {
 		return err
 	}
-	err = o.WriteChunk(ctx, id, b)
+	err = o.writeChunk(ctx, id, b)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// GetChunk ...
-func (o *OortFS) GetChunk(ctx context.Context, id []byte) ([]byte, error) {
+// getChunk ...
+func (o *OortFS) getChunk(ctx context.Context, id []byte) ([]byte, error) {
 	b, err := o.comms.ReadValue(ctx, id)
 	if store.IsNotFound(err) {
 		return nil, ErrFileNotFound
@@ -1583,8 +1539,8 @@ func (o *OortFS) GetChunk(ctx context.Context, id []byte) ([]byte, error) {
 	return fb.Data, nil
 }
 
-// WriteChunk ...
-func (o *OortFS) WriteChunk(ctx context.Context, id, data []byte) error {
+// writeChunk ...
+func (o *OortFS) writeChunk(ctx context.Context, id, data []byte) error {
 	crc := o.hasher()
 	crc.Write(data)
 	fb := &formicproto.FileBlock{
@@ -1599,20 +1555,15 @@ func (o *OortFS) WriteChunk(ctx context.Context, id, data []byte) error {
 	return o.comms.WriteValue(ctx, id, b)
 }
 
-// DeleteChunk ...
-func (o *OortFS) DeleteChunk(ctx context.Context, id []byte, tsm int64) error {
+// deleteChunk ...
+func (o *OortFS) deleteChunk(ctx context.Context, id []byte, tsm int64) error {
 	return o.comms.DeleteValueTS(ctx, id, tsm)
 }
 
-// DeleteListing ...
-func (o *OortFS) DeleteListing(ctx context.Context, parent []byte, name string, tsm int64) error {
-	return o.comms.DeleteGroupItemTS(ctx, parent, []byte(name), tsm)
-}
-
-// GetInode ...
-func (o *OortFS) GetInode(ctx context.Context, id []byte) (*formicproto.InodeEntry, error) {
+// getInode ...
+func (o *OortFS) getInode(ctx context.Context, id []byte) (*formicproto.InodeEntry, error) {
 	// Get the Inode entry
-	b, err := o.GetChunk(ctx, id)
+	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1622,23 +1573,6 @@ func (o *OortFS) GetInode(ctx context.Context, id []byte) (*formicproto.InodeEnt
 		return nil, err
 	}
 	return n, nil
-}
-
-// GetDirent ...
-func (o *OortFS) GetDirent(ctx context.Context, parent []byte, name string) (*formicproto.DirEntry, error) {
-	// Get the Dir Entry
-	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
-	if store.IsNotFound(err) {
-		return &formicproto.DirEntry{}, nil
-	} else if err != nil {
-		return &formicproto.DirEntry{}, err
-	}
-	d := &formicproto.DirEntry{}
-	err = Unmarshal(b, d)
-	if err != nil {
-		return &formicproto.DirEntry{}, err
-	}
-	return d, nil
 }
 
 // deleteEntry Deletes and entry in the group store and doesn't care if
