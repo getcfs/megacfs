@@ -9,10 +9,10 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-func GetID(fsid []byte, inode, block uint64) []byte {
+func GetID(fsid string, inode, block uint64) []byte {
 	// TODO: Figure out what arrangement we want to use for the hash
 	h := murmur3.New128()
-	h.Write(fsid)
+	h.Write([]byte(fsid))
 	binary.Write(h, binary.BigEndian, inode)
 	binary.Write(h, binary.BigEndian, block)
 	s1, s2 := h.Sum128()
@@ -22,10 +22,10 @@ func GetID(fsid []byte, inode, block uint64) []byte {
 	return b.Bytes()
 }
 
-func GetSystemID(fsid []byte, dir string) []byte {
+func GetSystemID(fsid string, dir string) []byte {
 	h := murmur3.New128()
 	h.Write([]byte("/system/"))
-	h.Write(fsid)
+	h.Write([]byte(fsid))
 	h.Write([]byte(dir))
 	s1, s2 := h.Sum128()
 	b := bytes.NewBuffer([]byte(""))
@@ -34,11 +34,11 @@ func GetSystemID(fsid []byte, dir string) []byte {
 	return b.Bytes()
 }
 
-func GetDeletedID(fsid []byte) []byte {
+func GetDeletedID(fsid string) []byte {
 	return GetSystemID(fsid, "deleted")
 }
 
-func GetDirtyID(fsid []byte) []byte {
+func GetDirtyID(fsid string) []byte {
 	return GetSystemID(fsid, "dirty")
 }
 

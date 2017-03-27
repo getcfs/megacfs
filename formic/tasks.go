@@ -83,7 +83,7 @@ func (c *Cleaninator) Run() {
 		fails := 0
 		for b := dirty.Blocks + 1; b > 0; b-- {
 			// Try to delete the old block
-			id := GetID(dirty.FsId, dirty.Inode, b)
+			id := GetID(dirty.FSID, dirty.Inode, b)
 			err := c.fs.DeleteChunk(ctx, id, dirty.Dtime)
 			if err == ErrStoreHasNewerValue {
 				// Something has already been writte, so we are good
@@ -100,7 +100,7 @@ func (c *Cleaninator) Run() {
 		} else {
 			// All orphaned data is deleted so remove the tombstone
 			c.log.Debug("Done Cleaning", zap.Any("item", dirty))
-			err := c.comms.DeleteGroupItem(ctx, GetDirtyID(dirty.FsId), []byte(fmt.Sprintf("%d", dirty.Inode)))
+			err := c.comms.DeleteGroupItem(ctx, GetDirtyID(dirty.FSID), []byte(fmt.Sprintf("%d", dirty.Inode)))
 			if err != nil && !store.IsNotFound(err) {
 				// Failed to remove so queue again to retry later
 				c.in <- toclean
@@ -144,7 +144,7 @@ func (d *Deletinator) Run() {
 		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		for b := uint64(0); b < ts.Blocks; b++ {
 			// Delete each block
-			id := GetID(ts.FsId, ts.Inode, b+1)
+			id := GetID(ts.FSID, ts.Inode, b+1)
 			err := d.fs.DeleteChunk(ctx, id, ts.Dtime)
 			if err != nil && !store.IsNotFound(err) && err != ErrStoreHasNewerValue {
 				continue
@@ -153,7 +153,7 @@ func (d *Deletinator) Run() {
 		}
 		if deleted == ts.Blocks {
 			// Everything is deleted so delete the entry
-			err := d.fs.DeleteChunk(ctx, GetID(ts.FsId, ts.Inode, 0), ts.Dtime)
+			err := d.fs.DeleteChunk(ctx, GetID(ts.FSID, ts.Inode, 0), ts.Dtime)
 			if err != nil && !store.IsNotFound(err) && err != ErrStoreHasNewerValue {
 				// Couldn't delete the inode entry so try again later
 				d.in <- todelete
@@ -165,7 +165,7 @@ func (d *Deletinator) Run() {
 		}
 		// All artifacts are deleted so remove the delete tombstone
 		d.log.Debug("Done Deleting", zap.Any("tombstone", ts))
-		err := d.comms.DeleteGroupItem(ctx, GetDeletedID(ts.FsId), []byte(fmt.Sprintf("%d", ts.Inode)))
+		err := d.comms.DeleteGroupItem(ctx, GetDeletedID(ts.FSID), []byte(fmt.Sprintf("%d", ts.Inode)))
 		if err != nil && !store.IsNotFound(err) {
 			// Failed to remove so queue again to retry later
 			d.in <- todelete

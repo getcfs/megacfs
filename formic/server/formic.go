@@ -28,6 +28,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 )
 
@@ -270,9 +271,10 @@ func (f *Formic) Check(stream formicproto.Formic_CheckServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewCheck(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewCheck(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -317,9 +319,10 @@ func (f *Formic) Create(stream formicproto.Formic_CreateServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewCreate(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewCreate(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -364,9 +367,10 @@ func (f *Formic) GetAttr(stream formicproto.Formic_GetAttrServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewGetAttr(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewGetAttr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -387,9 +391,10 @@ func (f *Formic) Getxattr(stream formicproto.Formic_GetxattrServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewGetxattr(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewGetxattr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -434,9 +439,10 @@ func (f *Formic) InitFs(stream formicproto.Formic_InitFsServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewInitFs(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewInitFs(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -481,9 +487,10 @@ func (f *Formic) Listxattr(stream formicproto.Formic_ListxattrServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewListxattr(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewListxattr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -504,9 +511,10 @@ func (f *Formic) Lookup(stream formicproto.Formic_LookupServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewLookup(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewLookup(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -527,9 +535,10 @@ func (f *Formic) MkDir(stream formicproto.Formic_MkDirServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewMkDir(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewMkDir(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -550,9 +559,10 @@ func (f *Formic) ReadDirAll(stream formicproto.Formic_ReadDirAllServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewReadDirAll(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewReadDirAll(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -573,9 +583,10 @@ func (f *Formic) Readlink(stream formicproto.Formic_ReadlinkServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewReadlink(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewReadlink(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -596,9 +607,10 @@ func (f *Formic) Read(stream formicproto.Formic_ReadServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewRead(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewRead(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -619,9 +631,10 @@ func (f *Formic) Remove(stream formicproto.Formic_RemoveServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewRemove(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewRemove(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -642,9 +655,10 @@ func (f *Formic) Removexattr(stream formicproto.Formic_RemovexattrServer) error 
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewRemovexattr(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewRemovexattr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -665,9 +679,10 @@ func (f *Formic) Rename(stream formicproto.Formic_RenameServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewRename(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewRename(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -712,9 +727,10 @@ func (f *Formic) SetAttr(stream formicproto.Formic_SetAttrServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewSetAttr(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewSetAttr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -735,9 +751,10 @@ func (f *Formic) Setxattr(stream formicproto.Formic_SetxattrServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewSetxattr(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewSetxattr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -782,9 +799,10 @@ func (f *Formic) Statfs(stream formicproto.Formic_StatfsServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewStatfs(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewStatfs(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -805,9 +823,10 @@ func (f *Formic) Symlink(stream formicproto.Formic_SymlinkServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewSymlink(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewSymlink(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -852,9 +871,10 @@ func (f *Formic) Write(stream formicproto.Formic_WriteServer) error {
 			return err
 		}
 		resp.Reset()
-		if err = f.validateIP(stream.Context()); err != nil {
+		var fsid string
+		if fsid, err = f.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = f.fs.NewWrite(stream.Context(), req, &resp); err != nil {
+		} else if err = f.fs.NewWrite(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -864,20 +884,25 @@ func (f *Formic) Write(stream formicproto.Formic_WriteServer) error {
 	}
 }
 
-func (f *Formic) validateIP(ctx context.Context) error {
+// validateIP returns the FSID for the context or an error.
+func (f *Formic) validateIP(ctx context.Context) (string, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return errors.New("couldn't get client ip")
+		return "", errors.New("couldn't get client ip")
 	}
 	ip, _, err := net.SplitHostPort(p.Addr.String())
 	if err != nil {
-		return err
+		return "", err
 	}
-	fsidUUID, err := formic.GetFsId(ctx)
-	fsid := fsidUUID.String()
-	if err != nil {
-		return err
+	md, ok := metadata.FromContext(ctx)
+	if !ok {
+		return "", errors.New("no metadata sent")
 	}
+	fsidMetadata, ok := md["fsid"]
+	if !ok {
+		return "", errors.New("file system id not sent")
+	}
+	fsid := fsidMetadata[0]
 	ips, ok := f.validIPs[fsid]
 	if !ok {
 		ips = make(map[string]time.Time)
@@ -885,18 +910,17 @@ func (f *Formic) validateIP(ctx context.Context) error {
 	}
 	cacheTime, ok := ips[ip]
 	if ok && cacheTime.After(time.Now()) {
-		return nil
+		return fsid, nil
 	}
 	_, err = f.comms.ReadGroupItem(ctx, []byte(fmt.Sprintf("/fs/%s/addr", fsid)), []byte(ip))
 	if store.IsNotFound(err) {
-		f.logger.Debug("Unauthorized IP", zap.String("unauthorized_ip", ip))
-		return formic.ErrUnauthorized
+		return "", errors.New("permission denied")
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	f.validIPs[fsid][ip] = time.Now().Add(time.Second * time.Duration(180.0+180.0*rand.NormFloat64()*0.1))
-	return nil
+	return fsid, nil
 }
 
 type validateTokenResponse struct {

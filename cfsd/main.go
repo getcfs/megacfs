@@ -212,9 +212,9 @@ FIND_LOCAL_NODE:
 
 	hostPort, err := ring.CanonicalHostPort(oneRing.LocalNode().Address(ADDR_PROMETHEUS), 9100)
 	if err != nil {
-		logger.Fatal("Erroring translating configured prometheus address.", zap.Error(err))
+		logger.Fatal("Error translating configured prometheus address.", zap.Error(err))
 	}
-	logger.Warn("Need to switch Prometheus to using TLS", zap.String("cert", prometheusCertPath), zap.String("key", prometheusKeyPath))
+	logger.Debug("Need to switch Prometheus to using TLS; or at least allow it.", zap.String("cert", prometheusCertPath), zap.String("key", prometheusKeyPath))
 	http.Handle("/metrics", prometheus.Handler())
 	go http.ListenAndServe(hostPort, nil)
 
