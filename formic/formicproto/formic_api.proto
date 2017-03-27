@@ -1,5 +1,5 @@
 syntax = "proto3";
-package newproto;
+package formicproto;
 
 service Formic {
     rpc Check(stream CheckRequest) returns (stream CheckResponse) {}

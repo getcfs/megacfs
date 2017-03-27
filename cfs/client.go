@@ -9,7 +9,7 @@ import (
 	"path"
 	"syscall"
 
-	"github.com/getcfs/megacfs/formic/newproto"
+	"github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/pkg/xattr"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/metadata"
@@ -65,7 +65,7 @@ func list(addr, authURL, username, password string) error {
 	}
 	c := setupWS(addr)
 	defer c.Close()
-	ws := newproto.NewFormicClient(c)
+	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
@@ -75,7 +75,7 @@ func list(addr, authURL, username, password string) error {
 		fmt.Println("ListFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&newproto.ListFSRequest{Rpcid: 1, Token: token}); err != nil {
+	if err = stream.Send(&formicproto.ListFSRequest{Rpcid: 1, Token: token}); err != nil {
 		fmt.Println("ListFS failed", err)
 		os.Exit(1)
 	}
@@ -115,7 +115,7 @@ func show(addr, authURL, username, password string) error {
 	fsid := f.Args()[0]
 	c := setupWS(addr)
 	defer c.Close()
-	ws := newproto.NewFormicClient(c)
+	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
@@ -125,7 +125,7 @@ func show(addr, authURL, username, password string) error {
 		fmt.Println("ShowFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&newproto.ShowFSRequest{Rpcid: 1, Token: token, Fsid: fsid}); err != nil {
+	if err = stream.Send(&formicproto.ShowFSRequest{Rpcid: 1, Token: token, Fsid: fsid}); err != nil {
 		fmt.Println("ShowFS failed", err)
 		os.Exit(1)
 	}
@@ -168,7 +168,7 @@ func create(addr, authURL, username, password string) error {
 	name := f.Args()[0]
 	c := setupWS(addr)
 	defer c.Close()
-	ws := newproto.NewFormicClient(c)
+	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
@@ -178,7 +178,7 @@ func create(addr, authURL, username, password string) error {
 		fmt.Println("CreateFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&newproto.CreateFSRequest{Rpcid: 1, Token: token, Fsname: name}); err != nil {
+	if err = stream.Send(&formicproto.CreateFSRequest{Rpcid: 1, Token: token, Fsname: name}); err != nil {
 		fmt.Println("CreateFS failed", err)
 		os.Exit(1)
 	}
@@ -211,7 +211,7 @@ func del(addr, authURL, username, password string) error {
 	fsid := f.Args()[0]
 	c := setupWS(addr)
 	defer c.Close()
-	ws := newproto.NewFormicClient(c)
+	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
 
 	// TODO: Placeholder code to get things working; needs to be replaced to be
@@ -221,7 +221,7 @@ func del(addr, authURL, username, password string) error {
 		fmt.Println("DeleteFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&newproto.DeleteFSRequest{Rpcid: 1, Token: token, Fsid: fsid}); err != nil {
+	if err = stream.Send(&formicproto.DeleteFSRequest{Rpcid: 1, Token: token, Fsid: fsid}); err != nil {
 		fmt.Println("DeleteFS failed", err)
 		os.Exit(1)
 	}
@@ -251,13 +251,13 @@ func update(addr, authURL, username, password string) error {
 	if f.NArg() != 2 {
 		f.Usage()
 	}
-	newFS := &newproto.ModFS{
+	newFS := &formicproto.ModFS{
 		Name: f.Args()[0],
 	}
 	fsid := f.Args()[1]
 	c := setupWS(addr)
 	defer c.Close()
-	ws := newproto.NewFormicClient(c)
+	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
 	ctx := context.Background()
 	ctx = metadata.NewContext(
@@ -271,7 +271,7 @@ func update(addr, authURL, username, password string) error {
 		fmt.Println("UpdateFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&newproto.UpdateFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Filesys: newFS}); err != nil {
+	if err = stream.Send(&formicproto.UpdateFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Filesys: newFS}); err != nil {
 		fmt.Println("UpdateFS failed", err)
 		os.Exit(1)
 	}
@@ -311,7 +311,7 @@ func grant(addr, authURL, username, password string) error {
 	}
 	c := setupWS(addr)
 	defer c.Close()
-	ws := newproto.NewFormicClient(c)
+	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
 	ctx := context.Background()
 	// TODO: Placeholder code to get things working; needs to be replaced to be
@@ -321,7 +321,7 @@ func grant(addr, authURL, username, password string) error {
 		fmt.Println("GrantAddrFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&newproto.GrantAddrFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Addr: ip}); err != nil {
+	if err = stream.Send(&formicproto.GrantAddrFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Addr: ip}); err != nil {
 		fmt.Println("GrantAddrFS failed", err)
 		os.Exit(1)
 	}
@@ -361,7 +361,7 @@ func revoke(addr, authURL, username, password string) error {
 	}
 	c := setupWS(addr)
 	defer c.Close()
-	ws := newproto.NewFormicClient(c)
+	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
 	ctx := context.Background()
 	// TODO: Placeholder code to get things working; needs to be replaced to be
@@ -371,7 +371,7 @@ func revoke(addr, authURL, username, password string) error {
 		fmt.Println("RevokeAddrFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&newproto.RevokeAddrFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Addr: ip}); err != nil {
+	if err = stream.Send(&formicproto.RevokeAddrFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Addr: ip}); err != nil {
 		fmt.Println("RevokeAddrFS failed", err)
 		os.Exit(1)
 	}
@@ -428,7 +428,7 @@ func check(addr string) error {
 	}
 	c := setupWS(addr)
 	defer c.Close()
-	ws := newproto.NewFormicClient(c)
+	ws := formicproto.NewFormicClient(c)
 	ctx := context.Background()
 	ctx = metadata.NewContext(
 		ctx,
@@ -441,7 +441,7 @@ func check(addr string) error {
 		fmt.Println("Check failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&newproto.CheckRequest{Rpcid: 1, Inode: stat.Ino, Name: fileName}); err != nil {
+	if err = stream.Send(&formicproto.CheckRequest{Rpcid: 1, Inode: stat.Ino, Name: fileName}); err != nil {
 		fmt.Println("Check failed", err)
 		os.Exit(1)
 	}

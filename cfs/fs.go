@@ -10,7 +10,7 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fuseutil"
-	"github.com/getcfs/megacfs/formic/newproto"
+	"github.com/getcfs/megacfs/formic/formicproto"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/metadata"
@@ -179,7 +179,7 @@ func (f *fileHandles) getReadCache(h fuse.HandleID) []byte {
 	return f.handles[h].readCache
 }
 
-func copyNewAttr(dst *fuse.Attr, src *newproto.Attr) {
+func copyNewAttr(dst *fuse.Attr, src *formicproto.Attr) {
 	dst.Inode = src.Inode
 	dst.Mode = os.FileMode(src.Mode)
 	dst.Size = src.Size
@@ -192,7 +192,7 @@ func copyNewAttr(dst *fuse.Attr, src *newproto.Attr) {
 	dst.Blocks = dst.Size / 512 // set Blocks so df works without the --apparent-size flag
 }
 
-func copyAttr(dst *fuse.Attr, src *newproto.Attr) {
+func copyAttr(dst *fuse.Attr, src *formicproto.Attr) {
 	dst.Inode = src.Inode
 	dst.Mode = os.FileMode(src.Mode)
 	dst.Size = src.Size
@@ -226,7 +226,7 @@ func (f *fs) InitFs() error {
 		logger.Debug("InitFs failed", zap.Error(err))
 		return err
 	}
-	if err = stream.Send(&newproto.InitFsRequest{Rpcid: 1}); err != nil {
+	if err = stream.Send(&formicproto.InitFsRequest{Rpcid: 1}); err != nil {
 		logger.Debug("InitFs failed", zap.Error(err))
 		return err
 	}
@@ -253,7 +253,7 @@ func (f *fs) handleGetattr(r *fuse.GetattrRequest) {
 		r.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.GetAttrRequest{Rpcid: 1, Inode: uint64(r.Node)}); err != nil {
+	if err = stream.Send(&formicproto.GetAttrRequest{Rpcid: 1, Inode: uint64(r.Node)}); err != nil {
 		logger.Debug("Getattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
@@ -286,7 +286,7 @@ func (f *fs) handleLookup(req *fuse.LookupRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.LookupRequest{Rpcid: 1, Name: req.Name, Parent: uint64(req.Node)}); err != nil {
+	if err = stream.Send(&formicproto.LookupRequest{Rpcid: 1, Name: req.Name, Parent: uint64(req.Node)}); err != nil {
 		logger.Debug("Lookup failed [2]", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -328,7 +328,7 @@ func (f *fs) handleMkdir(req *fuse.MkdirRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.MkDirRequest{Rpcid: 1, Name: req.Name, Parent: uint64(req.Node), Attr: &newproto.Attr{Uid: req.Uid, Gid: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
+	if err = stream.Send(&formicproto.MkDirRequest{Rpcid: 1, Name: req.Name, Parent: uint64(req.Node), Attr: &formicproto.Attr{Uid: req.Uid, Gid: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
 		logger.Debug("Mkdir failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -385,7 +385,7 @@ func (f *fs) handleRead(req *fuse.ReadRequest) {
 				req.RespondError(fuse.EIO)
 				return
 			}
-			if err = stream.Send(&newproto.ReadDirAllRequest{Rpcid: 1, Inode: uint64(req.Node)}); err != nil {
+			if err = stream.Send(&formicproto.ReadDirAllRequest{Rpcid: 1, Inode: uint64(req.Node)}); err != nil {
 				logger.Debug("ReadDirAll failed", zap.Error(err))
 				req.RespondError(fuse.EIO)
 				return
@@ -435,7 +435,7 @@ func (f *fs) handleRead(req *fuse.ReadRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.ReadRequest{Rpcid: 1, Inode: uint64(req.Node), Offset: int64(req.Offset), Size: int64(req.Size)}); err != nil {
+	if err = stream.Send(&formicproto.ReadRequest{Rpcid: 1, Inode: uint64(req.Node), Offset: int64(req.Offset), Size: int64(req.Size)}); err != nil {
 		logger.Debug("Read failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -467,7 +467,7 @@ func (f *fs) handleWrite(r *fuse.WriteRequest) {
 		r.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.WriteRequest{Rpcid: 1, Inode: uint64(r.Node), Offset: r.Offset, Payload: r.Data}); err != nil {
+	if err = stream.Send(&formicproto.WriteRequest{Rpcid: 1, Inode: uint64(r.Node), Offset: r.Offset, Payload: r.Data}); err != nil {
 		logger.Debug("Write failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
@@ -497,7 +497,7 @@ func (f *fs) handleCreate(req *fuse.CreateRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.CreateRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.Name, Attr: &newproto.Attr{Uid: req.Uid, Gid: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
+	if err = stream.Send(&formicproto.CreateRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.Name, Attr: &formicproto.Attr{Uid: req.Uid, Gid: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
 		logger.Debug("Create failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -530,7 +530,7 @@ func (f *fs) handleSetattr(r *fuse.SetattrRequest) {
 	logger.Debug("Inside handleSetattr", zap.Any("request", r))
 	resp := &fuse.SetattrResponse{}
 	resp.Attr.Inode = uint64(r.Node)
-	a := &newproto.Attr{
+	a := &formicproto.Attr{
 		Inode: uint64(r.Node),
 	}
 	if r.Valid.Size() {
@@ -562,7 +562,7 @@ func (f *fs) handleSetattr(r *fuse.SetattrRequest) {
 		r.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.SetAttrRequest{Rpcid: 1, Attr: a, Valid: uint32(r.Valid)}); err != nil {
+	if err = stream.Send(&formicproto.SetAttrRequest{Rpcid: 1, Attr: a, Valid: uint32(r.Valid)}); err != nil {
 		logger.Debug("Setattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
@@ -618,7 +618,7 @@ func (f *fs) handleRemove(req *fuse.RemoveRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.RemoveRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.Name}); err != nil {
+	if err = stream.Send(&formicproto.RemoveRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.Name}); err != nil {
 		logger.Debug("Remove failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -675,7 +675,7 @@ func (f *fs) handleStatfs(req *fuse.StatfsRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.StatfsRequest{Rpcid: 1}); err != nil {
+	if err = stream.Send(&formicproto.StatfsRequest{Rpcid: 1}); err != nil {
 		logger.Debug("Statfs failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -714,7 +714,7 @@ func (f *fs) handleSymlink(req *fuse.SymlinkRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.SymlinkRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.NewName, Target: req.Target, Uid: req.Uid, Gid: req.Gid}); err != nil {
+	if err = stream.Send(&formicproto.SymlinkRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.NewName, Target: req.Target, Uid: req.Uid, Gid: req.Gid}); err != nil {
 		logger.Debug("Symlink failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -749,7 +749,7 @@ func (f *fs) handleReadlink(req *fuse.ReadlinkRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&newproto.ReadlinkRequest{Rpcid: 1, Inode: uint64(req.Node)}); err != nil {
+	if err = stream.Send(&formicproto.ReadlinkRequest{Rpcid: 1, Inode: uint64(req.Node)}); err != nil {
 		logger.Debug("Readlink failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -794,7 +794,7 @@ func (f *fs) handleGetxattr(req *fuse.GetxattrRequest) {
 	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole xattr is always returned.
-	if err = stream.Send(&newproto.GetxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name, Size: req.Size, Position: req.Position}); err != nil {
+	if err = stream.Send(&formicproto.GetxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name, Size: req.Size, Position: req.Position}); err != nil {
 		logger.Debug("Getxattr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -827,7 +827,7 @@ func (f *fs) handleListxattr(req *fuse.ListxattrRequest) {
 	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole list of xattrs are always returned.
-	if err = stream.Send(&newproto.ListxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Size: req.Size, Position: req.Position}); err != nil {
+	if err = stream.Send(&formicproto.ListxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Size: req.Size, Position: req.Position}); err != nil {
 		logger.Debug("Listxattr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -867,7 +867,7 @@ func (f *fs) handleSetxattr(req *fuse.SetxattrRequest) {
 	}
 	// TODO: Best I can tell, xattr position and flags were never implemented.
 	// The whole xattr is always set and flags are ignored.
-	if err = stream.Send(&newproto.SetxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name, Value: req.Xattr, Position: req.Position, Flags: req.Flags}); err != nil {
+	if err = stream.Send(&formicproto.SetxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name, Value: req.Xattr, Position: req.Position, Flags: req.Flags}); err != nil {
 		logger.Debug("Setxattr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -907,7 +907,7 @@ func (f *fs) handleRemovexattr(req *fuse.RemovexattrRequest) {
 	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole list of xattrs are always returned.
-	if err = stream.Send(&newproto.RemovexattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name}); err != nil {
+	if err = stream.Send(&formicproto.RemovexattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name}); err != nil {
 		logger.Debug("Removexattr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -944,7 +944,7 @@ func (f *fs) handleRename(req *fuse.RenameRequest) {
 	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole list of xattrs are always returned.
-	if err = stream.Send(&newproto.RenameRequest{Rpcid: 1, OldParent: uint64(req.Node), NewParent: uint64(req.NewDir), OldName: req.OldName, NewName: req.NewName}); err != nil {
+	if err = stream.Send(&formicproto.RenameRequest{Rpcid: 1, OldParent: uint64(req.Node), NewParent: uint64(req.NewDir), OldName: req.OldName, NewName: req.NewName}); err != nil {
 		logger.Debug("Rename failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
