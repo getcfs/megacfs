@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"hash"
 	"hash/crc32"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -39,14 +37,14 @@ const (
 // FileService ...
 type FileService interface {
 	NewCheck(context.Context, *formicproto.CheckRequest, *formicproto.CheckResponse) error
-	NewCreateFS(context.Context, *formicproto.CreateFSRequest, *formicproto.CreateFSResponse) error
+	NewCreateFS(context.Context, *formicproto.CreateFSRequest, *formicproto.CreateFSResponse, string) error
 	NewCreate(context.Context, *formicproto.CreateRequest, *formicproto.CreateResponse) error
-	NewDeleteFS(context.Context, *formicproto.DeleteFSRequest, *formicproto.DeleteFSResponse) error
+	NewDeleteFS(context.Context, *formicproto.DeleteFSRequest, *formicproto.DeleteFSResponse, string) error
 	NewGetAttr(context.Context, *formicproto.GetAttrRequest, *formicproto.GetAttrResponse) error
 	NewGetxattr(context.Context, *formicproto.GetxattrRequest, *formicproto.GetxattrResponse) error
-	NewGrantAddrFS(context.Context, *formicproto.GrantAddrFSRequest, *formicproto.GrantAddrFSResponse) error
+	NewGrantAddrFS(context.Context, *formicproto.GrantAddrFSRequest, *formicproto.GrantAddrFSResponse, string) error
 	NewInitFs(context.Context, *formicproto.InitFsRequest, *formicproto.InitFsResponse) error
-	NewListFS(context.Context, *formicproto.ListFSRequest, *formicproto.ListFSResponse) error
+	NewListFS(context.Context, *formicproto.ListFSRequest, *formicproto.ListFSResponse, string) error
 	NewListxattr(context.Context, *formicproto.ListxattrRequest, *formicproto.ListxattrResponse) error
 	NewLookup(context.Context, *formicproto.LookupRequest, *formicproto.LookupResponse) error
 	NewMkDir(context.Context, *formicproto.MkDirRequest, *formicproto.MkDirResponse) error
@@ -56,13 +54,13 @@ type FileService interface {
 	NewRemove(context.Context, *formicproto.RemoveRequest, *formicproto.RemoveResponse) error
 	NewRemovexattr(context.Context, *formicproto.RemovexattrRequest, *formicproto.RemovexattrResponse) error
 	NewRename(context.Context, *formicproto.RenameRequest, *formicproto.RenameResponse) error
-	NewRevokeAddrFS(context.Context, *formicproto.RevokeAddrFSRequest, *formicproto.RevokeAddrFSResponse) error
+	NewRevokeAddrFS(context.Context, *formicproto.RevokeAddrFSRequest, *formicproto.RevokeAddrFSResponse, string) error
 	NewSetAttr(context.Context, *formicproto.SetAttrRequest, *formicproto.SetAttrResponse) error
 	NewSetxattr(context.Context, *formicproto.SetxattrRequest, *formicproto.SetxattrResponse) error
-	NewShowFS(context.Context, *formicproto.ShowFSRequest, *formicproto.ShowFSResponse) error
+	NewShowFS(context.Context, *formicproto.ShowFSRequest, *formicproto.ShowFSResponse, string) error
 	NewStatfs(context.Context, *formicproto.StatfsRequest, *formicproto.StatfsResponse) error
 	NewSymlink(context.Context, *formicproto.SymlinkRequest, *formicproto.SymlinkResponse) error
-	NewUpdateFS(context.Context, *formicproto.UpdateFSRequest, *formicproto.UpdateFSResponse) error
+	NewUpdateFS(context.Context, *formicproto.UpdateFSRequest, *formicproto.UpdateFSResponse, string) error
 	NewWrite(context.Context, *formicproto.WriteRequest, *formicproto.WriteResponse) error
 
 	InitFs(ctx context.Context, fsid []byte) error
@@ -220,33 +218,25 @@ func (o *StoreComms) ReadGroup(ctx context.Context, key []byte) ([]store.ReadGro
 
 // OortFS ...
 type OortFS struct {
-	hasher       func() hash.Hash32
-	comms        *StoreComms
-	deleteChan   chan *DeleteItem
-	dirtyChan    chan *DirtyItem
-	log          *zap.Logger
-	blocksize    int64
-	fl           *flother.Flother
-	skipAuth     bool
-	authUrl      string
-	authUser     string
-	authPassword string
+	hasher     func() hash.Hash32
+	comms      *StoreComms
+	deleteChan chan *DeleteItem
+	dirtyChan  chan *DirtyItem
+	log        *zap.Logger
+	blocksize  int64
+	fl         *flother.Flother
 }
 
 // NewOortFS ...
-func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem, blocksize int64, nodeID int, skipAuth bool, authUrl string, authUser string, authPassword string) *OortFS {
+func NewOortFS(comms *StoreComms, logger *zap.Logger, deleteChan chan *DeleteItem, dirtyChan chan *DirtyItem, blocksize int64, nodeID int) *OortFS {
 	o := &OortFS{
-		hasher:       crc32.NewIEEE,
-		comms:        comms,
-		log:          logger,
-		deleteChan:   deleteChan,
-		dirtyChan:    dirtyChan,
-		blocksize:    blocksize,
-		fl:           flother.NewFlother(time.Time{}, uint64(nodeID)),
-		skipAuth:     skipAuth,
-		authUrl:      authUrl,
-		authUser:     authUser,
-		authPassword: authPassword,
+		hasher:     crc32.NewIEEE,
+		comms:      comms,
+		log:        logger,
+		deleteChan: deleteChan,
+		dirtyChan:  dirtyChan,
+		blocksize:  blocksize,
+		fl:         flother.NewFlother(time.Time{}, uint64(nodeID)),
 	}
 	return o
 }
@@ -316,17 +306,12 @@ func (o *OortFS) NewCheck(ctx context.Context, req *formicproto.CheckRequest, re
 	return nil
 }
 
-func (o *OortFS) NewCreateFS(ctx context.Context, req *formicproto.CreateFSRequest, resp *formicproto.CreateFSResponse) error {
+func (o *OortFS) NewCreateFS(ctx context.Context, req *formicproto.CreateFSRequest, resp *formicproto.CreateFSResponse, acctID string) error {
 	var err error
-	var acctID string
 	var fsRef FileSysRef
 	var fsRefByte []byte
 	var fsSysAttr FileSysAttr
 	var fsSysAttrByte []byte
-	acctID, err = o.validateToken(req.Token)
-	if err != nil {
-		return err
-	}
 	fsID := uuid.NewV4().String()
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	// Write file system reference entries.
@@ -464,18 +449,13 @@ func (o *OortFS) NewCreate(ctx context.Context, req *formicproto.CreateRequest, 
 	return nil
 }
 
-func (o *OortFS) NewDeleteFS(ctx context.Context, req *formicproto.DeleteFSRequest, resp *formicproto.DeleteFSResponse) error {
+func (o *OortFS) NewDeleteFS(ctx context.Context, req *formicproto.DeleteFSRequest, resp *formicproto.DeleteFSResponse, acctID string) error {
 	var err error
 	var value []byte
 	var fsRef FileSysRef
 	var addrData AddrRef
 	rowcount := 0
-	// validate Token
-	acctID, err := o.validateToken(req.Token)
-	if err != nil {
-		return err
-	}
-	// Validate Token/Account own this file system
+	// Validate acctID owns this file system
 	pKey := fmt.Sprintf("/fs")
 	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
 	cKeyA, cKeyB := murmur3.Sum128([]byte(req.Fsid))
@@ -619,24 +599,18 @@ func (o *OortFS) NewGetxattr(ctx context.Context, req *formicproto.GetxattrReque
 	return nil
 }
 
-func (o *OortFS) NewGrantAddrFS(ctx context.Context, req *formicproto.GrantAddrFSRequest, resp *formicproto.GrantAddrFSResponse) error {
+func (o *OortFS) NewGrantAddrFS(ctx context.Context, req *formicproto.GrantAddrFSRequest, resp *formicproto.GrantAddrFSResponse, acctID string) error {
 	var err error
-	var acctID string
 	var fsRef FileSysRef
 	var value []byte
 	var addrData AddrRef
 	var addrByte []byte
 	srcAddr := ""
 	srcAddrIP := ""
-	// Get incomming ip
+	// Get incoming ip
 	pr, ok := peer.FromContext(ctx)
 	if ok {
 		srcAddr = pr.Addr.String()
-	}
-	// validate token
-	acctID, err = o.validateToken(req.Token)
-	if err != nil {
-		return err
 	}
 	// Read FileSysRef entry to determine if it exists and Account matches
 	pKey := fmt.Sprintf("/fs")
@@ -689,11 +663,7 @@ func (o *OortFS) NewInitFs(ctx context.Context, req *formicproto.InitFsRequest, 
 	return o.InitFs(ctx, fsid.Bytes())
 }
 
-func (o *OortFS) NewListFS(ctx context.Context, req *formicproto.ListFSRequest, resp *formicproto.ListFSResponse) error {
-	acctID, err := o.validateToken(req.Token)
-	if err != nil {
-		return err
-	}
+func (o *OortFS) NewListFS(ctx context.Context, req *formicproto.ListFSRequest, resp *formicproto.ListFSResponse, acctID string) error {
 	var value []byte
 	var fsRef FileSysRef
 	var addrData AddrRef
@@ -1025,24 +995,18 @@ func (o *OortFS) NewRename(ctx context.Context, req *formicproto.RenameRequest, 
 	return nil
 }
 
-func (o *OortFS) NewRevokeAddrFS(ctx context.Context, req *formicproto.RevokeAddrFSRequest, resp *formicproto.RevokeAddrFSResponse) error {
+func (o *OortFS) NewRevokeAddrFS(ctx context.Context, req *formicproto.RevokeAddrFSRequest, resp *formicproto.RevokeAddrFSResponse, acctID string) error {
 	var err error
-	var acctID string
 	var value []byte
 	var fsRef FileSysRef
 	srcAddr := ""
 	srcAddrIP := ""
-	// Get incomming ip
+	// Get incoming ip
 	pr, ok := peer.FromContext(ctx)
 	if ok {
 		srcAddr = pr.Addr.String()
 	}
-	// Validate Token
-	acctID, err = o.validateToken(req.Token)
-	if err != nil {
-		return err
-	}
-	// Validate Token/Account owns this file system
+	// Validate acctID owns this file system
 	// Read FileSysRef entry to determine if it exists
 	pKey := fmt.Sprintf("/fs")
 	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
@@ -1198,13 +1162,8 @@ func (o *OortFS) NewSetxattr(ctx context.Context, req *formicproto.SetxattrReque
 	return nil
 }
 
-func (o *OortFS) NewShowFS(ctx context.Context, req *formicproto.ShowFSRequest, resp *formicproto.ShowFSResponse) error {
+func (o *OortFS) NewShowFS(ctx context.Context, req *formicproto.ShowFSRequest, resp *formicproto.ShowFSResponse, acctID string) error {
 	var err error
-	var acctID string
-	acctID, err = o.validateToken(req.Token)
-	if err != nil {
-		return err
-	}
 	var fs FileSysMeta
 	var value []byte
 	var fsRef FileSysRef
@@ -1227,7 +1186,6 @@ func (o *OortFS) NewShowFS(ctx context.Context, req *formicproto.ShowFSRequest, 
 	if err != nil {
 		return err
 	}
-	// Validate Token/Account own the file system
 	if fsRef.AcctID != acctID {
 		return errors.New("permission denied")
 	}
@@ -1369,7 +1327,7 @@ func (o *OortFS) NewSymlink(ctx context.Context, req *formicproto.SymlinkRequest
 	return nil
 }
 
-func (o *OortFS) NewUpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest, resp *formicproto.UpdateFSResponse) error {
+func (o *OortFS) NewUpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest, resp *formicproto.UpdateFSResponse, acctID string) error {
 	var err error
 	var value []byte
 	var fsRef FileSysRef
@@ -1378,11 +1336,7 @@ func (o *OortFS) NewUpdateFS(ctx context.Context, req *formicproto.UpdateFSReque
 	if req.Filesys.Name == "" {
 		return errors.New("file system name cannot be empty")
 	}
-	acctID, err := o.validateToken(req.Token)
-	if err != nil {
-		return err
-	}
-	// validate that Token/Account own this file system
+	// validate that acctID owns this file system
 	// Read FileSysRef entry to determine if it exists
 	pKey := fmt.Sprintf("/fs")
 	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
@@ -1768,39 +1722,6 @@ func (o *OortFS) GetDirent(ctx context.Context, parent []byte, name string) (*fo
 		return &formicproto.DirEntry{}, err
 	}
 	return d, nil
-}
-
-func (o *OortFS) validateToken(token string) (string, error) {
-	if o.skipAuth {
-		// Running in dev mode
-		return "11", nil
-	}
-	auth_token, err := auth(o.authUrl, o.authUser, o.authPassword)
-	if err != nil {
-		return "", err
-	}
-	req, err := http.NewRequest("GET", o.authUrl+"/v3/auth/tokens", nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("X-Auth-Token", auth_token)
-	req.Header.Set("X-Subject-Token", token)
-	resp, err := http.DefaultClient.Do(req) // TODO: Is this safe for formic?
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		// TODO: This probably isn't 100% accurate; 5xx would indicate the auth
-		// server was broken and not that the token was invalid necessarily.
-		return "", errors.New("Invalid Token")
-	}
-	// parse tenant from response
-	var validateResp ValidateResponse
-	r, _ := ioutil.ReadAll(resp.Body)
-	json.Unmarshal(r, &validateResp)
-	project := validateResp.Token.Project.ID
-	return project, nil
 }
 
 // deleteEntry Deletes and entry in the group store and doesn't care if

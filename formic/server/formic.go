@@ -1,11 +1,17 @@
+// Package server provides a server implementation of a single node of
+// a formic cluster.
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -184,7 +190,7 @@ func (f *Formic) Startup(ctx context.Context) error {
 	if f.nodeID == -1 {
 		f.nodeID = int(murmur3.Sum32([]byte(grpcHostPort)))
 	}
-	f.fs = formic.NewOortFS(f.comms, f.logger, deleteChan, dirtyChan, blocksize, f.nodeID, f.skipAuth, f.authURL, f.authUser, f.authPassword)
+	f.fs = formic.NewOortFS(f.comms, f.logger, deleteChan, dirtyChan, blocksize, f.nodeID)
 	deletes := formic.NewDeletinator(deleteChan, f.fs, f.comms, f.logger)
 	cleaner := formic.NewCleaninator(dirtyChan, f.fs, f.comms, f.logger)
 	go deletes.Run()
@@ -277,18 +283,6 @@ func (f *Formic) Check(stream formicproto.Formic_CheckServer) error {
 }
 
 func (f *Formic) CreateFS(stream formicproto.Formic_CreateFSServer) error {
-	// NOTE: Each of these streams is synchronized req1, resp1, req2, resp2.
-	// But it doesn't have to be that way, it was just simpler to code. Each
-	// client/server pair will have a stream for each request/response type, so
-	// there's a pretty good amount of concurrency going on there already.
-	// Perhaps later we can experiment with intrastream concurrency and see if
-	// the complexity is worth it.
-	//
-	// The main reason for using streams over unary grpc requests was
-	// benchmarked speed gains. I suspect it is because unary requests actually
-	// set up and tear down streams for each request, but that's just a guess.
-	// We stopped looking into it once we noticed the speed gains from
-	// switching to streaming.
 	var resp formicproto.CreateFSResponse
 	for {
 		req, err := stream.Recv()
@@ -299,9 +293,10 @@ func (f *Formic) CreateFS(stream formicproto.Formic_CreateFSServer) error {
 			return err
 		}
 		resp.Reset()
-		// No need to validateIP for CreateFS calls; token validation happens
-		// later.
-		if err = f.fs.NewCreateFS(stream.Context(), req, &resp); err != nil {
+		acctID, err := f.validateToken(req.Token)
+		if err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewCreateFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -345,9 +340,10 @@ func (f *Formic) DeleteFS(stream formicproto.Formic_DeleteFSServer) error {
 			return err
 		}
 		resp.Reset()
-		// No need to validateIP for DeleteFS calls; token validation happens
-		// later.
-		if err = f.fs.NewDeleteFS(stream.Context(), req, &resp); err != nil {
+		acctID, err := f.validateToken(req.Token)
+		if err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewDeleteFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -414,9 +410,10 @@ func (f *Formic) GrantAddrFS(stream formicproto.Formic_GrantAddrFSServer) error 
 			return err
 		}
 		resp.Reset()
-		// No need to validateIP for GrantAddrFS calls; token validation
-		// happens later.
-		if err = f.fs.NewGrantAddrFS(stream.Context(), req, &resp); err != nil {
+		acctID, err := f.validateToken(req.Token)
+		if err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewGrantAddrFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -460,9 +457,10 @@ func (f *Formic) ListFS(stream formicproto.Formic_ListFSServer) error {
 			return err
 		}
 		resp.Reset()
-		// No need to validateIP for ListFS calls; token validation happens
-		// later.
-		if err = f.fs.NewListFS(stream.Context(), req, &resp); err != nil {
+		acctID, err := f.validateToken(req.Token)
+		if err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewListFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -690,9 +688,10 @@ func (f *Formic) RevokeAddrFS(stream formicproto.Formic_RevokeAddrFSServer) erro
 			return err
 		}
 		resp.Reset()
-		// No need to validateIP for RevokeAddrFS calls; token validation
-		// happens later.
-		if err = f.fs.NewRevokeAddrFS(stream.Context(), req, &resp); err != nil {
+		acctID, err := f.validateToken(req.Token)
+		if err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewRevokeAddrFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -759,9 +758,10 @@ func (f *Formic) ShowFS(stream formicproto.Formic_ShowFSServer) error {
 			return err
 		}
 		resp.Reset()
-		// No need to validateIP for ShowFS calls; token validation happens
-		// later.
-		if err = f.fs.NewShowFS(stream.Context(), req, &resp); err != nil {
+		acctID, err := f.validateToken(req.Token)
+		if err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewShowFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -828,9 +828,10 @@ func (f *Formic) UpdateFS(stream formicproto.Formic_UpdateFSServer) error {
 			return err
 		}
 		resp.Reset()
-		// No need to validateIP for UpdateFS calls; token validation happens
-		// later.
-		if err = f.fs.NewUpdateFS(stream.Context(), req, &resp); err != nil {
+		acctID, err := f.validateToken(req.Token)
+		if err != nil {
+			resp.Err = err.Error()
+		} else if err = f.fs.NewUpdateFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.Rpcid = req.Rpcid
@@ -896,4 +897,67 @@ func (f *Formic) validateIP(ctx context.Context) error {
 	}
 	f.validIPs[fsid][ip] = time.Now().Add(time.Second * time.Duration(180.0+180.0*rand.NormFloat64()*0.1))
 	return nil
+}
+
+type validateTokenResponse struct {
+	Token struct {
+		Project struct {
+			ID string `json:"id"`
+		} `json:"project"`
+	} `json:"token"`
+}
+
+// validateToken ensure the token is valid and returns the Account ID or an
+// error.
+func (f *Formic) validateToken(token string) (string, error) {
+	if f.skipAuth {
+		return "11", nil
+	}
+	serverAuthToken, err := serverAuth(f.authURL, f.authUser, f.authPassword)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest("GET", f.authURL+"/v3/auth/tokens", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("X-Auth-Token", serverAuthToken)
+	req.Header.Set("X-Subject-Token", token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("token validation gave status %d", resp.StatusCode)
+	}
+	var validateResp validateTokenResponse
+	r, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if err = json.Unmarshal(r, &validateResp); err != nil {
+		return "", err
+	}
+	return validateResp.Token.Project.ID, nil
+}
+
+// serverAuth return the X-Auth-Token to use or an error.
+func serverAuth(url string, user string, password string) (string, error) {
+	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, user, password)
+	rbody := strings.NewReader(body)
+	req, err := http.NewRequest("POST", url+"/v3/auth/tokens", rbody)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 201 {
+		return "", fmt.Errorf("server auth token request gave status %d", resp.StatusCode)
+	}
+	return resp.Header.Get("X-Subject-Token"), nil
 }
