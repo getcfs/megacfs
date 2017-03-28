@@ -1,4 +1,4 @@
-package formic
+package server
 
 // Structures used in Group Store
 //  File System
@@ -11,23 +11,23 @@ package formic
 //                                         "createdate": <timestamp>, "deletedate": <timestamp>
 //                                       }
 
-type FileSysRef struct {
+type fileSysRef struct {
 	FSID   string `json:"fsid"`
 	AcctID string `json:"acctid"`
 }
 
-type FileSysAttr struct {
+type fileSysAttr struct {
 	Attr  string `json:"attr"`
 	Value string `json:"value"`
 	FSID  string `json:"fsid"`
 }
 
-type AddrRef struct {
+type addrRef struct {
 	Addr string `json:"addr"`
 	FSID string `json:"fsid"`
 }
 
-type FileSysMeta struct {
+type fileSysMeta struct {
 	ID     string   `json:"id"`
 	AcctID string   `json:"acctid"`
 	Name   string   `json:"name"`

@@ -301,22 +301,22 @@ FIND_LOCAL_NODE:
 		logger.Fatal("Error starting value store", zap.Error(err))
 	}
 
-	newFormicCfg := formicserver.NewFormicConfig()
-	newFormicCfg.GRPCAddressIndex = ADDR_FORMIC_GRPC
-	newFormicCfg.ValueGRPCAddressIndex = ADDR_VALUE_GRPC
-	newFormicCfg.GroupGRPCAddressIndex = ADDR_GROUP_GRPC
-	newFormicCfg.GRPCCertFile = grpcFormicCertPath
-	newFormicCfg.GRPCKeyFile = grpcFormicKeyPath
-	newFormicCfg.CAFile = caPath
-	newFormicCfg.Scale = 0.2
-	newFormicCfg.Ring = oneRing
-	newFormicCfg.RingPath = ringPath
-	newFormicCfg.SkipAuth = false
-	newFormicCfg.AuthURL = "http://localhost:5000"
-	newFormicCfg.AuthUser = "admin"
-	newFormicCfg.AuthPassword = "admin"
-	newFormicCfg.Logger = logger
-	newFormic, err := formicserver.NewFormic(newFormicCfg)
+	newFormic, err := formicserver.NewFormic(&formicserver.FormicConfig{
+		GRPCAddressIndex:      ADDR_FORMIC_GRPC,
+		ValueGRPCAddressIndex: ADDR_VALUE_GRPC,
+		GroupGRPCAddressIndex: ADDR_GROUP_GRPC,
+		GRPCCertFile:          grpcFormicCertPath,
+		GRPCKeyFile:           grpcFormicKeyPath,
+		CAFile:                caPath,
+		Scale:                 0.2,
+		Ring:                  oneRing,
+		RingPath:              ringPath,
+		SkipAuth:              false,
+		AuthURL:               "http://localhost:5000",
+		AuthUser:              "admin",
+		AuthPassword:          "admin",
+		Logger:                logger,
+	})
 	if err != nil {
 		logger.Fatal("Error initializing formic", zap.Error(err))
 	}

@@ -1,4 +1,4 @@
-package formic
+package server
 
 import (
 	"fmt"
@@ -11,8 +11,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-// UpdateItem ...
-type UpdateItem struct {
+type updateItem struct {
 	id        []byte
 	block     uint64
 	blocksize uint64
@@ -20,21 +19,20 @@ type UpdateItem struct {
 	mtime     int64
 }
 
-// Updatinator ...
-type Updatinator struct {
-	in chan *UpdateItem
-	fs FileService
+type updatinator struct {
+	in chan *updateItem
+	fs *oortFS
 }
 
 // newUpdatinator ...
-func newUpdatinator(in chan *UpdateItem, fs FileService) *Updatinator {
-	return &Updatinator{
+func newUpdatinator(in chan *updateItem, fs *oortFS) *updatinator {
+	return &updatinator{
 		in: in,
 		fs: fs,
 	}
 }
 
-func (u *Updatinator) Run() {
+func (u *updatinator) Run() {
 	// TODO: Add fan-out based on the id of the update
 	for {
 		toupdate := <-u.in
@@ -49,23 +47,21 @@ func (u *Updatinator) Run() {
 	}
 }
 
-// DirtyItem ...
-type DirtyItem struct {
+type dirtyItem struct {
 	dirty *formicproto.Dirty
 }
 
 // TODO: Crawl the dirty folders to look for dirty objects to cleanup
 
-// Cleaninator ...
-type Cleaninator struct {
-	in    chan *DirtyItem
-	fs    FileService
-	comms *StoreComms
+type cleaninator struct {
+	in    chan *dirtyItem
+	fs    *oortFS
+	comms *storeComms
 	log   *zap.Logger
 }
 
-func NewCleaninator(in chan *DirtyItem, fs FileService, comms *StoreComms, logger *zap.Logger) *Cleaninator {
-	return &Cleaninator{
+func newCleaninator(in chan *dirtyItem, fs *oortFS, comms *storeComms, logger *zap.Logger) *cleaninator {
+	return &cleaninator{
 		in:    in,
 		fs:    fs,
 		log:   logger,
@@ -73,7 +69,7 @@ func NewCleaninator(in chan *DirtyItem, fs FileService, comms *StoreComms, logge
 	}
 }
 
-func (c *Cleaninator) Run() {
+func (c *cleaninator) Run() {
 	// TODO: Parallelize?
 	for {
 		toclean := <-c.in
@@ -83,9 +79,9 @@ func (c *Cleaninator) Run() {
 		fails := 0
 		for b := dirty.Blocks + 1; b > 0; b-- {
 			// Try to delete the old block
-			id := GetID(dirty.FSID, dirty.Inode, b)
+			id := getID(dirty.FSID, dirty.Inode, b)
 			err := c.fs.deleteChunk(ctx, id, dirty.Dtime)
-			if err == ErrStoreHasNewerValue {
+			if err == errStoreHasNewerValue {
 				// Something has already been writte, so we are good
 				break
 			} else if store.IsNotFound(err) {
@@ -100,7 +96,7 @@ func (c *Cleaninator) Run() {
 		} else {
 			// All orphaned data is deleted so remove the tombstone
 			c.log.Debug("Done Cleaning", zap.Any("item", dirty))
-			err := c.comms.DeleteGroupItem(ctx, GetDirtyID(dirty.FSID), []byte(fmt.Sprintf("%d", dirty.Inode)))
+			err := c.comms.DeleteGroupItem(ctx, getDirtyID(dirty.FSID), []byte(fmt.Sprintf("%d", dirty.Inode)))
 			if err != nil && !store.IsNotFound(err) {
 				// Failed to remove so queue again to retry later
 				c.in <- toclean
@@ -109,24 +105,22 @@ func (c *Cleaninator) Run() {
 	}
 }
 
-// DeleteItem ...
-type DeleteItem struct {
+type deleteItem struct {
 	ts *formicproto.Tombstone
 }
 
 // TODO: Crawl the deleted folders to look for deletes to cleanup
 // TODO: We should have sort of backoff in case of failures, so it isn't trying a delete over and over again if there are failures
 
-// Deletinator ...
-type Deletinator struct {
-	in    chan *DeleteItem
-	fs    FileService
-	comms *StoreComms
+type deletinator struct {
+	in    chan *deleteItem
+	fs    *oortFS
+	comms *storeComms
 	log   *zap.Logger
 }
 
-func NewDeletinator(in chan *DeleteItem, fs FileService, comms *StoreComms, logger *zap.Logger) *Deletinator {
-	return &Deletinator{
+func newDeletinator(in chan *deleteItem, fs *oortFS, comms *storeComms, logger *zap.Logger) *deletinator {
+	return &deletinator{
 		in:    in,
 		fs:    fs,
 		comms: comms,
@@ -134,7 +128,7 @@ func NewDeletinator(in chan *DeleteItem, fs FileService, comms *StoreComms, logg
 	}
 }
 
-func (d *Deletinator) Run() {
+func (d *deletinator) Run() {
 	// TODO: Parallelize this thing?
 	for {
 		todelete := <-d.in
@@ -144,17 +138,17 @@ func (d *Deletinator) Run() {
 		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		for b := uint64(0); b < ts.Blocks; b++ {
 			// Delete each block
-			id := GetID(ts.FSID, ts.Inode, b+1)
+			id := getID(ts.FSID, ts.Inode, b+1)
 			err := d.fs.deleteChunk(ctx, id, ts.Dtime)
-			if err != nil && !store.IsNotFound(err) && err != ErrStoreHasNewerValue {
+			if err != nil && !store.IsNotFound(err) && err != errStoreHasNewerValue {
 				continue
 			}
 			deleted++
 		}
 		if deleted == ts.Blocks {
 			// Everything is deleted so delete the entry
-			err := d.fs.deleteChunk(ctx, GetID(ts.FSID, ts.Inode, 0), ts.Dtime)
-			if err != nil && !store.IsNotFound(err) && err != ErrStoreHasNewerValue {
+			err := d.fs.deleteChunk(ctx, getID(ts.FSID, ts.Inode, 0), ts.Dtime)
+			if err != nil && !store.IsNotFound(err) && err != errStoreHasNewerValue {
 				// Couldn't delete the inode entry so try again later
 				d.in <- todelete
 				continue
@@ -165,7 +159,7 @@ func (d *Deletinator) Run() {
 		}
 		// All artifacts are deleted so remove the delete tombstone
 		d.log.Debug("Done Deleting", zap.Any("tombstone", ts))
-		err := d.comms.DeleteGroupItem(ctx, GetDeletedID(ts.FSID), []byte(fmt.Sprintf("%d", ts.Inode)))
+		err := d.comms.DeleteGroupItem(ctx, getDeletedID(ts.FSID), []byte(fmt.Sprintf("%d", ts.Inode)))
 		if err != nil && !store.IsNotFound(err) {
 			// Failed to remove so queue again to retry later
 			d.in <- todelete
