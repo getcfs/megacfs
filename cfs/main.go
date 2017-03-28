@@ -12,8 +12,11 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"os/user"
 	"strings"
+	"sync"
+	"syscall"
 
 	"github.com/getcfs/megacfs/formic"
 	"github.com/gholt/brimtext"
@@ -192,11 +195,30 @@ Examples:
 			if _, noumount := clargs["noumount"]; noumount {
 				return err
 			}
-			fmt.Println(err, ":: retrying after fusermount -uz")
+			logger.Debug("retrying after fusermount -uz", zap.Error(err))
 			exec.Command("fusermount", "-uz", mountpoint).Run()
 		default:
 			return err
 		}
+		ch := make(chan os.Signal)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+		waitGroup := &sync.WaitGroup{}
+		shutdownChan := make(chan struct{})
+		waitGroup.Add(1)
+		go func() {
+			for {
+				select {
+				case <-ch:
+					logger.Debug("exit signal received, attempting to unmount")
+					exec.Command("fusermount", "-u", mountpoint).Run()
+					waitGroup.Done()
+					return
+				case <-shutdownChan:
+					waitGroup.Done()
+					return
+				}
+			}
+		}()
 		_, allowOther := clargs["allow_other"]
 		_, readOnly := clargs["ro"]
 		if err = formic.NewFuseFormic(&formic.FuseFormicConfig{
@@ -209,6 +231,8 @@ Examples:
 		}).Serve(); err != nil {
 			continue
 		}
+		close(shutdownChan)
+		waitGroup.Wait()
 		break
 	}
 	return nil

@@ -62,7 +62,8 @@ func NewFuseFormic(cfg *FuseFormicConfig) *FuseFormic {
 	return FuseFormic
 }
 
-// TODO: I'd rather this be Startup/Shutdown like the other code.
+// Serve will run forever, or until an error occurs, continuously handling Fuse
+// requests and Formic responses.
 func (f *FuseFormic) Serve() error {
 	conn, err := grpc.Dial(f.address, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
 	if err != nil {
