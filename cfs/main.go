@@ -8,17 +8,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/user"
 	"strings"
-	"sync"
 
-	"bazil.org/fuse"
-	"github.com/getcfs/megacfs/formic/formicproto"
+	"github.com/getcfs/megacfs/formic"
 	"github.com/gholt/brimtext"
 	"github.com/gholt/cpcp"
 	"github.com/gholt/dudu"
@@ -92,61 +89,6 @@ func init() {
 const (
 	PORT = 12300
 )
-
-type server struct {
-	fs *fs
-	wg sync.WaitGroup
-}
-
-func newserver(fs *fs) *server {
-	s := &server{
-		fs: fs,
-	}
-	return s
-}
-
-func (s *server) serve() error {
-	defer s.wg.Wait()
-
-	for {
-		req, err := s.fs.conn.ReadRequest()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
-			s.fs.handle(req)
-		}()
-	}
-	return nil
-}
-
-type rpc struct {
-	newClient formicproto.FormicClient
-}
-
-func newrpc(addr string, newAddr string) *rpc {
-	var opts []grpc.DialOption
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
-	opts = append(opts, grpc.WithTransportCredentials(creds))
-	r := &rpc{}
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	conn, err := grpc.Dial(newAddr, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	r.newClient = formicproto.NewFormicClient(conn)
-
-	return r
-}
 
 // NullWriter ...
 type NullWriter int
@@ -223,16 +165,15 @@ Examples:
 	if f.NArg() != 2 {
 		return usageErr
 	}
-	addrFsid := f.Args()[0]
-	if !strings.Contains(addrFsid, ":") {
-		addrFsid = config["addr"] + ":" + addrFsid
+	addrFSID := f.Args()[0]
+	if !strings.Contains(addrFSID, ":") {
+		addrFSID = config["addr"] + ":" + addrFSID
 	}
-	parts := strings.Split(addrFsid, ":")
+	parts := strings.Split(addrFSID, ":")
 	if len(parts) != 2 {
-		fmt.Println("Invalid filesystem:", addrFsid)
+		fmt.Println("Invalid filesystem:", addrFSID)
 		return usageErr
 	}
-	addr := fmt.Sprintf("%s:%d", strings.ToLower(parts[0]), PORT)
 	// TODO: Just temp, get rid of + 1 at some point
 	newAddr := fmt.Sprintf("%s:%d", strings.ToLower(parts[0]), PORT+1)
 	fsid := parts[1]
@@ -242,11 +183,8 @@ Examples:
 	if os.IsNotExist(err) {
 		return fmt.Errorf("Mount point %s does not exist\n", mountpoint)
 	}
-	// Verify addr
-
 	// parse mount options string
 	clargs := getArgs(options)
-
 	for iteration := 0; ; iteration++ {
 		switch iteration {
 		case 0:
@@ -259,54 +197,16 @@ Examples:
 		default:
 			return err
 		}
-
-		// handle fuse mount options
-		mountOptions := []fuse.MountOption{
-			fuse.FSName("cfs"),
-			fuse.Subtype("cfs"),
-			fuse.DefaultPermissions(),
-			fuse.MaxReadahead(128 * 1024),
-			fuse.AsyncRead(),
-			//fuse.WritebackCache(),
-			fuse.AutoInvalData(),
-		}
-
-		// handle allow_other mount option
 		_, allowOther := clargs["allow_other"]
-		if allowOther {
-			mountOptions = append(mountOptions, fuse.AllowOther())
-		}
-
-		// handle ro mount option
 		_, readOnly := clargs["ro"]
-		if readOnly {
-			mountOptions = append(mountOptions, fuse.ReadOnly())
-		}
-
-		// perform fuse mount
-		fusermountPath()
-		var cfs *fuse.Conn
-		cfs, err = fuse.Mount(mountpoint, mountOptions...)
-		if err != nil {
-			continue
-		}
-		defer cfs.Close()
-
-		// setup rpc client
-		rpc := newrpc(addr, newAddr)
-		fs := newfs(cfs, rpc, fsid)
-		err = fs.InitFs()
-		if err != nil {
-			continue
-		}
-		srv := newserver(fs)
-
-		if err = srv.serve(); err != nil {
-			continue
-		}
-
-		<-cfs.Ready
-		if err = cfs.MountError; err != nil {
+		if err = formic.NewFuseFormic(&formic.FuseFormicConfig{
+			Logger:     logger,
+			Mountpoint: mountpoint,
+			Address:    newAddr,
+			FSID:       fsid,
+			AllowOther: allowOther,
+			ReadOnly:   readOnly,
+		}).Serve(); err != nil {
 			continue
 		}
 		break
@@ -512,17 +412,6 @@ func getArgs(args string) map[string]string {
 		}
 	}
 	return clargs
-}
-
-// the mount command needs the path to fusermount
-func fusermountPath() {
-	// Grab the current path
-	currentPath := os.Getenv("PATH")
-	if len(currentPath) == 0 {
-		// fusermount location for suse  /usr/bin
-		// fusermount location on debian based distros /bin
-		os.Setenv("PATH", "/usr/bin:/bin")
-	}
 }
 
 // setupWS ...
