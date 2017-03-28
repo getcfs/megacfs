@@ -1,4 +1,6 @@
-package formic
+// Package server provides a server implementation of a single node of
+// a formic cluster.
+package server
 
 import (
 	"bytes"
@@ -9,10 +11,10 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-func GetID(fsid []byte, inode, block uint64) []byte {
+func getID(fsid string, inode, block uint64) []byte {
 	// TODO: Figure out what arrangement we want to use for the hash
 	h := murmur3.New128()
-	h.Write(fsid)
+	h.Write([]byte(fsid))
 	binary.Write(h, binary.BigEndian, inode)
 	binary.Write(h, binary.BigEndian, block)
 	s1, s2 := h.Sum128()
@@ -22,10 +24,10 @@ func GetID(fsid []byte, inode, block uint64) []byte {
 	return b.Bytes()
 }
 
-func GetSystemID(fsid []byte, dir string) []byte {
+func getSystemID(fsid string, dir string) []byte {
 	h := murmur3.New128()
 	h.Write([]byte("/system/"))
-	h.Write(fsid)
+	h.Write([]byte(fsid))
 	h.Write([]byte(dir))
 	s1, s2 := h.Sum128()
 	b := bytes.NewBuffer([]byte(""))
@@ -34,23 +36,23 @@ func GetSystemID(fsid []byte, dir string) []byte {
 	return b.Bytes()
 }
 
-func GetDeletedID(fsid []byte) []byte {
-	return GetSystemID(fsid, "deleted")
+func getDeletedID(fsid string) []byte {
+	return getSystemID(fsid, "deleted")
 }
 
-func GetDirtyID(fsid []byte) []byte {
-	return GetSystemID(fsid, "dirty")
+func getDirtyID(fsid string) []byte {
+	return getSystemID(fsid, "dirty")
 }
 
-func Marshal(msg proto.Message) ([]byte, error) {
+func marshal(msg proto.Message) ([]byte, error) {
 	return proto.Marshal(msg)
 }
 
-var ErrZeroValue = errors.New("got 0 length message")
+var errZeroValue = errors.New("got 0 length message")
 
-func Unmarshal(buf []byte, msg proto.Message) error {
+func unmarshal(buf []byte, msg proto.Message) error {
 	if len(buf) == 0 {
-		return ErrZeroValue
+		return errZeroValue
 	}
 	return proto.Unmarshal(buf, msg)
 }

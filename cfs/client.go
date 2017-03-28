@@ -125,7 +125,7 @@ func show(addr, authURL, username, password string) error {
 		fmt.Println("ShowFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.ShowFSRequest{Rpcid: 1, Token: token, Fsid: fsid}); err != nil {
+	if err = stream.Send(&formicproto.ShowFSRequest{Rpcid: 1, Token: token, FSID: fsid}); err != nil {
 		fmt.Println("ShowFS failed", err)
 		os.Exit(1)
 	}
@@ -221,7 +221,7 @@ func del(addr, authURL, username, password string) error {
 		fmt.Println("DeleteFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.DeleteFSRequest{Rpcid: 1, Token: token, Fsid: fsid}); err != nil {
+	if err = stream.Send(&formicproto.DeleteFSRequest{Rpcid: 1, Token: token, FSID: fsid}); err != nil {
 		fmt.Println("DeleteFS failed", err)
 		os.Exit(1)
 	}
@@ -271,7 +271,7 @@ func update(addr, authURL, username, password string) error {
 		fmt.Println("UpdateFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.UpdateFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Filesys: newFS}); err != nil {
+	if err = stream.Send(&formicproto.UpdateFSRequest{Rpcid: 1, Token: token, FSID: fsid, Filesys: newFS}); err != nil {
 		fmt.Println("UpdateFS failed", err)
 		os.Exit(1)
 	}
@@ -321,7 +321,7 @@ func grant(addr, authURL, username, password string) error {
 		fmt.Println("GrantAddrFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.GrantAddrFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Addr: ip}); err != nil {
+	if err = stream.Send(&formicproto.GrantAddrFSRequest{Rpcid: 1, Token: token, FSID: fsid, Addr: ip}); err != nil {
 		fmt.Println("GrantAddrFS failed", err)
 		os.Exit(1)
 	}
@@ -371,7 +371,7 @@ func revoke(addr, authURL, username, password string) error {
 		fmt.Println("RevokeAddrFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.RevokeAddrFSRequest{Rpcid: 1, Token: token, Fsid: fsid, Addr: ip}); err != nil {
+	if err = stream.Send(&formicproto.RevokeAddrFSRequest{Rpcid: 1, Token: token, FSID: fsid, Addr: ip}); err != nil {
 		fmt.Println("RevokeAddrFS failed", err)
 		os.Exit(1)
 	}

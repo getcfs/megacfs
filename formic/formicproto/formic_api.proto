@@ -75,7 +75,7 @@ message CreateResponse {
 message DeleteFSRequest {
     uint32 rpcid = 1;
     string token = 2;
-    string fsid  = 3;
+    string FSID  = 3;
 }
 
 message DeleteFSResponse {
@@ -115,7 +115,7 @@ message GetxattrResponse {
 message GrantAddrFSRequest {
     uint32 rpcid = 1;
     string token = 2;
-    string fsid  = 3;
+    string FSID  = 3;
     string addr  = 4;
 }
 
@@ -275,7 +275,7 @@ message RenameResponse {
 message RevokeAddrFSRequest {
     uint32 rpcid = 1;
     string token = 2;
-    string fsid  = 3;
+    string FSID  = 3;
     string addr  = 4;
 }
 
@@ -316,7 +316,7 @@ message SetxattrResponse {
 message ShowFSRequest{
     uint32 rpcid = 1;
     string token = 2;
-    string fsid  = 3;
+    string FSID  = 3;
 }
 
 message ShowFSResponse {
@@ -363,7 +363,7 @@ message SymlinkResponse {
 message UpdateFSRequest {
     uint32 rpcid   = 1;
     string token   = 2;
-    string fsid    = 3;
+    string FSID    = 3;
     ModFS  filesys = 4;
 }
 
@@ -410,7 +410,7 @@ message InodeEntry {
     map<string, bytes>  xattr = 9; // NOTE: Probably not the best long term way to do this
     uint64 blocks             = 10;
     uint64 blockSize          = 11;
-    bytes  fsId               = 13;
+    bytes  FSID               = 13;
 }
 
 message Attr {
@@ -437,7 +437,7 @@ message DirEntry {
 message Tombstone {
     int64  dtime  = 1; // Timestamp micro the delete request was made
     int64  qtime  = 2; // Timestamp micro of the most recent queing of delete
-    bytes  fsId   = 3; // Needed to get the block IDs
+    string FSID   = 3; // Needed to get the block IDs
     uint64 inode  = 4;
     uint64 blocks = 5; // Blocks from the original object that need to be deleted
 }
@@ -451,7 +451,7 @@ message FileBlock {
 message Dirty {
     int64  dtime  = 1; // Timestamp micro the update was made
     int64  qtime  = 2; // Timestamp micro of the most recent queing of delete
-    bytes  fsId   = 3; // Needed to get the block IDs
+    string FSID   = 3; // Needed to get the block IDs
     uint64 inode  = 4;
     uint64 blocks = 5; // Blocks from the original object that was dirty
 }
