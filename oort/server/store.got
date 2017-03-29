@@ -725,7 +725,7 @@ func (s *{{.T}}Store) Write(stream {{.t}}proto.{{.T}}Store_WriteServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, err = s.{{.t}}Store.Write(stream.Context(), req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, req.TimestampMicro, req.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -747,7 +747,7 @@ func (s *{{.T}}Store) Read(stream {{.t}}proto.{{.T}}Store_ReadServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, resp.Value, err = s.{{.t}}Store.Read(stream.Context(), req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, resp.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -769,7 +769,7 @@ func (s *{{.T}}Store) Lookup(stream {{.t}}proto.{{.T}}Store_LookupServer) error 
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, resp.Length, err = s.{{.t}}Store.Lookup(stream.Context(), req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}})
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -792,7 +792,7 @@ func (s *GroupStore) LookupGroup(stream groupproto.GroupStore_LookupGroupServer)
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		items, err := s.groupStore.LookupGroup(stream.Context(), req.KeyA, req.KeyB)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -823,7 +823,7 @@ func (s *GroupStore) ReadGroup(stream groupproto.GroupStore_ReadGroupServer) err
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		lgis, err := s.groupStore.LookupGroup(stream.Context(), req.KeyA, req.KeyB)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -861,7 +861,7 @@ func (s *{{.T}}Store) Delete(stream {{.t}}proto.{{.T}}Store_DeleteServer) error 
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, err = s.{{.t}}Store.Delete(stream.Context(), req.KeyA, req.KeyB{{if eq .t "group"}}, req.ChildKeyA, req.ChildKeyB{{end}}, req.TimestampMicro)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)

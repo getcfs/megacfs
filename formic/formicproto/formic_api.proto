@@ -7,389 +7,390 @@ service Formic {
     rpc Create(stream CreateRequest) returns (stream CreateResponse) {}
     rpc DeleteFS(stream DeleteFSRequest) returns (stream DeleteFSResponse) {}
     rpc GetAttr(stream GetAttrRequest) returns (stream GetAttrResponse) {}
-    rpc Getxattr(stream GetxattrRequest) returns (stream GetxattrResponse) {}
+    rpc GetXAttr(stream GetXAttrRequest) returns (stream GetXAttrResponse) {}
     rpc GrantAddrFS(stream GrantAddrFSRequest) returns (stream GrantAddrFSResponse) {}
-    rpc InitFs(stream InitFsRequest) returns (stream InitFsResponse) {}
-    rpc ListFS (stream ListFSRequest) returns (stream ListFSResponse) {}
-    rpc Listxattr(stream ListxattrRequest) returns (stream ListxattrResponse) {}
+    rpc InitFS(stream InitFSRequest) returns (stream InitFSResponse) {}
+    rpc ListFS(stream ListFSRequest) returns (stream ListFSResponse) {}
+    rpc ListXAttr(stream ListXAttrRequest) returns (stream ListXAttrResponse) {}
     rpc Lookup(stream LookupRequest) returns (stream LookupResponse) {}
     rpc MkDir(stream MkDirRequest) returns (stream MkDirResponse) {}
     rpc ReadDirAll(stream ReadDirAllRequest) returns (stream ReadDirAllResponse) {}
-    rpc Readlink(stream ReadlinkRequest) returns (stream ReadlinkResponse) {}
+    rpc ReadLink(stream ReadLinkRequest) returns (stream ReadLinkResponse) {}
     rpc Read(stream ReadRequest) returns (stream ReadResponse) {}
     rpc Remove(stream RemoveRequest) returns (stream RemoveResponse) {}
-    rpc Removexattr(stream RemovexattrRequest) returns (stream RemovexattrResponse) {}
+    rpc RemoveXAttr(stream RemoveXAttrRequest) returns (stream RemoveXAttrResponse) {}
     rpc Rename(stream RenameRequest) returns (stream RenameResponse) {}
     rpc RevokeAddrFS(stream RevokeAddrFSRequest) returns (stream RevokeAddrFSResponse) {}
     rpc SetAttr(stream SetAttrRequest) returns (stream SetAttrResponse) {}
-    rpc Setxattr(stream SetxattrRequest) returns (stream SetxattrResponse) {}
+    rpc SetXAttr(stream SetXAttrRequest) returns (stream SetXAttrResponse) {}
     rpc ShowFS(stream ShowFSRequest) returns (stream ShowFSResponse) {}
-    rpc Statfs(stream StatfsRequest) returns (stream StatfsResponse) {}
-    rpc Symlink(stream SymlinkRequest) returns (stream SymlinkResponse) {}
+    rpc StatFS(stream StatFSRequest) returns (stream StatFSResponse) {}
+    rpc SymLink(stream SymLinkRequest) returns (stream SymLinkResponse) {}
     rpc UpdateFS(stream UpdateFSRequest) returns (stream UpdateFSResponse) {}
     rpc Write(stream WriteRequest) returns (stream WriteResponse) {}
 }
 
 
 message CheckRequest {
-    uint32 rpcid = 1;
-    uint64 inode = 2;
-    string name  = 3;
+    uint32 RPCID = 1;
+    uint64 INode = 2;
+    string Name  = 3;
 }
 
 message CheckResponse {
-    uint32 rpcid    = 1;
-    string response = 2;    
-    string err      = 3;
+    uint32 RPCID    = 1;
+    string Response = 2;    
+    string Err      = 3;
 }
 
 
 message CreateFSRequest {
-    uint32 rpcid  = 1;
-    string token  = 2;
-    string fsname = 3;
+    uint32 RPCID  = 1;
+    string Token  = 2;
+    string FSName = 3;
 }
 
 message CreateFSResponse {
-    uint32 rpcid = 1;
-    string data  = 2;
-    string err   = 3;
+    uint32 RPCID = 1;
+    string Data  = 2;
+    string Err   = 3;
 }
 
 
 message CreateRequest {
-    uint32 rpcid  = 1;
-    uint64 parent = 2;
-    string name   = 3;
-    Attr   attr   = 4;
+    uint32 RPCID  = 1;
+    uint64 Parent = 2;
+    string Name   = 3;
+    Attr   Attr   = 4;
 }
 
 message CreateResponse {
-    uint32 rpcid = 1;
-    string name  = 2;
-    Attr   attr  = 3;
-    string err   = 4;
+    uint32 RPCID = 1;
+    string Name  = 2;
+    Attr   Attr  = 3;
+    string Err   = 4;
 }
 
 
 message DeleteFSRequest {
-    uint32 rpcid = 1;
-    string token = 2;
+    uint32 RPCID = 1;
+    string Token = 2;
     string FSID  = 3;
 }
 
 message DeleteFSResponse {
-    uint32 rpcid = 1;
-    string data  = 2;
-    string err   = 3;
+    uint32 RPCID = 1;
+    string Data  = 2;
+    string Err   = 3;
 }
 
 
 message GetAttrRequest {
-    uint32 rpcid = 1;
-    uint64 inode = 2;
+    uint32 RPCID = 1;
+    uint64 INode = 2;
 }
 
 message GetAttrResponse {
-    uint32 rpcid = 1;
-    Attr   attr  = 2;
-    string err   = 3;
+    uint32 RPCID = 1;
+    Attr   Attr  = 2;
+    string Err   = 3;
 }
 
 
-message GetxattrRequest {
-    uint32 rpcid    = 1;
-    uint64 inode    = 2;
-    string name     = 3;
-    uint32 size     = 4;
-    uint32 position = 5;
+message GetXAttrRequest {
+    uint32 RPCID    = 1;
+    uint64 INode    = 2;
+    string Name     = 3;
+    uint32 Size     = 4;
+    uint32 Position = 5;
 }
 
-message GetxattrResponse {
-    uint32 rpcid = 1;
-    bytes  xattr = 2;
-    string err   = 3;
+message GetXAttrResponse {
+    uint32 RPCID = 1;
+    bytes  XAttr = 2;
+    string Err   = 3;
 }
 
 
 message GrantAddrFSRequest {
-    uint32 rpcid = 1;
-    string token = 2;
+    uint32 RPCID = 1;
+    string Token = 2;
     string FSID  = 3;
-    string addr  = 4;
+    string Addr  = 4;
 }
 
 message GrantAddrFSResponse {
-    uint32 rpcid = 1;
-    string data  = 2;
-    string err   = 3;
+    uint32 RPCID = 1;
+    string Data  = 2;
+    string Err   = 3;
 }
 
 
-message InitFsRequest {
-    uint32 rpcid = 1;
+message InitFSRequest {
+    uint32 RPCID = 1;
 }
 
-message InitFsResponse {
-    uint32 rpcid = 1;
-    string err   = 2;
+message InitFSResponse {
+    uint32 RPCID = 1;
+    string Err   = 2;
 }
 
 
 message ListFSRequest{
-    uint32 rpcid = 1;
-    string token = 2;
+    uint32 RPCID = 1;
+    string Token = 2;
 }
 
 message ListFSResponse {
-    uint32 rpcid = 1;
-    string data  = 2;
-    string err   = 3;
+    uint32 RPCID = 1;
+    string Data  = 2;
+    string Err   = 3;
 }
 
 
-message ListxattrRequest {
-    uint32 rpcid    = 1;
-    uint64 inode    = 2;
-    uint32 size     = 3;
-    uint32 position = 4;
+message ListXAttrRequest {
+    uint32 RPCID    = 1;
+    uint64 INode    = 2;
+    uint32 Size     = 3;
+    uint32 Position = 4;
 }
 
-message ListxattrResponse {
-    uint32 rpcid = 1;
-    bytes  xattr = 2;
-    string err   = 3;
+message ListXAttrResponse {
+    uint32 RPCID = 1;
+    bytes  XAttr = 2;
+    string Err   = 3;
 }
 
 
 message LookupRequest {
-    uint32 rpcid  = 1;
-    uint64 parent = 2;
-    string name   = 3;
+    uint32 RPCID  = 1;
+    uint64 Parent = 2;
+    string Name   = 3;
 }
 
 message LookupResponse {
-    uint32 rpcid  = 1;
-    string name   = 2;
-    Attr   attr   = 3;
-    string err    = 4;
+    uint32 RPCID  = 1;
+    string Name   = 2;
+    Attr   Attr   = 3;
+    string Err    = 4;
 }
 
 
 message MkDirRequest {
-    uint32 rpcid  = 1;
-    uint64 parent = 2;
-    string name   = 3;
-    Attr   attr   = 4;
+    uint32 RPCID  = 1;
+    uint64 Parent = 2;
+    string Name   = 3;
+    Attr   Attr   = 4;
 }
 
 message MkDirResponse {
-    uint32 rpcid = 1;
-    string name  = 2;
-    Attr   attr  = 3;
-    string err   = 4;
+    uint32 RPCID = 1;
+    string Name  = 2;
+    Attr   Attr  = 3;
+    string Err   = 4;
 }
 
 
-message ReadlinkRequest {
-    uint32 rpcid = 1;
-    uint64 inode = 2;
+message ReadLinkRequest {
+    uint32 RPCID = 1;
+    uint64 INode = 2;
 }
 
-message ReadlinkResponse {
-    uint32 rpcid  = 1;
-    string target = 2;
-    string err    = 3;
+message ReadLinkResponse {
+    uint32 RPCID  = 1;
+    string Target = 2;
+    string Err    = 3;
 }
 
 
 message ReadDirAllRequest {
-    uint32 rpcid = 1;
-    uint64 inode = 2;
+    uint32 RPCID = 1;
+    uint64 INode = 2;
 }
 
 message ReadDirAllResponse {
-    uint32          rpcid      = 1;
-    repeated DirEnt direntries = 2;
-    string          err        = 3;
+    uint32                 RPCID   = 1;
+    repeated ReadDirAllEnt Ents = 2;
+    string                 Err     = 3;
 }
 
-message DirEnt {
-    string name   = 1; // TODO: Double check if this needs to be in the persistence section below.
-    uint32 type   = 3;
+message ReadDirAllEnt {
+    string Name   = 1; // TODO: Double check if this needs to be in the persistence section below.
+    uint32 Type   = 2;
 }
 
 
 message ReadRequest {
-    uint32 rpcid   = 1;
-    uint64 inode   = 2;
-    int64  offset  = 3;
-    int64  size    = 4;
+    uint32 RPCID   = 1;
+    uint64 INode   = 2;
+    int64  Offset  = 3;
+    int64  Size    = 4;
 }
 
 message ReadResponse {
-    uint32 rpcid   = 1;
-    bytes  payload = 2;
-    string err     = 3;
+    uint32 RPCID   = 1;
+    bytes  Payload = 2;
+    string Err     = 3;
 }
 
 
 message RemoveRequest {
-    uint32 rpcid  = 1;
-    uint64 parent = 2;
-    string name   = 3;
+    uint32 RPCID  = 1;
+    uint64 Parent = 2;
+    string Name   = 3;
 }
 
 message RemoveResponse {
-    uint32 rpcid = 1;
-    string err   = 2;
+    uint32 RPCID = 1;
+    string Err   = 2;
 }
 
 
-message RemovexattrRequest {
-    uint32 rpcid = 1;
-    uint64 inode = 2;
-    string name  = 3;
+message RemoveXAttrRequest {
+    uint32 RPCID = 1;
+    uint64 INode = 2;
+    string Name  = 3;
 }
 
-message RemovexattrResponse {
-    uint32 rpcid = 1;
-    string err   = 2;
+message RemoveXAttrResponse {
+    uint32 RPCID = 1;
+    string Err   = 2;
 }
 
 
 message RenameRequest {
-    uint32 rpcid     = 1;
-    uint64 oldParent = 2;
-    uint64 newParent = 3;
-    string oldName   = 4;
-    string newName   = 5;
+    uint32 RPCID     = 1;
+    uint64 OldParent = 2;
+    uint64 NewParent = 3;
+    string OldName   = 4;
+    string NewName   = 5;
 }
 
 message RenameResponse {
-    uint32 rpcid = 1;
-    string err   = 2;
+    uint32 RPCID = 1;
+    string Err   = 2;
 }
 
 
 message RevokeAddrFSRequest {
-    uint32 rpcid = 1;
-    string token = 2;
+    uint32 RPCID = 1;
+    string Token = 2;
     string FSID  = 3;
-    string addr  = 4;
+    string Addr  = 4;
 }
 
 message RevokeAddrFSResponse {
-    uint32 rpcid = 1;
-    string data  = 2;
-    string err   = 3;
+    uint32 RPCID = 1;
+    string Data  = 2;
+    string Err   = 3;
 }
 
 
 message SetAttrRequest {
-    uint32 rpcid = 1;
-    Attr   attr  = 2;
-    uint32 valid = 3;   // Bitmask of which attrs are changed
+    uint32 RPCID = 1;
+    Attr   Attr  = 2;
+    uint32 Valid = 3;   // Bitmask of which attrs are changed
 }
 
 message SetAttrResponse {
-    uint32 rpcid = 1;
-    Attr   attr  = 2;
-    string err   = 3;
+    uint32 RPCID = 1;
+    Attr   Attr  = 2;
+    string Err   = 3;
 }
 
 
-message SetxattrRequest {
-    uint32 rpcid    = 1;
-    uint64 inode    = 2;
-    string name     = 3;
-    bytes  value    = 4;
-    uint32 position = 5;
-    uint32 flags    = 6;
+message SetXAttrRequest {
+    uint32 RPCID    = 1;
+    uint64 INode    = 2;
+    string Name     = 3;
+    bytes  Value    = 4;
+    uint32 Position = 5;
+    uint32 Flags    = 6;
 }
-message SetxattrResponse {
-    uint32 rpcid = 1;
-    string err   = 2;
+
+message SetXAttrResponse {
+    uint32 RPCID = 1;
+    string Err   = 2;
 }
 
 
 message ShowFSRequest{
-    uint32 rpcid = 1;
-    string token = 2;
+    uint32 RPCID = 1;
+    string Token = 2;
     string FSID  = 3;
 }
 
 message ShowFSResponse {
-    uint32 rpcid = 1;
-    string data  = 2;
-    string err   = 3;
+    uint32 RPCID = 1;
+    string Data  = 2;
+    string Err   = 3;
 }
 
 
-message StatfsRequest {
-    uint32 rpcid = 1;
+message StatFSRequest {
+    uint32 RPCID = 1;
 }
 
-message StatfsResponse {
-    uint32 rpcid   = 1;
-    uint64 blocks  = 2;
-    uint64 bfree   = 3;
-    uint64 bavail  = 4;
-    uint64 files   = 5;
-    uint64 ffree   = 6;
-    uint32 bsize   = 7;
-    uint32 namelen = 8;
-    uint32 frsize  = 9;
-    string err     = 10;
+message StatFSResponse {
+    uint32 RPCID   = 1;
+    uint64 Blocks  = 2;
+    uint64 BFree   = 3;
+    uint64 BAvail  = 4;
+    uint64 Files   = 5;
+    uint64 FFree   = 6;
+    uint32 BSize   = 7;
+    uint32 NameLen = 8;
+    uint32 FrSize  = 9;
+    string Err     = 10;
 }
 
 
-message SymlinkRequest {
-    uint32 rpcid  = 1;
-    uint64 parent = 2;
-    string name   = 3;
-    string target = 4;
-    uint32 uid    = 5;
-    uint32 gid    = 6;
+message SymLinkRequest {
+    uint32 RPCID  = 1;
+    uint64 Parent = 2;
+    string Name   = 3;
+    string Target = 4;
+    uint32 UID    = 5;
+    uint32 GID    = 6;
 }
 
-message SymlinkResponse {
-    uint32 rpcid  = 1;
-    Attr   attr   = 4;
-    string err    = 5;
+message SymLinkResponse {
+    uint32 RPCID  = 1;
+    Attr   Attr   = 4;
+    string Err    = 5;
 }
 
 
 message UpdateFSRequest {
-    uint32 rpcid   = 1;
-    string token   = 2;
+    uint32 RPCID   = 1;
+    string Token   = 2;
     string FSID    = 3;
-    ModFS  filesys = 4;
+    ModFS  FileSys = 4;
 }
 
 message UpdateFSResponse {
-    uint32 rpcid = 1;
-    string data  = 2;
-    string err   = 3;
+    uint32 RPCID = 1;
+    string Data  = 2;
+    string Err   = 3;
 }
 
 message ModFS { // TODO: Does this really need to be a separate message?
-  string name   = 1;
-  string status = 2;
+  string Name   = 1;
+  string Status = 2;
 }
 
 
 
 message WriteRequest {
-    uint32 rpcid   = 1;
-    uint64 inode   = 2;
-    int64  offset  = 3;
-    bytes  payload = 4;
+    uint32 RPCID   = 1;
+    uint64 INode   = 2;
+    int64  Offset  = 3;
+    bytes  Payload = 4;
 }
 
 message WriteResponse {
-    uint32 rpcid  = 1;
-    string err    = 2;
+    uint32 RPCID  = 1;
+    string Err    = 2;
 }
 
 
@@ -398,60 +399,60 @@ message WriteResponse {
 // sometimes, for messaging with the formic service above.
 //
 
-message InodeEntry {
-    uint32 version            = 1;
-    bool   isDir              = 2;
-    Attr   attr               = 3;
-    uint64 parent             = 4;
-    uint64 inode              = 5;
-    uint64 nodeCount          = 6;
-    bool   isLink             = 7;
-    string target             = 8;
-    map<string, bytes>  xattr = 9; // NOTE: Probably not the best long term way to do this
-    uint64 blocks             = 10;
-    uint64 blockSize          = 11;
-    bytes  FSID               = 13;
+message INodeEntry {
+    uint32              Version   = 1;
+    bool                IsDir     = 2;
+    Attr                Attr      = 3;
+    uint64              Parent    = 4;
+    uint64              INode     = 5;
+    uint64              NodeCount = 6;
+    bool                IsLink    = 7;
+    string              Target    = 8;
+    map<string, bytes>  XAttr     = 9; // NOTE: Probably not the best long term way to do this
+    uint64              Blocks    = 10;
+    uint64              BlockSize = 11;
+    bytes               FSID      = 13;
 }
 
 message Attr {
-    uint64 inode  = 1;
-    int64  atime  = 2;
-    int64  mtime  = 3;
-    int64  ctime  = 4;
-    int64  crtime = 5;
-    uint32 mode   = 6;
-    int32  valid  = 7;
-    uint64 size   = 8;
-    uint32 uid    = 9;
-    uint32 gid    = 10;
+    uint64 INode  = 1;
+    int64  ATime  = 2;
+    int64  MTime  = 3;
+    int64  CTime  = 4;
+    int64  CrTime = 5;
+    uint32 Mode   = 6;
+    int32  Valid  = 7;
+    uint64 Size   = 8;
+    uint32 UID    = 9;
+    uint32 GID    = 10;
 }
 
 message DirEntry {
-    uint32    version   = 1;
-    string    name      = 2;
-    bytes     id        = 3;
-    Tombstone tombstone = 4; // If set, this record has been deleted
-    uint32    type      = 5;
+    uint32    Version   = 1;
+    string    Name      = 2;
+    bytes     ID        = 3;
+    Tombstone Tombstone = 4; // If set, this record has been deleted
+    uint32    Type      = 5;
 }
 
 message Tombstone {
-    int64  dtime  = 1; // Timestamp micro the delete request was made
-    int64  qtime  = 2; // Timestamp micro of the most recent queing of delete
+    int64  DTime  = 1; // Timestamp micro the delete request was made
+    int64  QTime  = 2; // Timestamp micro of the most recent queing of delete
     string FSID   = 3; // Needed to get the block IDs
-    uint64 inode  = 4;
-    uint64 blocks = 5; // Blocks from the original object that need to be deleted
+    uint64 INode  = 4;
+    uint64 Blocks = 5; // Blocks from the original object that need to be deleted
 }
 
 message FileBlock {
-    uint32 version  = 1;
-    bytes  data     = 2;
-    uint32 checksum = 3;
+    uint32 Version  = 1;
+    bytes  Data     = 2;
+    uint32 Checksum = 3;
 }
 
 message Dirty {
-    int64  dtime  = 1; // Timestamp micro the update was made
-    int64  qtime  = 2; // Timestamp micro of the most recent queing of delete
+    int64  DTime  = 1; // Timestamp micro the update was made
+    int64  QTime  = 2; // Timestamp micro of the most recent queing of delete
     string FSID   = 3; // Needed to get the block IDs
-    uint64 inode  = 4;
-    uint64 blocks = 5; // Blocks from the original object that was dirty
+    uint64 INode  = 4;
+    uint64 Blocks = 5; // Blocks from the original object that was dirty
 }

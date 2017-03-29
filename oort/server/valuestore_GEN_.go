@@ -677,7 +677,7 @@ func (s *ValueStore) Write(stream valueproto.ValueStore_WriteServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, err = s.valueStore.Write(stream.Context(), req.KeyA, req.KeyB, req.TimestampMicro, req.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -699,7 +699,7 @@ func (s *ValueStore) Read(stream valueproto.ValueStore_ReadServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, resp.Value, err = s.valueStore.Read(stream.Context(), req.KeyA, req.KeyB, resp.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -721,7 +721,7 @@ func (s *ValueStore) Lookup(stream valueproto.ValueStore_LookupServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, resp.Length, err = s.valueStore.Lookup(stream.Context(), req.KeyA, req.KeyB)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -743,7 +743,7 @@ func (s *ValueStore) Delete(stream valueproto.ValueStore_DeleteServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, err = s.valueStore.Delete(stream.Context(), req.KeyA, req.KeyB, req.TimestampMicro)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
