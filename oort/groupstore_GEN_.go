@@ -271,7 +271,7 @@ func (stor *groupStore) handleDelete() {
 					panic("coding error: got more concurrent requests from pendingDeleteReqChan than should be available")
 				}
 			}
-			req.req.Rpcid = waitingIndex
+			req.req.RPCID = waitingIndex
 			waiting[waitingIndex] = req
 			waitingIndex++
 			if waitingIndex > waitingMax {
@@ -284,7 +284,7 @@ func (stor *groupStore) handleDelete() {
 						stor.lock.Unlock()
 						res := <-stor.freeDeleteResChan
 						res.err = err
-						res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.DeleteResponse{RPCID: req.req.RPCID}
 						resChan <- res
 						break
 					}
@@ -294,7 +294,7 @@ func (stor *groupStore) handleDelete() {
 				if err != nil {
 					res := <-stor.freeDeleteResChan
 					res.err = err
-					res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
+					res.res = &pb.DeleteResponse{RPCID: req.req.RPCID}
 					resChan <- res
 					break
 				}
@@ -304,7 +304,7 @@ func (stor *groupStore) handleDelete() {
 				stream = nil
 				res := <-stor.freeDeleteResChan
 				res.err = err
-				res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
+				res.res = &pb.DeleteResponse{RPCID: req.req.RPCID}
 				resChan <- res
 			}
 		case res := <-resChan:
@@ -326,22 +326,22 @@ func (stor *groupStore) handleDelete() {
 						}
 						res := <-stor.freeDeleteResChan
 						res.err = err
-						res.res = &pb.DeleteResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.DeleteResponse{RPCID: req.req.RPCID}
 						resChan <- res
 					}
 				}(wereWaiting, err)
 				break
 			}
-			if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
+			if res.res.RPCID < 0 || res.res.RPCID > waitingMax {
 				// TODO: Debug log error?
 				break
 			}
-			req := waiting[res.res.Rpcid]
+			req := waiting[res.res.RPCID]
 			if req == nil {
 				// TODO: Debug log error?
 				break
 			}
-			waiting[res.res.Rpcid] = nil
+			waiting[res.res.RPCID] = nil
 			req.canceledLock.Lock()
 			if !req.canceled {
 				req.resChan <- res
@@ -477,7 +477,7 @@ func (stor *groupStore) handleLookupGroup() {
 					panic("coding error: got more concurrent requests from pendingLookupGroupReqChan than should be available")
 				}
 			}
-			req.req.Rpcid = waitingIndex
+			req.req.RPCID = waitingIndex
 			waiting[waitingIndex] = req
 			waitingIndex++
 			if waitingIndex > waitingMax {
@@ -490,7 +490,7 @@ func (stor *groupStore) handleLookupGroup() {
 						stor.lock.Unlock()
 						res := <-stor.freeLookupGroupResChan
 						res.err = err
-						res.res = &pb.LookupGroupResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.LookupGroupResponse{RPCID: req.req.RPCID}
 						resChan <- res
 						break
 					}
@@ -500,7 +500,7 @@ func (stor *groupStore) handleLookupGroup() {
 				if err != nil {
 					res := <-stor.freeLookupGroupResChan
 					res.err = err
-					res.res = &pb.LookupGroupResponse{Rpcid: req.req.Rpcid}
+					res.res = &pb.LookupGroupResponse{RPCID: req.req.RPCID}
 					resChan <- res
 					break
 				}
@@ -510,7 +510,7 @@ func (stor *groupStore) handleLookupGroup() {
 				stream = nil
 				res := <-stor.freeLookupGroupResChan
 				res.err = err
-				res.res = &pb.LookupGroupResponse{Rpcid: req.req.Rpcid}
+				res.res = &pb.LookupGroupResponse{RPCID: req.req.RPCID}
 				resChan <- res
 			}
 		case res := <-resChan:
@@ -532,22 +532,22 @@ func (stor *groupStore) handleLookupGroup() {
 						}
 						res := <-stor.freeLookupGroupResChan
 						res.err = err
-						res.res = &pb.LookupGroupResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.LookupGroupResponse{RPCID: req.req.RPCID}
 						resChan <- res
 					}
 				}(wereWaiting, err)
 				break
 			}
-			if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
+			if res.res.RPCID < 0 || res.res.RPCID > waitingMax {
 				// TODO: Debug log error?
 				break
 			}
-			req := waiting[res.res.Rpcid]
+			req := waiting[res.res.RPCID]
 			if req == nil {
 				// TODO: Debug log error?
 				break
 			}
-			waiting[res.res.Rpcid] = nil
+			waiting[res.res.RPCID] = nil
 			req.canceledLock.Lock()
 			if !req.canceled {
 				req.resChan <- res
@@ -684,7 +684,7 @@ func (stor *groupStore) handleLookup() {
 					panic("coding error: got more concurrent requests from pendingLookupReqChan than should be available")
 				}
 			}
-			req.req.Rpcid = waitingIndex
+			req.req.RPCID = waitingIndex
 			waiting[waitingIndex] = req
 			waitingIndex++
 			if waitingIndex > waitingMax {
@@ -697,7 +697,7 @@ func (stor *groupStore) handleLookup() {
 						stor.lock.Unlock()
 						res := <-stor.freeLookupResChan
 						res.err = err
-						res.res = &pb.LookupResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.LookupResponse{RPCID: req.req.RPCID}
 						resChan <- res
 						break
 					}
@@ -707,7 +707,7 @@ func (stor *groupStore) handleLookup() {
 				if err != nil {
 					res := <-stor.freeLookupResChan
 					res.err = err
-					res.res = &pb.LookupResponse{Rpcid: req.req.Rpcid}
+					res.res = &pb.LookupResponse{RPCID: req.req.RPCID}
 					resChan <- res
 					break
 				}
@@ -717,7 +717,7 @@ func (stor *groupStore) handleLookup() {
 				stream = nil
 				res := <-stor.freeLookupResChan
 				res.err = err
-				res.res = &pb.LookupResponse{Rpcid: req.req.Rpcid}
+				res.res = &pb.LookupResponse{RPCID: req.req.RPCID}
 				resChan <- res
 			}
 		case res := <-resChan:
@@ -739,22 +739,22 @@ func (stor *groupStore) handleLookup() {
 						}
 						res := <-stor.freeLookupResChan
 						res.err = err
-						res.res = &pb.LookupResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.LookupResponse{RPCID: req.req.RPCID}
 						resChan <- res
 					}
 				}(wereWaiting, err)
 				break
 			}
-			if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
+			if res.res.RPCID < 0 || res.res.RPCID > waitingMax {
 				// TODO: Debug log error?
 				break
 			}
-			req := waiting[res.res.Rpcid]
+			req := waiting[res.res.RPCID]
 			if req == nil {
 				// TODO: Debug log error?
 				break
 			}
-			waiting[res.res.Rpcid] = nil
+			waiting[res.res.RPCID] = nil
 			req.canceledLock.Lock()
 			if !req.canceled {
 				req.resChan <- res
@@ -889,7 +889,7 @@ func (stor *groupStore) handleReadGroup() {
 					panic("coding error: got more concurrent requests from pendingReadGroupReqChan than should be available")
 				}
 			}
-			req.req.Rpcid = waitingIndex
+			req.req.RPCID = waitingIndex
 			waiting[waitingIndex] = req
 			waitingIndex++
 			if waitingIndex > waitingMax {
@@ -902,7 +902,7 @@ func (stor *groupStore) handleReadGroup() {
 						stor.lock.Unlock()
 						res := <-stor.freeReadGroupResChan
 						res.err = err
-						res.res = &pb.ReadGroupResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.ReadGroupResponse{RPCID: req.req.RPCID}
 						resChan <- res
 						break
 					}
@@ -912,7 +912,7 @@ func (stor *groupStore) handleReadGroup() {
 				if err != nil {
 					res := <-stor.freeReadGroupResChan
 					res.err = err
-					res.res = &pb.ReadGroupResponse{Rpcid: req.req.Rpcid}
+					res.res = &pb.ReadGroupResponse{RPCID: req.req.RPCID}
 					resChan <- res
 					break
 				}
@@ -922,7 +922,7 @@ func (stor *groupStore) handleReadGroup() {
 				stream = nil
 				res := <-stor.freeReadGroupResChan
 				res.err = err
-				res.res = &pb.ReadGroupResponse{Rpcid: req.req.Rpcid}
+				res.res = &pb.ReadGroupResponse{RPCID: req.req.RPCID}
 				resChan <- res
 			}
 		case res := <-resChan:
@@ -944,22 +944,22 @@ func (stor *groupStore) handleReadGroup() {
 						}
 						res := <-stor.freeReadGroupResChan
 						res.err = err
-						res.res = &pb.ReadGroupResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.ReadGroupResponse{RPCID: req.req.RPCID}
 						resChan <- res
 					}
 				}(wereWaiting, err)
 				break
 			}
-			if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
+			if res.res.RPCID < 0 || res.res.RPCID > waitingMax {
 				// TODO: Debug log error?
 				break
 			}
-			req := waiting[res.res.Rpcid]
+			req := waiting[res.res.RPCID]
 			if req == nil {
 				// TODO: Debug log error?
 				break
 			}
-			waiting[res.res.Rpcid] = nil
+			waiting[res.res.RPCID] = nil
 			req.canceledLock.Lock()
 			if !req.canceled {
 				req.resChan <- res
@@ -1096,7 +1096,7 @@ func (stor *groupStore) handleRead() {
 					panic("coding error: got more concurrent requests from pendingReadReqChan than should be available")
 				}
 			}
-			req.req.Rpcid = waitingIndex
+			req.req.RPCID = waitingIndex
 			waiting[waitingIndex] = req
 			waitingIndex++
 			if waitingIndex > waitingMax {
@@ -1109,7 +1109,7 @@ func (stor *groupStore) handleRead() {
 						stor.lock.Unlock()
 						res := <-stor.freeReadResChan
 						res.err = err
-						res.res = &pb.ReadResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.ReadResponse{RPCID: req.req.RPCID}
 						resChan <- res
 						break
 					}
@@ -1119,7 +1119,7 @@ func (stor *groupStore) handleRead() {
 				if err != nil {
 					res := <-stor.freeReadResChan
 					res.err = err
-					res.res = &pb.ReadResponse{Rpcid: req.req.Rpcid}
+					res.res = &pb.ReadResponse{RPCID: req.req.RPCID}
 					resChan <- res
 					break
 				}
@@ -1129,7 +1129,7 @@ func (stor *groupStore) handleRead() {
 				stream = nil
 				res := <-stor.freeReadResChan
 				res.err = err
-				res.res = &pb.ReadResponse{Rpcid: req.req.Rpcid}
+				res.res = &pb.ReadResponse{RPCID: req.req.RPCID}
 				resChan <- res
 			}
 		case res := <-resChan:
@@ -1151,22 +1151,22 @@ func (stor *groupStore) handleRead() {
 						}
 						res := <-stor.freeReadResChan
 						res.err = err
-						res.res = &pb.ReadResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.ReadResponse{RPCID: req.req.RPCID}
 						resChan <- res
 					}
 				}(wereWaiting, err)
 				break
 			}
-			if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
+			if res.res.RPCID < 0 || res.res.RPCID > waitingMax {
 				// TODO: Debug log error?
 				break
 			}
-			req := waiting[res.res.Rpcid]
+			req := waiting[res.res.RPCID]
 			if req == nil {
 				// TODO: Debug log error?
 				break
 			}
-			waiting[res.res.Rpcid] = nil
+			waiting[res.res.RPCID] = nil
 			req.canceledLock.Lock()
 			if !req.canceled {
 				req.resChan <- res
@@ -1301,7 +1301,7 @@ func (stor *groupStore) handleWrite() {
 					panic("coding error: got more concurrent requests from pendingWriteReqChan than should be available")
 				}
 			}
-			req.req.Rpcid = waitingIndex
+			req.req.RPCID = waitingIndex
 			waiting[waitingIndex] = req
 			waitingIndex++
 			if waitingIndex > waitingMax {
@@ -1314,7 +1314,7 @@ func (stor *groupStore) handleWrite() {
 						stor.lock.Unlock()
 						res := <-stor.freeWriteResChan
 						res.err = err
-						res.res = &pb.WriteResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.WriteResponse{RPCID: req.req.RPCID}
 						resChan <- res
 						break
 					}
@@ -1324,7 +1324,7 @@ func (stor *groupStore) handleWrite() {
 				if err != nil {
 					res := <-stor.freeWriteResChan
 					res.err = err
-					res.res = &pb.WriteResponse{Rpcid: req.req.Rpcid}
+					res.res = &pb.WriteResponse{RPCID: req.req.RPCID}
 					resChan <- res
 					break
 				}
@@ -1334,7 +1334,7 @@ func (stor *groupStore) handleWrite() {
 				stream = nil
 				res := <-stor.freeWriteResChan
 				res.err = err
-				res.res = &pb.WriteResponse{Rpcid: req.req.Rpcid}
+				res.res = &pb.WriteResponse{RPCID: req.req.RPCID}
 				resChan <- res
 			}
 		case res := <-resChan:
@@ -1356,22 +1356,22 @@ func (stor *groupStore) handleWrite() {
 						}
 						res := <-stor.freeWriteResChan
 						res.err = err
-						res.res = &pb.WriteResponse{Rpcid: req.req.Rpcid}
+						res.res = &pb.WriteResponse{RPCID: req.req.RPCID}
 						resChan <- res
 					}
 				}(wereWaiting, err)
 				break
 			}
-			if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
+			if res.res.RPCID < 0 || res.res.RPCID > waitingMax {
 				// TODO: Debug log error?
 				break
 			}
-			req := waiting[res.res.Rpcid]
+			req := waiting[res.res.RPCID]
 			if req == nil {
 				// TODO: Debug log error?
 				break
 			}
-			waiting[res.res.Rpcid] = nil
+			waiting[res.res.RPCID] = nil
 			req.canceledLock.Lock()
 			if !req.canceled {
 				req.resChan <- res

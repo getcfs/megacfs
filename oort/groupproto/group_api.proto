@@ -12,107 +12,107 @@ service GroupStore {
 
 
 message DeleteRequest {
-    uint32 rpcid          = 1;
-    uint64 keyA           = 2;
-    uint64 keyB           = 3;
-    uint64 childKeyA      = 4;
-    uint64 childKeyB      = 5;
-    int64  timestampMicro = 6;
+    uint32 RPCID          = 1;
+    uint64 KeyA           = 2;
+    uint64 KeyB           = 3;
+    uint64 ChildKeyA      = 4;
+    uint64 ChildKeyB      = 5;
+    int64  TimestampMicro = 6;
 }
 
 message DeleteResponse {
-    uint32 rpcid          = 1;
-    int64  timestampMicro = 2;
-    string err            = 3;
+    uint32 RPCID          = 1;
+    int64  TimestampMicro = 2;
+    string Err            = 3;
 }
 
 
 message LookupGroupRequest {
-    uint32 rpcid = 1;
-    uint64 keyA  = 2;
-    uint64 keyB  = 3;
+    uint32 RPCID = 1;
+    uint64 KeyA  = 2;
+    uint64 KeyB  = 3;
 }
 
 message LookupGroupResponse {
-    uint32                   rpcid = 1;
-    repeated LookupGroupItem items = 2;
-    string                   err   = 3;
+    uint32                   RPCID = 1;
+    repeated LookupGroupItem Items = 2;
+    string                   Err   = 3;
 }
 
 message LookupGroupItem {
-    uint32 rpcid          = 1;
-    uint64 childKeyA      = 2;
-    uint64 childKeyB      = 3;
-    int64  timestampMicro = 4;
-    uint32 length         = 5;
+    uint32 RPCID          = 1;
+    uint64 ChildKeyA      = 2;
+    uint64 ChildKeyB      = 3;
+    int64  TimestampMicro = 4;
+    uint32 Length         = 5;
 }
 
 
 message LookupRequest {
-    uint32 rpcid     = 1;
-    uint64 keyA      = 2;
-    uint64 keyB      = 3;
-    uint64 childKeyA = 4;
-    uint64 childKeyB = 5;
+    uint32 RPCID     = 1;
+    uint64 KeyA      = 2;
+    uint64 KeyB      = 3;
+    uint64 ChildKeyA = 4;
+    uint64 ChildKeyB = 5;
 }
 
 message LookupResponse {
-    uint32 rpcid          = 1;
-    int64  timestampMicro = 2;
-    uint32 length         = 3;
-    string err            = 4;
+    uint32 RPCID          = 1;
+    int64  TimestampMicro = 2;
+    uint32 Length         = 3;
+    string Err            = 4;
 }
 
 
 message ReadGroupRequest {
-    uint32 rpcid = 1;
-    uint64 keyA  = 2;
-    uint64 keyB  = 3;
+    uint32 RPCID = 1;
+    uint64 KeyA  = 2;
+    uint64 KeyB  = 3;
 }
 
 message ReadGroupResponse {
-    uint32                 rpcid = 1;
-    repeated ReadGroupItem items = 2;
-    string                 err   = 3;
+    uint32                 RPCID = 1;
+    repeated ReadGroupItem Items = 2;
+    string                 Err   = 3;
 }
 
 message ReadGroupItem {
-    uint32 rpcid          = 1;
-    uint64 childKeyA      = 2;
-    uint64 childKeyB      = 3;
-    int64  timestampMicro = 4;
-    bytes  value          = 5;
+    uint32 RPCID          = 1;
+    uint64 ChildKeyA      = 2;
+    uint64 ChildKeyB      = 3;
+    int64  TimestampMicro = 4;
+    bytes  Value          = 5;
 }
 
 
 message ReadRequest {
-    uint32 rpcid     = 1;
-    uint64 keyA      = 2;
-    uint64 keyB      = 3;
-    uint64 childKeyA = 4;
-    uint64 childKeyB = 5;
+    uint32 RPCID     = 1;
+    uint64 KeyA      = 2;
+    uint64 KeyB      = 3;
+    uint64 ChildKeyA = 4;
+    uint64 ChildKeyB = 5;
 }
 
 message ReadResponse {
-    uint32 rpcid          = 1;
-    int64  timestampMicro = 2;
-    bytes  value          = 3;
-    string err            = 4;
+    uint32 RPCID          = 1;
+    int64  TimestampMicro = 2;
+    bytes  Value          = 3;
+    string Err            = 4;
 }
 
 
 message WriteRequest {
-    uint32 rpcid          = 1;
-    uint64 keyA           = 2;
-    uint64 keyB           = 3;
-    uint64 childKeyA      = 4;
-    uint64 childKeyB      = 5;
-    bytes  value          = 6;
-    int64  timestampMicro = 7;
+    uint32 RPCID          = 1;
+    uint64 KeyA           = 2;
+    uint64 KeyB           = 3;
+    uint64 ChildKeyA      = 4;
+    uint64 ChildKeyB      = 5;
+    bytes  Value          = 6;
+    int64  TimestampMicro = 7;
 }
 
 message WriteResponse {
-    uint32 rpcid          = 1;
-    int64  timestampMicro = 2;
-    string err            = 3;
+    uint32 RPCID          = 1;
+    int64  TimestampMicro = 2;
+    string Err            = 3;
 }

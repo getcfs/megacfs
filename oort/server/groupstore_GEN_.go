@@ -725,7 +725,7 @@ func (s *GroupStore) Write(stream groupproto.GroupStore_WriteServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, err = s.groupStore.Write(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, req.TimestampMicro, req.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -747,7 +747,7 @@ func (s *GroupStore) Read(stream groupproto.GroupStore_ReadServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, resp.Value, err = s.groupStore.Read(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, resp.Value)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -769,7 +769,7 @@ func (s *GroupStore) Lookup(stream groupproto.GroupStore_LookupServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, resp.Length, err = s.groupStore.Lookup(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -791,7 +791,7 @@ func (s *GroupStore) LookupGroup(stream groupproto.GroupStore_LookupGroupServer)
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		items, err := s.groupStore.LookupGroup(stream.Context(), req.KeyA, req.KeyB)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -822,7 +822,7 @@ func (s *GroupStore) ReadGroup(stream groupproto.GroupStore_ReadGroupServer) err
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		lgis, err := s.groupStore.LookupGroup(stream.Context(), req.KeyA, req.KeyB)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)
@@ -859,7 +859,7 @@ func (s *GroupStore) Delete(stream groupproto.GroupStore_DeleteServer) error {
 			return err
 		}
 		resp.Reset()
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		resp.TimestampMicro, err = s.groupStore.Delete(stream.Context(), req.KeyA, req.KeyB, req.ChildKeyA, req.ChildKeyB, req.TimestampMicro)
 		if err != nil {
 			resp.Err = proto.TranslateError(err)

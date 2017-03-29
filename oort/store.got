@@ -198,7 +198,7 @@ func (stor *{{.t}}Store) ValueCap(ctx context.Context) (uint32, error) {
                         panic("coding error: got more concurrent requests from pending{{$R}}ReqChan than should be available")
                     }
                 }
-                req.req.Rpcid = waitingIndex
+                req.req.RPCID = waitingIndex
                 waiting[waitingIndex] = req
                 waitingIndex++
                 if waitingIndex > waitingMax {
@@ -211,7 +211,7 @@ func (stor *{{.t}}Store) ValueCap(ctx context.Context) (uint32, error) {
                             stor.lock.Unlock()
                             res := <-stor.free{{$R}}ResChan
                             res.err = err
-                            res.res = &pb.{{$R}}Response{Rpcid: req.req.Rpcid}
+                            res.res = &pb.{{$R}}Response{RPCID: req.req.RPCID}
                             resChan <- res
                             break
                         }
@@ -221,7 +221,7 @@ func (stor *{{.t}}Store) ValueCap(ctx context.Context) (uint32, error) {
                     if err != nil {
                         res := <-stor.free{{$R}}ResChan
                         res.err = err
-                        res.res = &pb.{{$R}}Response{Rpcid: req.req.Rpcid}
+                        res.res = &pb.{{$R}}Response{RPCID: req.req.RPCID}
                         resChan <- res
                         break
                     }
@@ -231,7 +231,7 @@ func (stor *{{.t}}Store) ValueCap(ctx context.Context) (uint32, error) {
                     stream = nil
                     res := <-stor.free{{$R}}ResChan
                     res.err = err
-                    res.res = &pb.{{$R}}Response{Rpcid: req.req.Rpcid}
+                    res.res = &pb.{{$R}}Response{RPCID: req.req.RPCID}
                     resChan <- res
                 }
             case res := <-resChan:
@@ -253,22 +253,22 @@ func (stor *{{.t}}Store) ValueCap(ctx context.Context) (uint32, error) {
                             }
                             res := <-stor.free{{$R}}ResChan
                             res.err = err
-                            res.res = &pb.{{$R}}Response{Rpcid: req.req.Rpcid}
+                            res.res = &pb.{{$R}}Response{RPCID: req.req.RPCID}
                             resChan <- res
                         }
                     }(wereWaiting, err)
                     break
                 }
-                if res.res.Rpcid < 0 || res.res.Rpcid > waitingMax {
+                if res.res.RPCID < 0 || res.res.RPCID > waitingMax {
                     // TODO: Debug log error?
                     break
                 }
-                req := waiting[res.res.Rpcid]
+                req := waiting[res.res.RPCID]
                 if req == nil {
                     // TODO: Debug log error?
                     break
                 }
-                waiting[res.res.Rpcid] = nil
+                waiting[res.res.RPCID] = nil
                 req.canceledLock.Lock()
                 if !req.canceled {
                     req.resChan <- res
