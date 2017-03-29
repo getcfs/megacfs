@@ -70,7 +70,7 @@ func (g *grpcWrapper) Check(stream formicproto.Formic_CheckServer) error {
 		} else if err = g.fs.Check(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -94,7 +94,7 @@ func (g *grpcWrapper) CreateFS(stream formicproto.Formic_CreateFSServer) error {
 		} else if err = g.fs.CreateFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -118,7 +118,7 @@ func (g *grpcWrapper) Create(stream formicproto.Formic_CreateServer) error {
 		} else if err = g.fs.Create(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -142,7 +142,7 @@ func (g *grpcWrapper) DeleteFS(stream formicproto.Formic_DeleteFSServer) error {
 		} else if err = g.fs.DeleteFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -166,15 +166,15 @@ func (g *grpcWrapper) GetAttr(stream formicproto.Formic_GetAttrServer) error {
 		} else if err = g.fs.GetAttr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
 	}
 }
 
-func (g *grpcWrapper) Getxattr(stream formicproto.Formic_GetxattrServer) error {
-	var resp formicproto.GetxattrResponse
+func (g *grpcWrapper) GetXAttr(stream formicproto.Formic_GetXAttrServer) error {
+	var resp formicproto.GetXAttrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -187,10 +187,10 @@ func (g *grpcWrapper) Getxattr(stream formicproto.Formic_GetxattrServer) error {
 		var fsid string
 		if fsid, err = g.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.Getxattr(stream.Context(), req, &resp, fsid); err != nil {
+		} else if err = g.fs.GetXAttr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -214,15 +214,15 @@ func (g *grpcWrapper) GrantAddrFS(stream formicproto.Formic_GrantAddrFSServer) e
 		} else if err = g.fs.GrantAddrFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
 	}
 }
 
-func (g *grpcWrapper) InitFs(stream formicproto.Formic_InitFsServer) error {
-	var resp formicproto.InitFsResponse
+func (g *grpcWrapper) InitFS(stream formicproto.Formic_InitFSServer) error {
+	var resp formicproto.InitFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -235,10 +235,10 @@ func (g *grpcWrapper) InitFs(stream formicproto.Formic_InitFsServer) error {
 		var fsid string
 		if fsid, err = g.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.InitFs(stream.Context(), req, &resp, fsid); err != nil {
+		} else if err = g.fs.InitFS(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -262,15 +262,15 @@ func (g *grpcWrapper) ListFS(stream formicproto.Formic_ListFSServer) error {
 		} else if err = g.fs.ListFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
 	}
 }
 
-func (g *grpcWrapper) Listxattr(stream formicproto.Formic_ListxattrServer) error {
-	var resp formicproto.ListxattrResponse
+func (g *grpcWrapper) ListXAttr(stream formicproto.Formic_ListXAttrServer) error {
+	var resp formicproto.ListXAttrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -283,10 +283,10 @@ func (g *grpcWrapper) Listxattr(stream formicproto.Formic_ListxattrServer) error
 		var fsid string
 		if fsid, err = g.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.Listxattr(stream.Context(), req, &resp, fsid); err != nil {
+		} else if err = g.fs.ListXAttr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -310,7 +310,7 @@ func (g *grpcWrapper) Lookup(stream formicproto.Formic_LookupServer) error {
 		} else if err = g.fs.Lookup(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -334,7 +334,7 @@ func (g *grpcWrapper) MkDir(stream formicproto.Formic_MkDirServer) error {
 		} else if err = g.fs.MkDir(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -358,15 +358,15 @@ func (g *grpcWrapper) ReadDirAll(stream formicproto.Formic_ReadDirAllServer) err
 		} else if err = g.fs.ReadDirAll(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
 	}
 }
 
-func (g *grpcWrapper) Readlink(stream formicproto.Formic_ReadlinkServer) error {
-	var resp formicproto.ReadlinkResponse
+func (g *grpcWrapper) ReadLink(stream formicproto.Formic_ReadLinkServer) error {
+	var resp formicproto.ReadLinkResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -379,10 +379,10 @@ func (g *grpcWrapper) Readlink(stream formicproto.Formic_ReadlinkServer) error {
 		var fsid string
 		if fsid, err = g.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.Readlink(stream.Context(), req, &resp, fsid); err != nil {
+		} else if err = g.fs.ReadLink(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -406,7 +406,7 @@ func (g *grpcWrapper) Read(stream formicproto.Formic_ReadServer) error {
 		} else if err = g.fs.Read(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -430,15 +430,15 @@ func (g *grpcWrapper) Remove(stream formicproto.Formic_RemoveServer) error {
 		} else if err = g.fs.Remove(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
 	}
 }
 
-func (g *grpcWrapper) Removexattr(stream formicproto.Formic_RemovexattrServer) error {
-	var resp formicproto.RemovexattrResponse
+func (g *grpcWrapper) RemoveXAttr(stream formicproto.Formic_RemoveXAttrServer) error {
+	var resp formicproto.RemoveXAttrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -451,10 +451,10 @@ func (g *grpcWrapper) Removexattr(stream formicproto.Formic_RemovexattrServer) e
 		var fsid string
 		if fsid, err = g.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.Removexattr(stream.Context(), req, &resp, fsid); err != nil {
+		} else if err = g.fs.RemoveXAttr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -478,7 +478,7 @@ func (g *grpcWrapper) Rename(stream formicproto.Formic_RenameServer) error {
 		} else if err = g.fs.Rename(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -502,7 +502,7 @@ func (g *grpcWrapper) RevokeAddrFS(stream formicproto.Formic_RevokeAddrFSServer)
 		} else if err = g.fs.RevokeAddrFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -526,15 +526,15 @@ func (g *grpcWrapper) SetAttr(stream formicproto.Formic_SetAttrServer) error {
 		} else if err = g.fs.SetAttr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
 	}
 }
 
-func (g *grpcWrapper) Setxattr(stream formicproto.Formic_SetxattrServer) error {
-	var resp formicproto.SetxattrResponse
+func (g *grpcWrapper) SetXAttr(stream formicproto.Formic_SetXAttrServer) error {
+	var resp formicproto.SetXAttrResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -547,10 +547,10 @@ func (g *grpcWrapper) Setxattr(stream formicproto.Formic_SetxattrServer) error {
 		var fsid string
 		if fsid, err = g.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.Setxattr(stream.Context(), req, &resp, fsid); err != nil {
+		} else if err = g.fs.SetXAttr(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -574,15 +574,15 @@ func (g *grpcWrapper) ShowFS(stream formicproto.Formic_ShowFSServer) error {
 		} else if err = g.fs.ShowFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
 	}
 }
 
-func (g *grpcWrapper) Statfs(stream formicproto.Formic_StatfsServer) error {
-	var resp formicproto.StatfsResponse
+func (g *grpcWrapper) StatFS(stream formicproto.Formic_StatFSServer) error {
+	var resp formicproto.StatFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -595,18 +595,18 @@ func (g *grpcWrapper) Statfs(stream formicproto.Formic_StatfsServer) error {
 		var fsid string
 		if fsid, err = g.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.Statfs(stream.Context(), req, &resp, fsid); err != nil {
+		} else if err = g.fs.StatFS(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
 	}
 }
 
-func (g *grpcWrapper) Symlink(stream formicproto.Formic_SymlinkServer) error {
-	var resp formicproto.SymlinkResponse
+func (g *grpcWrapper) SymLink(stream formicproto.Formic_SymLinkServer) error {
+	var resp formicproto.SymLinkResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -619,10 +619,10 @@ func (g *grpcWrapper) Symlink(stream formicproto.Formic_SymlinkServer) error {
 		var fsid string
 		if fsid, err = g.validateIP(stream.Context()); err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.Symlink(stream.Context(), req, &resp, fsid); err != nil {
+		} else if err = g.fs.SymLink(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -646,7 +646,7 @@ func (g *grpcWrapper) UpdateFS(stream formicproto.Formic_UpdateFSServer) error {
 		} else if err = g.fs.UpdateFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}
@@ -670,7 +670,7 @@ func (g *grpcWrapper) Write(stream formicproto.Formic_WriteServer) error {
 		} else if err = g.fs.Write(stream.Context(), req, &resp, fsid); err != nil {
 			resp.Err = err.Error()
 		}
-		resp.Rpcid = req.Rpcid
+		resp.RPCID = req.RPCID
 		if err := stream.Send(&resp); err != nil {
 			return err
 		}

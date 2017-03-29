@@ -188,29 +188,29 @@ func newOortFS(comms *storeComms, logger *zap.Logger, deleteChan chan *deleteIte
 }
 
 func (o *oortFS) Check(ctx context.Context, req *formicproto.CheckRequest, resp *formicproto.CheckResponse, fsid string) error {
-	b, err := o.comms.ReadGroupItem(ctx, getID(fsid, req.Inode, 0), []byte(req.Name))
+	b, err := o.comms.ReadGroupItem(ctx, getID(fsid, req.INode, 0), []byte(req.Name))
 	if store.IsNotFound(err) {
 		resp.Response = "not found"
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("failed to load directory entry: %s", err)
 	}
-	dirent := &formicproto.DirEntry{}
-	if err = unmarshal(b, dirent); err != nil {
-		// TODO: We should remove this dirent here shouldn't we?
+	dirEnt := &formicproto.DirEntry{}
+	if err = unmarshal(b, dirEnt); err != nil {
+		// TODO: We should remove this dirEnt here shouldn't we?
 		return fmt.Errorf("corrupted directory entry: %s", err)
 	}
 	// Read the inode block
-	_, err = o.getInode(ctx, dirent.Id)
+	_, err = o.getINode(ctx, dirEnt.ID)
 	if err != nil {
 		// Note: Unfortunately if we lose the inode block, there is no way to
 		// recover because we do not know the inode of the file itself.
 		// Delete the entry.
-		err = o.comms.DeleteGroupItemTS(ctx, getID(fsid, req.Inode, 0), []byte(req.Name), brimtime.TimeToUnixMicro(time.Now()))
+		err = o.comms.DeleteGroupItemTS(ctx, getID(fsid, req.INode, 0), []byte(req.Name), brimtime.TimeToUnixMicro(time.Now()))
 		if err != nil {
-			return fmt.Errorf("Error: Inode not found but could not delete the listing: %s", err)
+			return fmt.Errorf("Error: INode not found but could not delete the listing: %s", err)
 		}
-		resp.Response = "Inode could not be found, and dir entry removed."
+		resp.Response = "INode could not be found, and dir entry removed."
 	}
 	// If we get here then everything is fine
 	resp.Response = "No issues found."
@@ -253,7 +253,7 @@ func (o *oortFS) CreateFS(ctx context.Context, req *formicproto.CreateFSRequest,
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
 	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
 	fsSysAttr.Attr = "name"
-	fsSysAttr.Value = req.Fsname
+	fsSysAttr.Value = req.FSName
 	fsSysAttr.FSID = fsid
 	fsSysAttrByte, err = json.Marshal(fsSysAttr)
 	if err != nil {
@@ -276,22 +276,22 @@ func (o *oortFS) CreateFS(ctx context.Context, req *formicproto.CreateFSRequest,
 	}
 	// Create the Root entry data
 	// Prepare the root node
-	nr := &formicproto.InodeEntry{
+	nr := &formicproto.INodeEntry{
 		Version: inodeEntryVersion,
-		Inode:   1,
+		INode:   1,
 		IsDir:   true,
 		FSID:    uuID.Bytes(),
 	}
 	ts := time.Now().Unix()
 	nr.Attr = &formicproto.Attr{
-		Inode:  1,
-		Atime:  ts,
-		Mtime:  ts,
-		Ctime:  ts,
-		Crtime: ts,
+		INode:  1,
+		ATime:  ts,
+		MTime:  ts,
+		CTime:  ts,
+		CrTime: ts,
 		Mode:   uint32(os.ModeDir | 0775),
-		Uid:    1001, // TODO: need to config default user/group id
-		Gid:    1001,
+		UID:    1001, // TODO: need to config default user/group id
+		GID:    1001,
 	}
 	data, err := marshal(nr)
 	if err != nil {
@@ -324,34 +324,19 @@ func (o *oortFS) Create(ctx context.Context, req *formicproto.CreateRequest, res
 	ts := time.Now().Unix()
 	inode := o.fl.GetID()
 	attr := &formicproto.Attr{
-		Inode:  inode,
-		Atime:  ts,
-		Mtime:  ts,
-		Ctime:  ts,
-		Crtime: ts,
+		INode:  inode,
+		ATime:  ts,
+		MTime:  ts,
+		CTime:  ts,
+		CrTime: ts,
 		Mode:   req.Attr.Mode,
-		Uid:    req.Attr.Uid,
-		Gid:    req.Attr.Gid,
+		UID:    req.Attr.UID,
+		GID:    req.Attr.GID,
 	}
-	var rattr *formicproto.Attr
 	var err error
-	resp.Name, rattr, err = o.create(ctx, getID(fsid, req.Parent, 0), getID(fsid, inode, 0), inode, req.Name, attr, false)
+	resp.Name, resp.Attr, err = o.create(ctx, getID(fsid, req.Parent, 0), getID(fsid, inode, 0), inode, req.Name, attr, false)
 	if err != nil {
 		return err
-	}
-	// TODO: Set everything explicitly for now since the structs are different
-	// until the formicproto becomes theproto.
-	resp.Attr = &formicproto.Attr{
-		Inode:  rattr.Inode,
-		Atime:  rattr.Atime,
-		Mtime:  rattr.Mtime,
-		Ctime:  rattr.Ctime,
-		Crtime: rattr.Crtime,
-		Mode:   rattr.Mode,
-		Valid:  rattr.Valid,
-		Size:   rattr.Size,
-		Uid:    rattr.Uid,
-		Gid:    rattr.Gid,
 	}
 	return nil
 }
@@ -457,44 +442,31 @@ func (o *oortFS) DeleteFS(ctx context.Context, req *formicproto.DeleteFSRequest,
 }
 
 func (o *oortFS) GetAttr(ctx context.Context, req *formicproto.GetAttrRequest, resp *formicproto.GetAttrResponse, fsid string) error {
-	b, err := o.getChunk(ctx, getID(fsid, req.Inode, 0))
+	b, err := o.getChunk(ctx, getID(fsid, req.INode, 0))
 	if err != nil {
 		return err
 	}
-	n := &formicproto.InodeEntry{}
+	n := &formicproto.INodeEntry{}
 	err = unmarshal(b, n)
 	if err != nil {
 		return err
 	}
-	// TODO: Set everything explicitly for now since the structs are different
-	// until the formicproto becomes theproto.
-	resp.Attr = &formicproto.Attr{
-		Inode:  n.Attr.Inode,
-		Atime:  n.Attr.Atime,
-		Mtime:  n.Attr.Mtime,
-		Ctime:  n.Attr.Ctime,
-		Crtime: n.Attr.Crtime,
-		Mode:   n.Attr.Mode,
-		Valid:  n.Attr.Valid,
-		Size:   n.Attr.Size,
-		Uid:    n.Attr.Uid,
-		Gid:    n.Attr.Gid,
-	}
+	resp.Attr = n.Attr
 	return nil
 }
 
-func (o *oortFS) Getxattr(ctx context.Context, req *formicproto.GetxattrRequest, resp *formicproto.GetxattrResponse, fsid string) error {
-	id := getID(fsid, req.Inode, 0)
+func (o *oortFS) GetXAttr(ctx context.Context, req *formicproto.GetXAttrRequest, resp *formicproto.GetXAttrResponse, fsid string) error {
+	id := getID(fsid, req.INode, 0)
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
-	n := &formicproto.InodeEntry{}
+	n := &formicproto.INodeEntry{}
 	err = unmarshal(b, n)
 	if err != nil {
 		return err
 	}
-	resp.Xattr = n.Xattr[req.Name]
+	resp.XAttr = n.XAttr[req.Name]
 	return nil
 }
 
@@ -554,7 +526,7 @@ func (o *oortFS) GrantAddrFS(ctx context.Context, req *formicproto.GrantAddrFSRe
 	return nil
 }
 
-func (o *oortFS) InitFs(ctx context.Context, req *formicproto.InitFsRequest, resp *formicproto.InitFsResponse, fsid string) error {
+func (o *oortFS) InitFS(ctx context.Context, req *formicproto.InitFSRequest, resp *formicproto.InitFSResponse, fsid string) error {
 	id := getID(fsid, 1, 0)
 	n, _ := o.getChunk(ctx, id)
 	if len(n) == 0 {
@@ -629,24 +601,24 @@ func (o *oortFS) ListFS(ctx context.Context, req *formicproto.ListFSRequest, res
 	return nil
 }
 
-func (o *oortFS) Listxattr(ctx context.Context, req *formicproto.ListxattrRequest, resp *formicproto.ListxattrResponse, fsid string) error {
-	id := getID(fsid, req.Inode, 0)
+func (o *oortFS) ListXAttr(ctx context.Context, req *formicproto.ListXAttrRequest, resp *formicproto.ListXAttrResponse, fsid string) error {
+	id := getID(fsid, req.INode, 0)
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
-	n := &formicproto.InodeEntry{}
+	n := &formicproto.INodeEntry{}
 	err = unmarshal(b, n)
 	if err != nil {
 		return err
 	}
 	names := ""
-	for name := range n.Xattr {
+	for name := range n.XAttr {
 		names += name
 		names += "\x00"
 	}
 	names += "cfs.fsid\x00"
-	resp.Xattr = []byte(names)
+	resp.XAttr = []byte(names)
 	return nil
 }
 
@@ -662,60 +634,47 @@ func (o *oortFS) Lookup(ctx context.Context, req *formicproto.LookupRequest, res
 	if err != nil {
 		return err
 	}
-	b, err = o.getChunk(ctx, d.Id)
+	b, err = o.getChunk(ctx, d.ID)
 	if err != nil {
 		return err
 	}
-	n := &formicproto.InodeEntry{}
+	n := &formicproto.INodeEntry{}
 	err = unmarshal(b, n)
 	if err != nil {
 		return err
 	}
 	resp.Name = d.Name
-	// TODO: Set everything explicitly for now since the structs are different
-	// until the formicproto becomes theproto.
-	resp.Attr = &formicproto.Attr{
-		Inode:  n.Attr.Inode,
-		Atime:  n.Attr.Atime,
-		Mtime:  n.Attr.Mtime,
-		Ctime:  n.Attr.Ctime,
-		Crtime: n.Attr.Crtime,
-		Mode:   n.Attr.Mode,
-		Valid:  n.Attr.Valid,
-		Size:   n.Attr.Size,
-		Uid:    n.Attr.Uid,
-		Gid:    n.Attr.Gid,
-	}
+	resp.Attr = n.Attr
 	return nil
 }
 
 func (o *oortFS) ReadDirAll(ctx context.Context, req *formicproto.ReadDirAllRequest, resp *formicproto.ReadDirAllResponse, fsid string) error {
-	id := getID(fsid, req.Inode, 0)
+	id := getID(fsid, req.INode, 0)
 	// Get the keys from the group
 	items, err := o.comms.ReadGroup(ctx, id)
 	if err != nil {
 		return err
 	}
-	// Iterate over each item, getting the ID then the Inode Entry
+	// Iterate over each item, getting the ID then the INode Entry
 	de := &formicproto.DirEntry{}
 	for _, item := range items {
 		err = unmarshal(item.Value, de)
 		if err != nil {
 			return err
 		}
-		resp.Direntries = append(resp.Direntries, &formicproto.DirEnt{Name: de.Name, Type: de.Type})
+		resp.Ents = append(resp.Ents, &formicproto.ReadDirAllEnt{Name: de.Name, Type: de.Type})
 	}
-	sort.Sort(byDirent(resp.Direntries))
+	sort.Sort(byReadDirAllEnt(resp.Ents))
 	return nil
 }
 
-func (o *oortFS) Readlink(ctx context.Context, req *formicproto.ReadlinkRequest, resp *formicproto.ReadlinkResponse, fsid string) error {
-	id := getID(fsid, req.Inode, 0)
+func (o *oortFS) ReadLink(ctx context.Context, req *formicproto.ReadLinkRequest, resp *formicproto.ReadLinkResponse, fsid string) error {
+	id := getID(fsid, req.INode, 0)
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
-	n := &formicproto.InodeEntry{}
+	n := &formicproto.INodeEntry{}
 	err = unmarshal(b, n)
 	if err != nil {
 		return err
@@ -728,34 +687,19 @@ func (o *oortFS) MkDir(ctx context.Context, req *formicproto.MkDirRequest, resp 
 	ts := time.Now().Unix()
 	inode := o.fl.GetID()
 	attr := &formicproto.Attr{
-		Inode:  inode,
-		Atime:  ts,
-		Mtime:  ts,
-		Ctime:  ts,
-		Crtime: ts,
+		INode:  inode,
+		ATime:  ts,
+		MTime:  ts,
+		CTime:  ts,
+		CrTime: ts,
 		Mode:   uint32(os.ModeDir) | req.Attr.Mode,
-		Uid:    req.Attr.Uid,
-		Gid:    req.Attr.Gid,
+		UID:    req.Attr.UID,
+		GID:    req.Attr.GID,
 	}
-	var rattr *formicproto.Attr
 	var err error
-	resp.Name, rattr, err = o.create(ctx, getID(fsid, req.Parent, 0), getID(fsid, inode, 0), inode, req.Name, attr, true)
+	resp.Name, resp.Attr, err = o.create(ctx, getID(fsid, req.Parent, 0), getID(fsid, inode, 0), inode, req.Name, attr, true)
 	if err != nil {
 		return err
-	}
-	// TODO: Set everything explicitly for now since the structs are different
-	// until the formicproto becomes theproto.
-	resp.Attr = &formicproto.Attr{
-		Inode:  rattr.Inode,
-		Atime:  rattr.Atime,
-		Mtime:  rattr.Mtime,
-		Ctime:  rattr.Ctime,
-		Crtime: rattr.Crtime,
-		Mode:   rattr.Mode,
-		Valid:  rattr.Valid,
-		Size:   rattr.Size,
-		Uid:    rattr.Uid,
-		Gid:    rattr.Gid,
 	}
 	return nil
 }
@@ -770,7 +714,7 @@ func (o *oortFS) Read(ctx context.Context, req *formicproto.ReadRequest, resp *f
 	}
 	cur := int64(0)
 	for cur < req.Size {
-		id := getID(fsid, req.Inode, block+1) // block 0 is for inode data
+		id := getID(fsid, req.INode, block+1) // block 0 is for inode data
 		chunk, err := o.getChunk(ctx, id)
 		if err != nil {
 			// NOTE: This returns basically 0's to the client.for this block in
@@ -806,18 +750,18 @@ func (o *oortFS) Remove(ctx context.Context, req *formicproto.RemoveRequest, res
 	return nil
 }
 
-func (o *oortFS) Removexattr(ctx context.Context, req *formicproto.RemovexattrRequest, resp *formicproto.RemovexattrResponse, fsid string) error {
-	id := getID(fsid, req.Inode, 0)
+func (o *oortFS) RemoveXAttr(ctx context.Context, req *formicproto.RemoveXAttrRequest, resp *formicproto.RemoveXAttrResponse, fsid string) error {
+	id := getID(fsid, req.INode, 0)
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
-	n := &formicproto.InodeEntry{}
+	n := &formicproto.INodeEntry{}
 	err = unmarshal(b, n)
 	if err != nil {
 		return err
 	}
-	delete(n.Xattr, req.Name)
+	delete(n.XAttr, req.Name)
 	b, err = marshal(n)
 	if err != nil {
 		return nil
@@ -922,10 +866,10 @@ func (o *oortFS) RevokeAddrFS(ctx context.Context, req *formicproto.RevokeAddrFS
 }
 
 func (o *oortFS) SetAttr(ctx context.Context, req *formicproto.SetAttrRequest, resp *formicproto.SetAttrResponse, fsid string) error {
-	id := getID(fsid, req.Attr.Inode, 0)
+	id := getID(fsid, req.Attr.INode, 0)
 	attr := req.Attr
 	valid := fuse.SetattrValid(req.Valid)
-	n, err := o.getInode(ctx, id)
+	n, err := o.getINode(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -937,17 +881,17 @@ func (o *oortFS) SetAttr(ctx context.Context, req *formicproto.SetAttrRequest, r
 			// We need to mark this file as dirty to clean up unused blocks
 			tsm := brimtime.TimeToUnixMicro(time.Now())
 			d := &formicproto.Dirty{
-				Dtime:  tsm,
-				Qtime:  tsm,
+				DTime:  tsm,
+				QTime:  tsm,
 				FSID:   fsid,
 				Blocks: n.Blocks,
-				Inode:  n.Inode,
+				INode:  n.INode,
 			}
 			b, err := marshal(d)
 			if err != nil {
 				return err
 			}
-			err = o.comms.WriteGroupTS(ctx, getDirtyID(fsid), []byte(fmt.Sprintf("%d", d.Inode)), b, tsm)
+			err = o.comms.WriteGroupTS(ctx, getDirtyID(fsid), []byte(fmt.Sprintf("%d", d.INode)), b, tsm)
 			if err != nil {
 				return err
 			}
@@ -963,16 +907,16 @@ func (o *oortFS) SetAttr(ctx context.Context, req *formicproto.SetAttrRequest, r
 		n.Attr.Size = attr.Size
 	}
 	if valid.Mtime() {
-		n.Attr.Mtime = attr.Mtime
+		n.Attr.MTime = attr.MTime
 	}
 	if valid.Atime() {
-		n.Attr.Atime = attr.Atime
+		n.Attr.ATime = attr.ATime
 	}
 	if valid.Uid() {
-		n.Attr.Uid = attr.Uid
+		n.Attr.UID = attr.UID
 	}
 	if valid.Gid() {
-		n.Attr.Gid = attr.Gid
+		n.Attr.GID = attr.GID
 	}
 	b, err := marshal(n)
 	if err != nil {
@@ -982,39 +926,26 @@ func (o *oortFS) SetAttr(ctx context.Context, req *formicproto.SetAttrRequest, r
 	if err != nil {
 		return err
 	}
-	// TODO: Set everything explicitly for now since the structs are different
-	// until the formicproto becomes theproto.
-	resp.Attr = &formicproto.Attr{
-		Inode:  n.Attr.Inode,
-		Atime:  n.Attr.Atime,
-		Mtime:  n.Attr.Mtime,
-		Ctime:  n.Attr.Ctime,
-		Crtime: n.Attr.Crtime,
-		Mode:   n.Attr.Mode,
-		Valid:  n.Attr.Valid,
-		Size:   n.Attr.Size,
-		Uid:    n.Attr.Uid,
-		Gid:    n.Attr.Gid,
-	}
+	resp.Attr = n.Attr
 	return nil
 }
 
-func (o *oortFS) Setxattr(ctx context.Context, req *formicproto.SetxattrRequest, resp *formicproto.SetxattrResponse, fsid string) error {
+func (o *oortFS) SetXAttr(ctx context.Context, req *formicproto.SetXAttrRequest, resp *formicproto.SetXAttrResponse, fsid string) error {
 	// NOTE: Setting xattrs is NOT concurrency safe!
-	id := getID(fsid, req.Inode, 0)
+	id := getID(fsid, req.INode, 0)
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return err
 	}
-	n := &formicproto.InodeEntry{}
+	n := &formicproto.INodeEntry{}
 	err = unmarshal(b, n)
 	if err != nil {
 		return err
 	}
-	if n.Xattr == nil {
-		n.Xattr = make(map[string][]byte)
+	if n.XAttr == nil {
+		n.XAttr = make(map[string][]byte)
 	}
-	n.Xattr[req.Name] = req.Value
+	n.XAttr[req.Name] = req.Value
 	b, err = marshal(n)
 	if err != nil {
 		return err
@@ -1101,33 +1032,33 @@ func (o *oortFS) ShowFS(ctx context.Context, req *formicproto.ShowFSRequest, res
 	return nil
 }
 
-func (o *oortFS) Statfs(ctx context.Context, req *formicproto.StatfsRequest, resp *formicproto.StatfsResponse, fsid string) error {
+func (o *oortFS) StatFS(ctx context.Context, req *formicproto.StatFSRequest, resp *formicproto.StatFSResponse, fsid string) error {
 	resp.Blocks = 281474976710656 // 1 exabyte (asuming 4K block size)
-	resp.Bfree = 281474976710656
-	resp.Bavail = 281474976710656
+	resp.BFree = 281474976710656
+	resp.BAvail = 281474976710656
 	resp.Files = 1000000000000 // 1 trillion inodes
-	resp.Ffree = 1000000000000
-	resp.Bsize = 4096 // it looked like ext4 used 4KB blocks
-	resp.Namelen = 256
-	resp.Frsize = 4096 // this should probably match Bsize so we don't allow fragmented blocks
+	resp.FFree = 1000000000000
+	resp.BSize = 4096 // it looked like ext4 used 4KB blocks
+	resp.NameLen = 256
+	resp.FrSize = 4096 // this should probably match Bsize so we don't allow fragmented blocks
 	return nil
 }
 
-func (o *oortFS) Symlink(ctx context.Context, req *formicproto.SymlinkRequest, resp *formicproto.SymlinkResponse, fsid string) error {
+func (o *oortFS) SymLink(ctx context.Context, req *formicproto.SymLinkRequest, resp *formicproto.SymLinkResponse, fsid string) error {
 	parent := getID(fsid, req.Parent, 0)
 	inode := o.fl.GetID()
 	id := getID(fsid, inode, 0)
 	ts := time.Now().Unix()
 	attr := &formicproto.Attr{
-		Inode:  inode,
-		Atime:  ts,
-		Mtime:  ts,
-		Ctime:  ts,
-		Crtime: ts,
+		INode:  inode,
+		ATime:  ts,
+		MTime:  ts,
+		CTime:  ts,
+		CrTime: ts,
 		Mode:   uint32(os.ModeSymlink | 0755),
 		Size:   uint64(len(req.Target)),
-		Uid:    req.Uid,
-		Gid:    req.Gid,
+		UID:    req.UID,
+		GID:    req.GID,
 	}
 	// Check to see if the name exists
 	val, err := o.comms.ReadGroupItem(ctx, parent, []byte(req.Name))
@@ -1138,9 +1069,9 @@ func (o *oortFS) Symlink(ctx context.Context, req *formicproto.SymlinkRequest, r
 	if len(val) > 1 { // Exists already
 		return nil
 	}
-	n := &formicproto.InodeEntry{
+	n := &formicproto.INodeEntry{
 		Version: inodeEntryVersion,
-		Inode:   inode,
+		INode:   inode,
 		IsDir:   false,
 		IsLink:  true,
 		Target:  req.Target,
@@ -1158,7 +1089,7 @@ func (o *oortFS) Symlink(ctx context.Context, req *formicproto.SymlinkRequest, r
 	d := &formicproto.DirEntry{
 		Version: dirEntryVersion,
 		Name:    req.Name,
-		Id:      id,
+		ID:      id,
 		Type:    uint32(fuse.DT_File),
 	}
 	b, err = marshal(d)
@@ -1169,20 +1100,7 @@ func (o *oortFS) Symlink(ctx context.Context, req *formicproto.SymlinkRequest, r
 	if err != nil {
 		return err
 	}
-	// TODO: Set everything explicitly for now since the structs are different
-	// until the formicproto becomes theproto.
-	resp.Attr = &formicproto.Attr{
-		Inode:  attr.Inode,
-		Atime:  attr.Atime,
-		Mtime:  attr.Mtime,
-		Ctime:  attr.Ctime,
-		Crtime: attr.Crtime,
-		Mode:   attr.Mode,
-		Valid:  attr.Valid,
-		Size:   attr.Size,
-		Uid:    attr.Uid,
-		Gid:    attr.Gid,
-	}
+	resp.Attr = attr
 	return nil
 }
 
@@ -1192,7 +1110,7 @@ func (o *oortFS) UpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest,
 	var fsRef fileSysRef
 	var fsSysAttr fileSysAttr
 	var fsSysAttrByte []byte
-	if req.Filesys.Name == "" {
+	if req.FileSys.Name == "" {
 		return errors.New("file system name cannot be empty")
 	}
 	// validate that acctID owns this file system
@@ -1220,7 +1138,7 @@ func (o *oortFS) UpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest,
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
 	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
 	fsSysAttr.Attr = "name"
-	fsSysAttr.Value = req.Filesys.Name
+	fsSysAttr.Value = req.FileSys.Name
 	fsSysAttr.FSID = req.FSID
 	fsSysAttrByte, err = json.Marshal(fsSysAttr)
 	if err != nil {
@@ -1253,7 +1171,7 @@ func (o *oortFS) Write(ctx context.Context, req *formicproto.WriteRequest, resp 
 			sendSize = o.blocksize - firstOffset
 		}
 		payload := req.Payload[cur : cur+sendSize]
-		id := getID(fsid, req.Inode, block+1) // 0 block is for inode data
+		id := getID(fsid, req.INode, block+1) // 0 block is for inode data
 		if firstOffset > 0 || sendSize < o.blocksize {
 			// need to get the block and update
 			chunk := make([]byte, firstOffset+int64(len(payload)))
@@ -1278,7 +1196,7 @@ func (o *oortFS) Write(ctx context.Context, req *formicproto.WriteRequest, resp 
 		}
 		err = o.update(
 			ctx,
-			getID(fsid, req.Inode, 0),
+			getID(fsid, req.INode, 0),
 			block,
 			uint64(o.blocksize),
 			uint64(req.Offset+int64(len(req.Payload))),
@@ -1289,7 +1207,7 @@ func (o *oortFS) Write(ctx context.Context, req *formicproto.WriteRequest, resp 
 		}
 		// TODO: Should we queue on error instead?
 		//o.updateChan <- &UpdateItem{
-		//	id:        getID(fsid, req.Inode, 0),
+		//	id:        getID(fsid, req.INode, 0),
 		//	block:     block,
 		//	blocksize: uint64(o.blocksize),
 		//	//size:      uint64(len(payload)),
@@ -1316,18 +1234,18 @@ func (o *oortFS) create(ctx context.Context, parent, id []byte, inode uint64, na
 			return "", &formicproto.Attr{}, err
 		}
 	}
-	var direntType fuse.DirentType
+	var dirEntType fuse.DirentType
 	if isdir {
-		direntType = fuse.DT_Dir
+		dirEntType = fuse.DT_Dir
 	} else {
-		direntType = fuse.DT_File
+		dirEntType = fuse.DT_File
 	}
 	// Add the name to the group
 	d := &formicproto.DirEntry{
 		Version: dirEntryVersion,
 		Name:    name,
-		Id:      id,
-		Type:    uint32(direntType),
+		ID:      id,
+		Type:    uint32(dirEntType),
 	}
 	b, err = marshal(d)
 	if err != nil {
@@ -1338,9 +1256,9 @@ func (o *oortFS) create(ctx context.Context, parent, id []byte, inode uint64, na
 		return "", &formicproto.Attr{}, err
 	}
 	// Add the inode entry
-	n := &formicproto.InodeEntry{
+	n := &formicproto.INodeEntry{
 		Version: inodeEntryVersion,
-		Inode:   inode,
+		INode:   inode,
 		IsDir:   isdir,
 		Attr:    attr,
 		Blocks:  0,
@@ -1356,19 +1274,19 @@ func (o *oortFS) create(ctx context.Context, parent, id []byte, inode uint64, na
 	return name, attr, nil
 }
 
-// Needed to be able to sort the dirents
+// Needed to be able to sort the dirEnts
 
-type byDirent []*formicproto.DirEnt
+type byReadDirAllEnt []*formicproto.ReadDirAllEnt
 
-func (d byDirent) Len() int {
+func (d byReadDirAllEnt) Len() int {
 	return len(d)
 }
 
-func (d byDirent) Swap(i, j int) {
+func (d byReadDirAllEnt) Swap(i, j int) {
 	d[i], d[j] = d[j], d[i]
 }
 
-func (d byDirent) Less(i, j int) bool {
+func (d byReadDirAllEnt) Less(i, j int) bool {
 	return d[i].Name < d[j].Name
 }
 
@@ -1386,11 +1304,11 @@ func (o *oortFS) remove(ctx context.Context, fsid string, parent []byte, name st
 		return 1, err
 	}
 	if fuse.DirentType(d.Type) == fuse.DT_Dir {
-		inode, err := o.getInode(ctx, d.Id)
+		inode, err := o.getINode(ctx, d.ID)
 		if err != nil {
 			return 1, err
 		}
-		items, err := o.comms.ReadGroup(ctx, getID(fsid, uint64(inode.Inode), 0))
+		items, err := o.comms.ReadGroup(ctx, getID(fsid, uint64(inode.INode), 0))
 		if err != nil {
 			return 1, err
 		}
@@ -1403,10 +1321,10 @@ func (o *oortFS) remove(ctx context.Context, fsid string, parent []byte, name st
 	// TODO: Handle possible race conditions where user writes and deletes the same file over and over
 	t := &formicproto.Tombstone{}
 	tsm := brimtime.TimeToUnixMicro(time.Now())
-	t.Dtime = tsm
-	t.Qtime = tsm
+	t.DTime = tsm
+	t.QTime = tsm
 	t.FSID = fsid
-	inode, err := o.getInode(ctx, d.Id)
+	inode, err := o.getINode(ctx, d.ID)
 	if store.IsNotFound(err) {
 		// file wasn't found. attempt to remove the group store entry
 		err = o.comms.DeleteGroupItem(ctx, parent, []byte(name))
@@ -1418,13 +1336,13 @@ func (o *oortFS) remove(ctx context.Context, fsid string, parent []byte, name st
 		return 1, err
 	}
 	t.Blocks = inode.Blocks
-	t.Inode = inode.Inode
+	t.INode = inode.INode
 	// Write the Tombstone to the delete listing for the fsid
 	b, err = marshal(t)
 	if err != nil {
 		return 1, err
 	}
-	err = o.comms.WriteGroupTS(ctx, getDeletedID(fsid), []byte(fmt.Sprintf("%d", t.Inode)), b, tsm)
+	err = o.comms.WriteGroupTS(ctx, getDeletedID(fsid), []byte(fmt.Sprintf("%d", t.INode)), b, tsm)
 	if err != nil {
 		return 1, err
 	}
@@ -1444,7 +1362,7 @@ func (o *oortFS) update(ctx context.Context, id []byte, block, blocksize, size u
 	if err != nil {
 		return err
 	}
-	n := &formicproto.InodeEntry{}
+	n := &formicproto.INodeEntry{}
 	err = unmarshal(b, n)
 	if err != nil {
 		return err
@@ -1456,8 +1374,8 @@ func (o *oortFS) update(ctx context.Context, id []byte, block, blocksize, size u
 	if size > n.Attr.Size {
 		n.Attr.Size = size
 	}
-	if mtime > n.Attr.Mtime {
-		n.Attr.Mtime = mtime
+	if mtime > n.Attr.MTime {
+		n.Attr.MTime = mtime
 	}
 	b, err = marshal(n)
 	if err != nil {
@@ -1509,14 +1427,14 @@ func (o *oortFS) deleteChunk(ctx context.Context, id []byte, tsm int64) error {
 	return o.comms.DeleteValueTS(ctx, id, tsm)
 }
 
-// getInode ...
-func (o *oortFS) getInode(ctx context.Context, id []byte) (*formicproto.InodeEntry, error) {
-	// Get the Inode entry
+// getINode ...
+func (o *oortFS) getINode(ctx context.Context, id []byte) (*formicproto.INodeEntry, error) {
+	// Get the INode entry
 	b, err := o.getChunk(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	n := &formicproto.InodeEntry{}
+	n := &formicproto.INodeEntry{}
 	err = unmarshal(b, n)
 	if err != nil {
 		return nil, err

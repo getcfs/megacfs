@@ -79,8 +79,8 @@ func (c *cleaninator) Run() {
 		fails := 0
 		for b := dirty.Blocks + 1; b > 0; b-- {
 			// Try to delete the old block
-			id := getID(dirty.FSID, dirty.Inode, b)
-			err := c.fs.deleteChunk(ctx, id, dirty.Dtime)
+			id := getID(dirty.FSID, dirty.INode, b)
+			err := c.fs.deleteChunk(ctx, id, dirty.DTime)
 			if err == errStoreHasNewerValue {
 				// Something has already been writte, so we are good
 				break
@@ -96,7 +96,7 @@ func (c *cleaninator) Run() {
 		} else {
 			// All orphaned data is deleted so remove the tombstone
 			c.log.Debug("Done Cleaning", zap.Any("item", dirty))
-			err := c.comms.DeleteGroupItem(ctx, getDirtyID(dirty.FSID), []byte(fmt.Sprintf("%d", dirty.Inode)))
+			err := c.comms.DeleteGroupItem(ctx, getDirtyID(dirty.FSID), []byte(fmt.Sprintf("%d", dirty.INode)))
 			if err != nil && !store.IsNotFound(err) {
 				// Failed to remove so queue again to retry later
 				c.in <- toclean
@@ -138,8 +138,8 @@ func (d *deletinator) Run() {
 		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		for b := uint64(0); b < ts.Blocks; b++ {
 			// Delete each block
-			id := getID(ts.FSID, ts.Inode, b+1)
-			err := d.fs.deleteChunk(ctx, id, ts.Dtime)
+			id := getID(ts.FSID, ts.INode, b+1)
+			err := d.fs.deleteChunk(ctx, id, ts.DTime)
 			if err != nil && !store.IsNotFound(err) && err != errStoreHasNewerValue {
 				continue
 			}
@@ -147,7 +147,7 @@ func (d *deletinator) Run() {
 		}
 		if deleted == ts.Blocks {
 			// Everything is deleted so delete the entry
-			err := d.fs.deleteChunk(ctx, getID(ts.FSID, ts.Inode, 0), ts.Dtime)
+			err := d.fs.deleteChunk(ctx, getID(ts.FSID, ts.INode, 0), ts.DTime)
 			if err != nil && !store.IsNotFound(err) && err != errStoreHasNewerValue {
 				// Couldn't delete the inode entry so try again later
 				d.in <- todelete
@@ -159,7 +159,7 @@ func (d *deletinator) Run() {
 		}
 		// All artifacts are deleted so remove the delete tombstone
 		d.log.Debug("Done Deleting", zap.Any("tombstone", ts))
-		err := d.comms.DeleteGroupItem(ctx, getDeletedID(ts.FSID), []byte(fmt.Sprintf("%d", ts.Inode)))
+		err := d.comms.DeleteGroupItem(ctx, getDeletedID(ts.FSID), []byte(fmt.Sprintf("%d", ts.INode)))
 		if err != nil && !store.IsNotFound(err) {
 			// Failed to remove so queue again to retry later
 			d.in <- todelete

@@ -75,7 +75,7 @@ func list(addr, authURL, username, password string) error {
 		fmt.Println("ListFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.ListFSRequest{Rpcid: 1, Token: token}); err != nil {
+	if err = stream.Send(&formicproto.ListFSRequest{RPCID: 1, Token: token}); err != nil {
 		fmt.Println("ListFS failed", err)
 		os.Exit(1)
 	}
@@ -125,7 +125,7 @@ func show(addr, authURL, username, password string) error {
 		fmt.Println("ShowFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.ShowFSRequest{Rpcid: 1, Token: token, FSID: fsid}); err != nil {
+	if err = stream.Send(&formicproto.ShowFSRequest{RPCID: 1, Token: token, FSID: fsid}); err != nil {
 		fmt.Println("ShowFS failed", err)
 		os.Exit(1)
 	}
@@ -178,7 +178,7 @@ func create(addr, authURL, username, password string) error {
 		fmt.Println("CreateFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.CreateFSRequest{Rpcid: 1, Token: token, Fsname: name}); err != nil {
+	if err = stream.Send(&formicproto.CreateFSRequest{RPCID: 1, Token: token, FSName: name}); err != nil {
 		fmt.Println("CreateFS failed", err)
 		os.Exit(1)
 	}
@@ -221,7 +221,7 @@ func del(addr, authURL, username, password string) error {
 		fmt.Println("DeleteFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.DeleteFSRequest{Rpcid: 1, Token: token, FSID: fsid}); err != nil {
+	if err = stream.Send(&formicproto.DeleteFSRequest{RPCID: 1, Token: token, FSID: fsid}); err != nil {
 		fmt.Println("DeleteFS failed", err)
 		os.Exit(1)
 	}
@@ -271,7 +271,7 @@ func update(addr, authURL, username, password string) error {
 		fmt.Println("UpdateFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.UpdateFSRequest{Rpcid: 1, Token: token, FSID: fsid, Filesys: newFS}); err != nil {
+	if err = stream.Send(&formicproto.UpdateFSRequest{RPCID: 1, Token: token, FSID: fsid, FileSys: newFS}); err != nil {
 		fmt.Println("UpdateFS failed", err)
 		os.Exit(1)
 	}
@@ -321,7 +321,7 @@ func grant(addr, authURL, username, password string) error {
 		fmt.Println("GrantAddrFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.GrantAddrFSRequest{Rpcid: 1, Token: token, FSID: fsid, Addr: ip}); err != nil {
+	if err = stream.Send(&formicproto.GrantAddrFSRequest{RPCID: 1, Token: token, FSID: fsid, Addr: ip}); err != nil {
 		fmt.Println("GrantAddrFS failed", err)
 		os.Exit(1)
 	}
@@ -371,7 +371,7 @@ func revoke(addr, authURL, username, password string) error {
 		fmt.Println("RevokeAddrFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.RevokeAddrFSRequest{Rpcid: 1, Token: token, FSID: fsid, Addr: ip}); err != nil {
+	if err = stream.Send(&formicproto.RevokeAddrFSRequest{RPCID: 1, Token: token, FSID: fsid, Addr: ip}); err != nil {
 		fmt.Println("RevokeAddrFS failed", err)
 		os.Exit(1)
 	}
@@ -418,11 +418,10 @@ func check(addr string) error {
 		os.Exit(1)
 	}
 	fsid := string(fsidBytes)
-	// Get the inode of the parent dir
 	var stat syscall.Stat_t
 	err = syscall.Stat(dirPath, &stat)
 	if err != nil {
-		fmt.Println("Error determining inode for: ", dirPath)
+		fmt.Println("Error stating:", dirPath)
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -441,7 +440,7 @@ func check(addr string) error {
 		fmt.Println("Check failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.CheckRequest{Rpcid: 1, Inode: stat.Ino, Name: fileName}); err != nil {
+	if err = stream.Send(&formicproto.CheckRequest{RPCID: 1, INode: stat.Ino, Name: fileName}); err != nil {
 		fmt.Println("Check failed", err)
 		os.Exit(1)
 	}

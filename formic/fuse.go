@@ -172,16 +172,16 @@ func (f *FuseFormic) handle(r fuse.Request) {
 		f.handleReadlink(tr)
 
 	case *fuse.GetxattrRequest:
-		f.handleGetxattr(tr)
+		f.handleGetXAttr(tr)
 
 	case *fuse.ListxattrRequest:
-		f.handleListxattr(tr)
+		f.handleListXAttr(tr)
 
 	case *fuse.SetxattrRequest:
-		f.handleSetxattr(tr)
+		f.handleSetXAttr(tr)
 
 	case *fuse.RemovexattrRequest:
-		f.handleRemovexattr(tr)
+		f.handleRemoveXAttr(tr)
 
 	case *fuse.RenameRequest:
 		f.handleRename(tr)
@@ -258,28 +258,28 @@ func (f *fileHandles) getReadCache(h fuse.HandleID) []byte {
 }
 
 func copyNewAttr(dst *fuse.Attr, src *formicproto.Attr) {
-	dst.Inode = src.Inode
+	dst.Inode = src.INode
 	dst.Mode = os.FileMode(src.Mode)
 	dst.Size = src.Size
-	dst.Mtime = time.Unix(src.Mtime, 0)
-	dst.Atime = time.Unix(src.Atime, 0)
-	dst.Ctime = time.Unix(src.Ctime, 0)
-	dst.Crtime = time.Unix(src.Crtime, 0)
-	dst.Uid = src.Uid
-	dst.Gid = src.Gid
+	dst.Mtime = time.Unix(src.MTime, 0)
+	dst.Atime = time.Unix(src.ATime, 0)
+	dst.Ctime = time.Unix(src.CTime, 0)
+	dst.Crtime = time.Unix(src.CrTime, 0)
+	dst.Uid = src.UID
+	dst.Gid = src.GID
 	dst.Blocks = dst.Size / 512 // set Blocks so df works without the --apparent-size flag
 }
 
 func copyAttr(dst *fuse.Attr, src *formicproto.Attr) {
-	dst.Inode = src.Inode
+	dst.Inode = src.INode
 	dst.Mode = os.FileMode(src.Mode)
 	dst.Size = src.Size
-	dst.Mtime = time.Unix(src.Mtime, 0)
-	dst.Atime = time.Unix(src.Atime, 0)
-	dst.Ctime = time.Unix(src.Ctime, 0)
-	dst.Crtime = time.Unix(src.Crtime, 0)
-	dst.Uid = src.Uid
-	dst.Gid = src.Gid
+	dst.Mtime = time.Unix(src.MTime, 0)
+	dst.Atime = time.Unix(src.ATime, 0)
+	dst.Ctime = time.Unix(src.CTime, 0)
+	dst.Crtime = time.Unix(src.CrTime, 0)
+	dst.Uid = src.UID
+	dst.Gid = src.GID
 	dst.Blocks = dst.Size / 512 // set Blocks so df works without the --apparent-size flag
 }
 
@@ -299,12 +299,12 @@ func (f *FuseFormic) initFS() error {
 	f.logger.Debug("Inside initFS")
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
-	stream, err := f.rpc.InitFs(f.getContext())
+	stream, err := f.rpc.InitFS(f.getContext())
 	if err != nil {
 		f.logger.Debug("initFS failed", zap.Error(err))
 		return err
 	}
-	if err = stream.Send(&formicproto.InitFsRequest{Rpcid: 1}); err != nil {
+	if err = stream.Send(&formicproto.InitFSRequest{RPCID: 1}); err != nil {
 		f.logger.Debug("initFS failed", zap.Error(err))
 		return err
 	}
@@ -331,7 +331,7 @@ func (f *FuseFormic) handleGetattr(r *fuse.GetattrRequest) {
 		r.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.GetAttrRequest{Rpcid: 1, Inode: uint64(r.Node)}); err != nil {
+	if err = stream.Send(&formicproto.GetAttrRequest{RPCID: 1, INode: uint64(r.Node)}); err != nil {
 		f.logger.Debug("Getattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
@@ -364,7 +364,7 @@ func (f *FuseFormic) handleLookup(req *fuse.LookupRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.LookupRequest{Rpcid: 1, Name: req.Name, Parent: uint64(req.Node)}); err != nil {
+	if err = stream.Send(&formicproto.LookupRequest{RPCID: 1, Name: req.Name, Parent: uint64(req.Node)}); err != nil {
 		f.logger.Debug("Lookup failed [2]", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -387,7 +387,7 @@ func (f *FuseFormic) handleLookup(req *fuse.LookupRequest) {
 		return
 	}
 	resp := &fuse.LookupResponse{}
-	resp.Node = fuse.NodeID(protoResp.Attr.Inode)
+	resp.Node = fuse.NodeID(protoResp.Attr.INode)
 	copyNewAttr(&resp.Attr, protoResp.Attr)
 	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
@@ -406,7 +406,7 @@ func (f *FuseFormic) handleMkdir(req *fuse.MkdirRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.MkDirRequest{Rpcid: 1, Name: req.Name, Parent: uint64(req.Node), Attr: &formicproto.Attr{Uid: req.Uid, Gid: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
+	if err = stream.Send(&formicproto.MkDirRequest{RPCID: 1, Name: req.Name, Parent: uint64(req.Node), Attr: &formicproto.Attr{UID: req.Uid, GID: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
 		f.logger.Debug("Mkdir failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -429,7 +429,7 @@ func (f *FuseFormic) handleMkdir(req *fuse.MkdirRequest) {
 		return
 	}
 	resp := &fuse.MkdirResponse{}
-	resp.Node = fuse.NodeID(protoResp.Attr.Inode)
+	resp.Node = fuse.NodeID(protoResp.Attr.INode)
 	copyNewAttr(&resp.Attr, protoResp.Attr)
 	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
@@ -463,7 +463,7 @@ func (f *FuseFormic) handleRead(req *fuse.ReadRequest) {
 				req.RespondError(fuse.EIO)
 				return
 			}
-			if err = stream.Send(&formicproto.ReadDirAllRequest{Rpcid: 1, Inode: uint64(req.Node)}); err != nil {
+			if err = stream.Send(&formicproto.ReadDirAllRequest{RPCID: 1, INode: uint64(req.Node)}); err != nil {
 				f.logger.Debug("ReadDirAll failed", zap.Error(err))
 				req.RespondError(fuse.EIO)
 				return
@@ -489,14 +489,14 @@ func (f *FuseFormic) handleRead(req *fuse.ReadRequest) {
 				Inode: 1, // TODO: not sure what value this should be, but this seems to work fine.
 				Type:  fuse.DT_Dir,
 			})
-			for _, de := range protoResp.Direntries {
-				if de == nil || de.Name == "" {
+			for _, e := range protoResp.Ents {
+				if e == nil || e.Name == "" {
 					continue
 				}
 				data = fuse.AppendDirent(data, fuse.Dirent{
-					Name:  de.Name,
+					Name:  e.Name,
 					Inode: 1, // TODO: seems to work fine with any non-zero inode.  why?
-					Type:  fuse.DirentType(de.Type),
+					Type:  fuse.DirentType(e.Type),
 				})
 			}
 			f.handles.cacheRead(req.Handle, data)
@@ -513,7 +513,7 @@ func (f *FuseFormic) handleRead(req *fuse.ReadRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.ReadRequest{Rpcid: 1, Inode: uint64(req.Node), Offset: int64(req.Offset), Size: int64(req.Size)}); err != nil {
+	if err = stream.Send(&formicproto.ReadRequest{RPCID: 1, INode: uint64(req.Node), Offset: int64(req.Offset), Size: int64(req.Size)}); err != nil {
 		f.logger.Debug("Read failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -545,7 +545,7 @@ func (f *FuseFormic) handleWrite(r *fuse.WriteRequest) {
 		r.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.WriteRequest{Rpcid: 1, Inode: uint64(r.Node), Offset: r.Offset, Payload: r.Data}); err != nil {
+	if err = stream.Send(&formicproto.WriteRequest{RPCID: 1, INode: uint64(r.Node), Offset: r.Offset, Payload: r.Data}); err != nil {
 		f.logger.Debug("Write failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
@@ -575,7 +575,7 @@ func (f *FuseFormic) handleCreate(req *fuse.CreateRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.CreateRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.Name, Attr: &formicproto.Attr{Uid: req.Uid, Gid: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
+	if err = stream.Send(&formicproto.CreateRequest{RPCID: 1, Parent: uint64(req.Node), Name: req.Name, Attr: &formicproto.Attr{UID: req.Uid, GID: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
 		f.logger.Debug("Create failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -592,7 +592,7 @@ func (f *FuseFormic) handleCreate(req *fuse.CreateRequest) {
 		return
 	}
 	resp := &fuse.CreateResponse{}
-	resp.Node = fuse.NodeID(createResp.Attr.Inode)
+	resp.Node = fuse.NodeID(createResp.Attr.INode)
 	copyNewAttr(&resp.Attr, createResp.Attr)
 	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
@@ -609,7 +609,7 @@ func (f *FuseFormic) handleSetattr(r *fuse.SetattrRequest) {
 	resp := &fuse.SetattrResponse{}
 	resp.Attr.Inode = uint64(r.Node)
 	a := &formicproto.Attr{
-		Inode: uint64(r.Node),
+		INode: uint64(r.Node),
 	}
 	if r.Valid.Size() {
 		a.Size = r.Size
@@ -618,19 +618,19 @@ func (f *FuseFormic) handleSetattr(r *fuse.SetattrRequest) {
 		a.Mode = uint32(r.Mode)
 	}
 	if r.Valid.Atime() {
-		a.Atime = r.Atime.Unix()
+		a.ATime = r.Atime.Unix()
 	}
 	if r.Valid.AtimeNow() {
-		a.Atime = time.Now().Unix()
+		a.ATime = time.Now().Unix()
 	}
 	if r.Valid.Mtime() {
-		a.Mtime = r.Mtime.Unix()
+		a.MTime = r.Mtime.Unix()
 	}
 	if r.Valid.Uid() {
-		a.Uid = r.Uid
+		a.UID = r.Uid
 	}
 	if r.Valid.Gid() {
-		a.Gid = r.Gid
+		a.GID = r.Gid
 	}
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
@@ -640,7 +640,7 @@ func (f *FuseFormic) handleSetattr(r *fuse.SetattrRequest) {
 		r.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.SetAttrRequest{Rpcid: 1, Attr: a, Valid: uint32(r.Valid)}); err != nil {
+	if err = stream.Send(&formicproto.SetAttrRequest{RPCID: 1, Attr: a, Valid: uint32(r.Valid)}); err != nil {
 		f.logger.Debug("Setattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
@@ -696,7 +696,7 @@ func (f *FuseFormic) handleRemove(req *fuse.RemoveRequest) {
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.RemoveRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.Name}); err != nil {
+	if err = stream.Send(&formicproto.RemoveRequest{RPCID: 1, Parent: uint64(req.Node), Name: req.Name}); err != nil {
 		f.logger.Debug("Remove failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -747,13 +747,13 @@ func (f *FuseFormic) handleStatfs(req *fuse.StatfsRequest) {
 	f.logger.Debug("Inside handleStatfs", zap.Any("request", req))
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
-	stream, err := f.rpc.Statfs(f.getContext())
+	stream, err := f.rpc.StatFS(f.getContext())
 	if err != nil {
 		f.logger.Debug("Statfs failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.StatfsRequest{Rpcid: 1}); err != nil {
+	if err = stream.Send(&formicproto.StatFSRequest{RPCID: 1}); err != nil {
 		f.logger.Debug("Statfs failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -771,13 +771,13 @@ func (f *FuseFormic) handleStatfs(req *fuse.StatfsRequest) {
 	}
 	resp := &fuse.StatfsResponse{
 		Blocks:  statfsResp.Blocks,
-		Bfree:   statfsResp.Bfree,
-		Bavail:  statfsResp.Bavail,
+		Bfree:   statfsResp.BFree,
+		Bavail:  statfsResp.BAvail,
 		Files:   statfsResp.Files,
-		Ffree:   statfsResp.Ffree,
-		Bsize:   statfsResp.Bsize,
-		Namelen: statfsResp.Namelen,
-		Frsize:  statfsResp.Frsize,
+		Ffree:   statfsResp.FFree,
+		Bsize:   statfsResp.BSize,
+		Namelen: statfsResp.NameLen,
+		Frsize:  statfsResp.FrSize,
 	}
 	req.Respond(resp)
 }
@@ -786,13 +786,13 @@ func (f *FuseFormic) handleSymlink(req *fuse.SymlinkRequest) {
 	f.logger.Debug("Inside handleSymlink", zap.Any("request", req))
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
-	stream, err := f.rpc.Symlink(f.getContext())
+	stream, err := f.rpc.SymLink(f.getContext())
 	if err != nil {
 		f.logger.Debug("Symlink failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.SymlinkRequest{Rpcid: 1, Parent: uint64(req.Node), Name: req.NewName, Target: req.Target, Uid: req.Uid, Gid: req.Gid}); err != nil {
+	if err = stream.Send(&formicproto.SymLinkRequest{RPCID: 1, Parent: uint64(req.Node), Name: req.NewName, Target: req.Target, UID: req.Uid, GID: req.Gid}); err != nil {
 		f.logger.Debug("Symlink failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -809,7 +809,7 @@ func (f *FuseFormic) handleSymlink(req *fuse.SymlinkRequest) {
 		return
 	}
 	resp := &fuse.SymlinkResponse{}
-	resp.Node = fuse.NodeID(symlinkResp.Attr.Inode)
+	resp.Node = fuse.NodeID(symlinkResp.Attr.INode)
 	copyNewAttr(&resp.Attr, symlinkResp.Attr)
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
@@ -821,13 +821,13 @@ func (f *FuseFormic) handleReadlink(req *fuse.ReadlinkRequest) {
 	f.logger.Debug("Inside handleReadlink", zap.Any("request", req))
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
-	stream, err := f.rpc.Readlink(f.getContext())
+	stream, err := f.rpc.ReadLink(f.getContext())
 	if err != nil {
 		f.logger.Debug("Readlink failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.ReadlinkRequest{Rpcid: 1, Inode: uint64(req.Node)}); err != nil {
+	if err = stream.Send(&formicproto.ReadLinkRequest{RPCID: 1, INode: uint64(req.Node)}); err != nil {
 		f.logger.Debug("Readlink failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
@@ -852,84 +852,84 @@ func (f *FuseFormic) handleLink(r *fuse.LinkRequest) {
 	r.RespondError(fuse.ENOSYS)
 }
 
-func (f *FuseFormic) handleGetxattr(req *fuse.GetxattrRequest) {
+func (f *FuseFormic) handleGetXAttr(req *fuse.GetxattrRequest) {
 	// TODO: Possiblity short circuit excessive xattr calls we don't really
 	// support.
-	f.logger.Debug("Inside handleGetxattr", zap.Any("request", req))
+	f.logger.Debug("Inside handleGetXAttr", zap.Any("request", req))
 	if req.Name == "cfs.fsid" {
 		resp := &fuse.GetxattrResponse{Xattr: []byte(f.fsid)}
-		f.logger.Debug("handleGetxattr returning", zap.Any("response", resp))
+		f.logger.Debug("handleGetXAttr returning", zap.Any("response", resp))
 		req.Respond(resp)
 		return
 	}
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
-	stream, err := f.rpc.Getxattr(f.getContext())
+	stream, err := f.rpc.GetXAttr(f.getContext())
 	if err != nil {
-		f.logger.Debug("Getxattr failed", zap.Error(err))
+		f.logger.Debug("GetXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole xattr is always returned.
-	if err = stream.Send(&formicproto.GetxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name, Size: req.Size, Position: req.Position}); err != nil {
-		f.logger.Debug("Getxattr failed", zap.Error(err))
+	if err = stream.Send(&formicproto.GetXAttrRequest{RPCID: 1, INode: uint64(req.Node), Name: req.Name, Size: req.Size, Position: req.Position}); err != nil {
+		f.logger.Debug("GetXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	getxattrResp, err := stream.Recv()
+	getXAttrResp, err := stream.Recv()
 	if err != nil {
-		f.logger.Debug("Getxattr failed", zap.Error(err))
+		f.logger.Debug("GetXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if getxattrResp.Err != "" {
-		f.logger.Debug("Getxattr failed", zap.String("Err", getxattrResp.Err))
+	if getXAttrResp.Err != "" {
+		f.logger.Debug("GetXAttr failed", zap.String("Err", getXAttrResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	resp := &fuse.GetxattrResponse{Xattr: getxattrResp.Xattr}
-	f.logger.Debug("handleGetxattr returning", zap.Any("response", resp))
+	resp := &fuse.GetxattrResponse{Xattr: getXAttrResp.XAttr}
+	f.logger.Debug("handleGetXAttr returning", zap.Any("response", resp))
 	req.Respond(resp)
 }
 
-func (f *FuseFormic) handleListxattr(req *fuse.ListxattrRequest) {
-	f.logger.Debug("Inside handleListxattr", zap.Any("request", req))
+func (f *FuseFormic) handleListXAttr(req *fuse.ListxattrRequest) {
+	f.logger.Debug("Inside handleListXAttr", zap.Any("request", req))
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
-	stream, err := f.rpc.Listxattr(f.getContext())
+	stream, err := f.rpc.ListXAttr(f.getContext())
 	if err != nil {
-		f.logger.Debug("Listxattr failed", zap.Error(err))
+		f.logger.Debug("ListXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole list of xattrs are always returned.
-	if err = stream.Send(&formicproto.ListxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Size: req.Size, Position: req.Position}); err != nil {
-		f.logger.Debug("Listxattr failed", zap.Error(err))
+	if err = stream.Send(&formicproto.ListXAttrRequest{RPCID: 1, INode: uint64(req.Node), Size: req.Size, Position: req.Position}); err != nil {
+		f.logger.Debug("ListXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	listxattrResp, err := stream.Recv()
+	listXAttrResp, err := stream.Recv()
 	if err != nil {
-		f.logger.Debug("Listxattr failed", zap.Error(err))
+		f.logger.Debug("ListXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if listxattrResp.Err != "" {
-		f.logger.Debug("Listxattr failed", zap.String("Err", listxattrResp.Err))
+	if listXAttrResp.Err != "" {
+		f.logger.Debug("ListXAttr failed", zap.String("Err", listXAttrResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	resp := &fuse.ListxattrResponse{Xattr: listxattrResp.Xattr}
-	f.logger.Debug("handleListxattr returning", zap.Any("response", resp))
+	resp := &fuse.ListxattrResponse{Xattr: listXAttrResp.XAttr}
+	f.logger.Debug("handleListXAttr returning", zap.Any("response", resp))
 	req.Respond(resp)
 }
 
-func (f *FuseFormic) handleSetxattr(req *fuse.SetxattrRequest) {
+func (f *FuseFormic) handleSetXAttr(req *fuse.SetxattrRequest) {
 	// TODO: Possiblity disallow some xattr sets, like security.* system.* if
 	// that makes sense.
-	f.logger.Debug("Inside handleSetxattr", zap.Any("request", req))
+	f.logger.Debug("Inside handleSetXAttr", zap.Any("request", req))
 	if strings.HasPrefix(req.Name, "cfs.") {
 		// Silently discard sets to "our" namespace.
 		req.Respond()
@@ -937,38 +937,38 @@ func (f *FuseFormic) handleSetxattr(req *fuse.SetxattrRequest) {
 	}
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
-	stream, err := f.rpc.Setxattr(f.getContext())
+	stream, err := f.rpc.SetXAttr(f.getContext())
 	if err != nil {
-		f.logger.Debug("Setxattr failed", zap.Error(err))
+		f.logger.Debug("SetXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
 	// TODO: Best I can tell, xattr position and flags were never implemented.
 	// The whole xattr is always set and flags are ignored.
-	if err = stream.Send(&formicproto.SetxattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name, Value: req.Xattr, Position: req.Position, Flags: req.Flags}); err != nil {
-		f.logger.Debug("Setxattr failed", zap.Error(err))
+	if err = stream.Send(&formicproto.SetXAttrRequest{RPCID: 1, INode: uint64(req.Node), Name: req.Name, Value: req.Xattr, Position: req.Position, Flags: req.Flags}); err != nil {
+		f.logger.Debug("SetXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	setxattrResp, err := stream.Recv()
+	setXAttrResp, err := stream.Recv()
 	if err != nil {
-		f.logger.Debug("Setxattr failed", zap.Error(err))
+		f.logger.Debug("SetXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if setxattrResp.Err != "" {
-		f.logger.Debug("Setxattr failed", zap.String("Err", setxattrResp.Err))
+	if setXAttrResp.Err != "" {
+		f.logger.Debug("SetXAttr failed", zap.String("Err", setXAttrResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	f.logger.Debug("handleSetxattr returning")
+	f.logger.Debug("handleSetXAttr returning")
 	req.Respond()
 }
 
-func (f *FuseFormic) handleRemovexattr(req *fuse.RemovexattrRequest) {
+func (f *FuseFormic) handleRemoveXAttr(req *fuse.RemovexattrRequest) {
 	// TODO: Possiblity disallow some xattr removes, like security.* system.*
 	// if that makes sense.
-	f.logger.Debug("Inside handleRemovexattr", zap.Any("request", req))
+	f.logger.Debug("Inside handleRemoveXAttr", zap.Any("request", req))
 	// TODO: All these checks need to be server side.
 	if strings.HasPrefix(req.Name, "cfs.") {
 		// Silently discard removes to "our" namespace.
@@ -977,31 +977,31 @@ func (f *FuseFormic) handleRemovexattr(req *fuse.RemovexattrRequest) {
 	}
 	// TODO: Placeholder code to get things working; needs to be replaced to be
 	// more like oort's client code.
-	stream, err := f.rpc.Removexattr(f.getContext())
+	stream, err := f.rpc.RemoveXAttr(f.getContext())
 	if err != nil {
-		f.logger.Debug("Removexattr failed", zap.Error(err))
+		f.logger.Debug("RemoveXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole list of xattrs are always returned.
-	if err = stream.Send(&formicproto.RemovexattrRequest{Rpcid: 1, Inode: uint64(req.Node), Name: req.Name}); err != nil {
-		f.logger.Debug("Removexattr failed", zap.Error(err))
+	if err = stream.Send(&formicproto.RemoveXAttrRequest{RPCID: 1, INode: uint64(req.Node), Name: req.Name}); err != nil {
+		f.logger.Debug("RemoveXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	removexattrResp, err := stream.Recv()
+	removeXAttrResp, err := stream.Recv()
 	if err != nil {
-		f.logger.Debug("Removexattr failed", zap.Error(err))
+		f.logger.Debug("RemoveXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if removexattrResp.Err != "" {
-		f.logger.Debug("Removexattr failed", zap.String("Err", removexattrResp.Err))
+	if removeXAttrResp.Err != "" {
+		f.logger.Debug("RemoveXAttr failed", zap.String("Err", removeXAttrResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	f.logger.Debug("handleRemovexattr returning")
+	f.logger.Debug("handleRemoveXAttr returning")
 	req.Respond()
 }
 
@@ -1022,7 +1022,7 @@ func (f *FuseFormic) handleRename(req *fuse.RenameRequest) {
 	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole list of xattrs are always returned.
-	if err = stream.Send(&formicproto.RenameRequest{Rpcid: 1, OldParent: uint64(req.Node), NewParent: uint64(req.NewDir), OldName: req.OldName, NewName: req.NewName}); err != nil {
+	if err = stream.Send(&formicproto.RenameRequest{RPCID: 1, OldParent: uint64(req.Node), NewParent: uint64(req.NewDir), OldName: req.OldName, NewName: req.NewName}); err != nil {
 		f.logger.Debug("Rename failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
