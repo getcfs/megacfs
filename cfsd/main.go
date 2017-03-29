@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -54,6 +55,11 @@ func (logger *redirectGRPCLogger) Println(args ...interface{}) {
 
 var redirectGRPCLoggerV redirectGRPCLogger
 
+var cfsdVersion string
+var buildDate string
+var commitVersion string
+var goVersion string
+
 func init() {
 	debug := brimtext.TrueString(os.Getenv("DEBUG"))
 	for _, arg := range os.Args[1:] {
@@ -88,6 +94,16 @@ const (
 )
 
 func main() {
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "version", "-version", "--version":
+			fmt.Println("version:", cfsdVersion)
+			fmt.Println("commit:", commitVersion)
+			fmt.Println("build date:", buildDate)
+			fmt.Println("go version:", goVersion)
+			return
+		}
+	}
 	ringPath := "/etc/cfsd/cfs.ring"
 	caPath := "/etc/cfsd/ca.pem"
 	dataPath := "/var/lib/cfsd"
