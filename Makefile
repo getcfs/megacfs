@@ -18,12 +18,12 @@ build:
 			-X main.buildDate=$(BDATE)" github.com/getcfs/megacfs/cfs
 	go build -i -v -o build/cfsd --ldflags " $(LD_FLAGS) \
 			-X main.commitVersion=$(SHA) \
-			-X main.cfsVersion=$(VERSION) \
+			-X main.cfsdVersion=$(VERSION) \
 			-X main.goVersion=$(GOVERSION) \
 			-X main.buildDate=$(BDATE)" github.com/getcfs/megacfs/cfsd
 	go build -i -v -o build/cfsadm --ldflags " $(LD_FLAGS) \
 			-X main.commitVersion=$(SHA) \
-			-X main.cfsVersion=$(VERSION) \
+			-X main.cfsadmVersion=$(VERSION) \
 			-X main.goVersion=$(GOVERSION) \
 			-X main.buildDate=$(BDATE)" github.com/getcfs/megacfs/cfsadm
 

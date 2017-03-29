@@ -16,11 +16,17 @@ import (
 	"github.com/gholt/ring"
 )
 
+var cfsadmVersion string
+var buildDate string
+var commitVersion string
+var goVersion string
+
 func main() {
 	help := `
-init        Creates a new CA, conf file, and initial ring builder file
+version     Outputs version information.
+init        Creates a new CA, conf file, and initial ring builder file.
 add <ip>    Adds the IP to the ring, one for all services, and creates a new
-            certificate for it
+            certificate for it.
 add <public_ip> <private_ip>
             Same as the single IP add, but the first IP is just for Formic (the
             public facing API service) and the other IP is for the rest.
@@ -34,6 +40,11 @@ add <public_ip> <private_ip>
 	default:
 		fmt.Println(help)
 		os.Exit(1)
+	case "version", "-version", "--version":
+		fmt.Println("version:", cfsadmVersion)
+		fmt.Println("commit:", commitVersion)
+		fmt.Println("build date:", buildDate)
+		fmt.Println("go version:", goVersion)
 	case "init":
 		if len(args) > 1 {
 			fmt.Println("'init' takes no arguments")
