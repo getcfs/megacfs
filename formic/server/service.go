@@ -188,7 +188,7 @@ func newOortFS(comms *storeComms, logger *zap.Logger, deleteChan chan *deleteIte
 }
 
 func (o *oortFS) Check(ctx context.Context, req *formicproto.CheckRequest, resp *formicproto.CheckResponse, fsid string) error {
-	b, err := o.comms.ReadGroupItem(ctx, getID(fsid, req.INode, 0), []byte(req.Name))
+	b, err := o.comms.ReadGroupItem(ctx, getID(fsid, req.ParentINode, 0), []byte(req.ChildName))
 	if store.IsNotFound(err) {
 		resp.Response = "not found"
 		return nil
@@ -206,7 +206,7 @@ func (o *oortFS) Check(ctx context.Context, req *formicproto.CheckRequest, resp 
 		// Note: Unfortunately if we lose the inode block, there is no way to
 		// recover because we do not know the inode of the file itself.
 		// Delete the entry.
-		err = o.comms.DeleteGroupItemTS(ctx, getID(fsid, req.INode, 0), []byte(req.Name), brimtime.TimeToUnixMicro(time.Now()))
+		err = o.comms.DeleteGroupItemTS(ctx, getID(fsid, req.ParentINode, 0), []byte(req.ChildName), brimtime.TimeToUnixMicro(time.Now()))
 		if err != nil {
 			return fmt.Errorf("Error: INode not found but could not delete the listing: %s", err)
 		}
@@ -329,12 +329,12 @@ func (o *oortFS) Create(ctx context.Context, req *formicproto.CreateRequest, res
 		MTime:  ts,
 		CTime:  ts,
 		CrTime: ts,
-		Mode:   req.Attr.Mode,
-		UID:    req.Attr.UID,
-		GID:    req.Attr.GID,
+		Mode:   req.ChildAttr.Mode,
+		UID:    req.ChildAttr.UID,
+		GID:    req.ChildAttr.GID,
 	}
 	var err error
-	resp.Name, resp.Attr, err = o.create(ctx, getID(fsid, req.Parent, 0), getID(fsid, inode, 0), inode, req.Name, attr, false)
+	resp.ChildAttr, err = o.create(ctx, getID(fsid, req.ParentINode, 0), getID(fsid, inode, 0), inode, req.ChildName, attr, false)
 	if err != nil {
 		return err
 	}
@@ -643,7 +643,6 @@ func (o *oortFS) Lookup(ctx context.Context, req *formicproto.LookupRequest, res
 	if err != nil {
 		return err
 	}
-	resp.Name = d.Name
 	resp.Attr = n.Attr
 	return nil
 }
@@ -697,7 +696,7 @@ func (o *oortFS) MkDir(ctx context.Context, req *formicproto.MkDirRequest, resp 
 		GID:    req.Attr.GID,
 	}
 	var err error
-	resp.Name, resp.Attr, err = o.create(ctx, getID(fsid, req.Parent, 0), getID(fsid, inode, 0), inode, req.Name, attr, true)
+	resp.Attr, err = o.create(ctx, getID(fsid, req.Parent, 0), getID(fsid, inode, 0), inode, req.Name, attr, true)
 	if err != nil {
 		return err
 	}
@@ -1110,7 +1109,7 @@ func (o *oortFS) UpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest,
 	var fsRef fileSysRef
 	var fsSysAttr fileSysAttr
 	var fsSysAttrByte []byte
-	if req.FileSys.Name == "" {
+	if req.NewFSName == "" {
 		return errors.New("file system name cannot be empty")
 	}
 	// validate that acctID owns this file system
@@ -1138,7 +1137,7 @@ func (o *oortFS) UpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest,
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
 	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
 	fsSysAttr.Attr = "name"
-	fsSysAttr.Value = req.FileSys.Name
+	fsSysAttr.Value = req.NewFSName
 	fsSysAttr.FSID = req.FSID
 	fsSysAttrByte, err = json.Marshal(fsSysAttr)
 	if err != nil {
@@ -1220,19 +1219,20 @@ func (o *oortFS) Write(ctx context.Context, req *formicproto.WriteRequest, resp 
 	return nil
 }
 
-func (o *oortFS) create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *formicproto.Attr, isdir bool) (string, *formicproto.Attr, error) {
-	// Check to see if the name already exists
+func (o *oortFS) create(ctx context.Context, parent, id []byte, inode uint64, name string, attr *formicproto.Attr, isdir bool) (*formicproto.Attr, error) {
+	// Check to see if the name already exists, TODO: Are races handled?
 	b, err := o.comms.ReadGroupItem(ctx, parent, []byte(name))
 	if err != nil && !store.IsNotFound(err) {
-		// TODO: Needs beter error handling
-		return "", &formicproto.Attr{}, err
+		// TODO: Needs better error handling
+		return &formicproto.Attr{}, err
 	}
 	if len(b) > 0 {
 		p := &formicproto.DirEntry{}
 		err = unmarshal(b, p)
 		if err != nil {
-			return "", &formicproto.Attr{}, err
+			return &formicproto.Attr{}, err
 		}
+		return &formicproto.Attr{}, errors.New("already exists")
 	}
 	var dirEntType fuse.DirentType
 	if isdir {
@@ -1249,11 +1249,11 @@ func (o *oortFS) create(ctx context.Context, parent, id []byte, inode uint64, na
 	}
 	b, err = marshal(d)
 	if err != nil {
-		return "", &formicproto.Attr{}, err
+		return &formicproto.Attr{}, err
 	}
 	err = o.comms.WriteGroup(ctx, parent, []byte(name), b)
 	if err != nil {
-		return "", &formicproto.Attr{}, err
+		return &formicproto.Attr{}, err
 	}
 	// Add the inode entry
 	n := &formicproto.INodeEntry{
@@ -1265,13 +1265,13 @@ func (o *oortFS) create(ctx context.Context, parent, id []byte, inode uint64, na
 	}
 	b, err = marshal(n)
 	if err != nil {
-		return "", &formicproto.Attr{}, err
+		return &formicproto.Attr{}, err
 	}
 	err = o.writeChunk(ctx, id, b)
 	if err != nil {
-		return "", &formicproto.Attr{}, err
+		return &formicproto.Attr{}, err
 	}
-	return name, attr, nil
+	return attr, nil
 }
 
 // Needed to be able to sort the dirEnts

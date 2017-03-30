@@ -9,10 +9,10 @@ import (
 	"path"
 	"syscall"
 
-	"github.com/getcfs/megacfs/formic/formicproto"
+	"github.com/getcfs/megacfs/formic"
+	"github.com/getcfs/megacfs/ftls"
 	"github.com/pkg/xattr"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc/metadata"
 )
 
 // configuration ...
@@ -63,33 +63,15 @@ func list(addr, authURL, username, password string) error {
 	if f.NArg() != 0 {
 		f.Usage()
 	}
-	c := setupWS(addr)
-	defer c.Close()
-	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	ctx := context.Background()
-	stream, err := ws.ListFS(ctx)
+	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	jsonData, err := rpc.ListFS(context.Background(), token)
 	if err != nil {
-		fmt.Println("ListFS failed", err)
-		os.Exit(1)
-	}
-	if err = stream.Send(&formicproto.ListFSRequest{RPCID: 1, Token: token}); err != nil {
-		fmt.Println("ListFS failed", err)
-		os.Exit(1)
-	}
-	listFSResp, err := stream.Recv()
-	if err != nil {
-		fmt.Println("ListFS failed", err)
-		os.Exit(1)
-	}
-	if listFSResp.Err != "" {
-		fmt.Println("ListFS failed", listFSResp.Err)
+		fmt.Println("ListFS failed:", err)
 		os.Exit(1)
 	}
 	var data []map[string]interface{}
-	if err := json.Unmarshal([]byte(listFSResp.Data), &data); err != nil {
+	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
 		return fmt.Errorf("Error unmarshalling response: %v", err)
 	}
 	fmt.Printf("%-36s    %s\n", "ID", "Name")
@@ -113,33 +95,15 @@ func show(addr, authURL, username, password string) error {
 		f.Usage()
 	}
 	fsid := f.Args()[0]
-	c := setupWS(addr)
-	defer c.Close()
-	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	ctx := context.Background()
-	stream, err := ws.ShowFS(ctx)
+	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	jsonData, err := rpc.ShowFS(context.Background(), token, fsid)
 	if err != nil {
 		fmt.Println("ShowFS failed", err)
-		os.Exit(1)
-	}
-	if err = stream.Send(&formicproto.ShowFSRequest{RPCID: 1, Token: token, FSID: fsid}); err != nil {
-		fmt.Println("ShowFS failed", err)
-		os.Exit(1)
-	}
-	showFSResp, err := stream.Recv()
-	if err != nil {
-		fmt.Println("ShowFS failed", err)
-		os.Exit(1)
-	}
-	if showFSResp.Err != "" {
-		fmt.Println("ShowFS failed", showFSResp.Err)
 		os.Exit(1)
 	}
 	var data map[string]interface{}
-	if err := json.Unmarshal([]byte(showFSResp.Data), &data); err != nil {
+	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
 		return fmt.Errorf("Error unmarshalling response: %v", err)
 	}
 	fmt.Println("ID:", data["id"])
@@ -166,32 +130,14 @@ func create(addr, authURL, username, password string) error {
 		f.Usage()
 	}
 	name := f.Args()[0]
-	c := setupWS(addr)
-	defer c.Close()
-	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	ctx := context.Background()
-	stream, err := ws.CreateFS(ctx)
+	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	data, err := rpc.CreateFS(context.Background(), token, name)
 	if err != nil {
-		fmt.Println("CreateFS failed", err)
+		fmt.Println("CreateFS failed:", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.CreateFSRequest{RPCID: 1, Token: token, FSName: name}); err != nil {
-		fmt.Println("CreateFS failed", err)
-		os.Exit(1)
-	}
-	createFSResp, err := stream.Recv()
-	if err != nil {
-		fmt.Println("CreateFS failed", err)
-		os.Exit(1)
-	}
-	if createFSResp.Err != "" {
-		fmt.Println("CreateFS failed", createFSResp.Err)
-		os.Exit(1)
-	}
-	fmt.Println("ID:", createFSResp.Data)
+	fmt.Println("FSID:", data)
 	return nil
 }
 
@@ -209,32 +155,14 @@ func del(addr, authURL, username, password string) error {
 		f.Usage()
 	}
 	fsid := f.Args()[0]
-	c := setupWS(addr)
-	defer c.Close()
-	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := ws.DeleteFS(context.Background())
+	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	data, err := rpc.DeleteFS(context.Background(), token, fsid)
 	if err != nil {
-		fmt.Println("DeleteFS failed", err)
+		fmt.Println("DeleteFS failed:", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.DeleteFSRequest{RPCID: 1, Token: token, FSID: fsid}); err != nil {
-		fmt.Println("DeleteFS failed", err)
-		os.Exit(1)
-	}
-	deleteFSResp, err := stream.Recv()
-	if err != nil {
-		fmt.Println("DeleteFS failed", err)
-		os.Exit(1)
-	}
-	if deleteFSResp.Err != "" {
-		fmt.Println("DeleteFS failed", deleteFSResp.Err)
-		os.Exit(1)
-	}
-	fmt.Println(deleteFSResp.Data)
+	fmt.Println(data)
 	return nil
 }
 
@@ -251,40 +179,16 @@ func update(addr, authURL, username, password string) error {
 	if f.NArg() != 2 {
 		f.Usage()
 	}
-	newFS := &formicproto.ModFS{
-		Name: f.Args()[0],
-	}
+	newFSName := f.Args()[0]
 	fsid := f.Args()[1]
-	c := setupWS(addr)
-	defer c.Close()
-	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	ctx := context.Background()
-	ctx = metadata.NewContext(
-		ctx,
-		metadata.Pairs("fsid", fsid),
-	)
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := ws.UpdateFS(ctx)
+	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	data, err := rpc.UpdateFS(context.Background(), token, fsid, newFSName)
 	if err != nil {
-		fmt.Println("UpdateFS failed", err)
+		fmt.Println("UpdateFS failed:", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.UpdateFSRequest{RPCID: 1, Token: token, FSID: fsid, FileSys: newFS}); err != nil {
-		fmt.Println("UpdateFS failed", err)
-		os.Exit(1)
-	}
-	updateFSResp, err := stream.Recv()
-	if err != nil {
-		fmt.Println("UpdateFS failed", err)
-		os.Exit(1)
-	}
-	if updateFSResp.Err != "" {
-		fmt.Println("UpdateFS failed", updateFSResp.Err)
-		os.Exit(1)
-	}
-	fmt.Println(updateFSResp.Data)
+	fmt.Println(data)
 	return nil
 }
 
@@ -309,32 +213,14 @@ func grant(addr, authURL, username, password string) error {
 	} else {
 		f.Usage()
 	}
-	c := setupWS(addr)
-	defer c.Close()
-	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	ctx := context.Background()
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := ws.GrantAddrFS(ctx)
+	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	data, err := rpc.GrantAddrFS(context.Background(), token, fsid, ip)
 	if err != nil {
-		fmt.Println("GrantAddrFS failed", err)
+		fmt.Println("GrantAddrFS failed:", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.GrantAddrFSRequest{RPCID: 1, Token: token, FSID: fsid, Addr: ip}); err != nil {
-		fmt.Println("GrantAddrFS failed", err)
-		os.Exit(1)
-	}
-	grantAddrFSResp, err := stream.Recv()
-	if err != nil {
-		fmt.Println("GrantAddrFS failed", err)
-		os.Exit(1)
-	}
-	if grantAddrFSResp.Err != "" {
-		fmt.Println("GrantAddrFS failed", grantAddrFSResp.Err)
-		os.Exit(1)
-	}
-	fmt.Println(grantAddrFSResp.Data)
+	fmt.Println(data)
 	return nil
 }
 
@@ -359,32 +245,14 @@ func revoke(addr, authURL, username, password string) error {
 	} else {
 		f.Usage()
 	}
-	c := setupWS(addr)
-	defer c.Close()
-	ws := formicproto.NewFormicClient(c)
 	token := auth(authURL, username, password)
-	ctx := context.Background()
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := ws.RevokeAddrFS(ctx)
+	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	data, err := rpc.RevokeAddrFS(context.Background(), token, fsid, ip)
 	if err != nil {
 		fmt.Println("RevokeAddrFS failed", err)
 		os.Exit(1)
 	}
-	if err = stream.Send(&formicproto.RevokeAddrFSRequest{RPCID: 1, Token: token, FSID: fsid, Addr: ip}); err != nil {
-		fmt.Println("RevokeAddrFS failed", err)
-		os.Exit(1)
-	}
-	revokeAddrFSResp, err := stream.Recv()
-	if err != nil {
-		fmt.Println("RevokeAddrFS failed", err)
-		os.Exit(1)
-	}
-	if revokeAddrFSResp.Err != "" {
-		fmt.Println("RevokeAddrFS failed", revokeAddrFSResp.Err)
-		os.Exit(1)
-	}
-	fmt.Println(revokeAddrFSResp.Data)
+	fmt.Println(data)
 	return nil
 }
 
@@ -405,54 +273,24 @@ func check(addr string) error {
 		f.Usage()
 	}
 	filePath = path.Clean(filePath)
-	fileName := path.Base(filePath)
-	dirPath := path.Dir(filePath)
-	// Check for the fsid
-	fsidBytes, err := xattr.Get(dirPath, "cfs.fsid")
-	if err == nil && len(fsidBytes) != 36 {
-		err = fmt.Errorf("cfs.fsid incorrect length %d != 36", len(fsidBytes))
-	}
+	parentPath := path.Dir(filePath)
+	childName := path.Base(filePath)
+	fsidBytes, err := xattr.Get(parentPath, "cfs.fsid")
 	if err != nil {
-		fmt.Println("Error determining fsid for path: ", dirPath)
-		fmt.Println(err)
+		fmt.Println("Error determining fsid for path: ", parentPath, err)
 		os.Exit(1)
 	}
-	fsid := string(fsidBytes)
 	var stat syscall.Stat_t
-	err = syscall.Stat(dirPath, &stat)
+	if err = syscall.Stat(parentPath, &stat); err != nil {
+		fmt.Println("Error stating:", parentPath, err)
+		os.Exit(1)
+	}
+	rpc := formic.NewFormic(string(fsidBytes), addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	resp, err := rpc.Check(context.Background(), stat.Ino, childName)
 	if err != nil {
-		fmt.Println("Error stating:", dirPath)
-		fmt.Println(err)
+		fmt.Println("Check failed:", err)
 		os.Exit(1)
 	}
-	c := setupWS(addr)
-	defer c.Close()
-	ws := formicproto.NewFormicClient(c)
-	ctx := context.Background()
-	ctx = metadata.NewContext(
-		ctx,
-		metadata.Pairs("fsid", fsid),
-	)
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := ws.Check(ctx)
-	if err != nil {
-		fmt.Println("Check failed", err)
-		os.Exit(1)
-	}
-	if err = stream.Send(&formicproto.CheckRequest{RPCID: 1, INode: stat.Ino, Name: fileName}); err != nil {
-		fmt.Println("Check failed", err)
-		os.Exit(1)
-	}
-	checkResp, err := stream.Recv()
-	if err != nil {
-		fmt.Println("Check failed", err)
-		os.Exit(1)
-	}
-	if checkResp.Err != "" {
-		fmt.Println("Check failed", checkResp.Err)
-		os.Exit(1)
-	}
-	fmt.Println("Check complete:", checkResp.Response)
+	fmt.Println("Check complete:", resp)
 	return nil
 }

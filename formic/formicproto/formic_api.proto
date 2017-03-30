@@ -32,9 +32,9 @@ service Formic {
 
 
 message CheckRequest {
-    uint32 RPCID = 1;
-    uint64 INode = 2;
-    string Name  = 3;
+    uint32 RPCID       = 1;
+    uint64 ParentINode = 2;
+    string ChildName   = 3;
 }
 
 message CheckResponse {
@@ -58,17 +58,16 @@ message CreateFSResponse {
 
 
 message CreateRequest {
-    uint32 RPCID  = 1;
-    uint64 Parent = 2;
-    string Name   = 3;
-    Attr   Attr   = 4;
+    uint32 RPCID       = 1;
+    uint64 ParentINode = 2;
+    string ChildName   = 3;
+    Attr   ChildAttr   = 4;
 }
 
 message CreateResponse {
-    uint32 RPCID = 1;
-    string Name  = 2;
-    Attr   Attr  = 3;
-    string Err   = 4;
+    uint32 RPCID     = 1;
+    Attr   ChildAttr = 2;
+    string Err       = 3;
 }
 
 
@@ -170,9 +169,8 @@ message LookupRequest {
 
 message LookupResponse {
     uint32 RPCID  = 1;
-    string Name   = 2;
-    Attr   Attr   = 3;
-    string Err    = 4;
+    Attr   Attr   = 2;
+    string Err    = 3;
 }
 
 
@@ -185,9 +183,8 @@ message MkDirRequest {
 
 message MkDirResponse {
     uint32 RPCID = 1;
-    string Name  = 2;
-    Attr   Attr  = 3;
-    string Err   = 4;
+    Attr   Attr  = 2;
+    string Err   = 3;
 }
 
 
@@ -362,10 +359,10 @@ message SymLinkResponse {
 
 
 message UpdateFSRequest {
-    uint32 RPCID   = 1;
-    string Token   = 2;
-    string FSID    = 3;
-    ModFS  FileSys = 4;
+    uint32 RPCID     = 1;
+    string Token     = 2;
+    string FSID      = 3;
+    string NewFSName = 4;
 }
 
 message UpdateFSResponse {
@@ -373,12 +370,6 @@ message UpdateFSResponse {
     string Data  = 2;
     string Err   = 3;
 }
-
-message ModFS { // TODO: Does this really need to be a separate message?
-  string Name   = 1;
-  string Status = 2;
-}
-
 
 
 message WriteRequest {
