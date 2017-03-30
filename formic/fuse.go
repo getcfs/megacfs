@@ -1,8 +1,6 @@
 package formic
 
 import (
-	"crypto/tls"
-	"errors"
 	"io"
 	"os"
 	"strings"
@@ -13,10 +11,9 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fuseutil"
 	"github.com/getcfs/megacfs/formic/formicproto"
+	"github.com/getcfs/megacfs/ftls"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -43,10 +40,10 @@ type FuseFormic struct {
 	fsid       string
 	allowOther bool
 	readOnly   bool
-	rpc        formicproto.FormicClient
 	handles    *fileHandles
 	conn       *fuse.Conn
 	wg         sync.WaitGroup
+	formic     *Formic
 }
 
 func NewFuseFormic(cfg *FuseFormicConfig) *FuseFormic {
@@ -58,6 +55,7 @@ func NewFuseFormic(cfg *FuseFormicConfig) *FuseFormic {
 		allowOther: cfg.AllowOther,
 		readOnly:   cfg.ReadOnly,
 		handles:    newFileHandles(),
+		formic:     NewFormic(cfg.FSID, cfg.Address, 1, &ftls.Config{InsecureSkipVerify: true}),
 	}
 	return FuseFormic
 }
@@ -65,11 +63,6 @@ func NewFuseFormic(cfg *FuseFormicConfig) *FuseFormic {
 // Serve will run forever, or until an error occurs, continuously handling Fuse
 // requests and Formic responses.
 func (f *FuseFormic) Serve() error {
-	conn, err := grpc.Dial(f.address, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
-	if err != nil {
-		return err
-	}
-	f.rpc = formicproto.NewFormicClient(conn)
 	mountOptions := []fuse.MountOption{
 		fuse.FSName("cfs"),
 		fuse.Subtype("cfs"),
@@ -86,12 +79,14 @@ func (f *FuseFormic) Serve() error {
 		mountOptions = append(mountOptions, fuse.ReadOnly())
 	}
 	fusermountPath()
+	var err error
 	f.conn, err = fuse.Mount(f.mountpoint, mountOptions...)
 	if err != nil {
 		return err
 	}
 	defer f.conn.Close()
-	if err = f.initFS(); err != nil {
+	// TODO: Should this really be a client side thing?
+	if err := f.formic.InitFS(f.newGetContext()); err != nil {
 		return err
 	}
 	var req fuse.Request
@@ -294,60 +289,22 @@ func (f *FuseFormic) getContext() context.Context {
 	return c
 }
 
-func (f *FuseFormic) initFS() error {
-	// TODO: Should this really be a client side thing?
-	f.logger.Debug("Inside initFS")
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.InitFS(f.getContext())
-	if err != nil {
-		f.logger.Debug("initFS failed", zap.Error(err))
-		return err
-	}
-	if err = stream.Send(&formicproto.InitFSRequest{RPCID: 1}); err != nil {
-		f.logger.Debug("initFS failed", zap.Error(err))
-		return err
-	}
-	initFsResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("initFS failed", zap.Error(err))
-		return err
-	}
-	if initFsResp.Err != "" {
-		f.logger.Debug("initFS failed", zap.String("Err", initFsResp.Err))
-		return errors.New(initFsResp.Err)
-	}
-	return nil
+func (f *FuseFormic) newGetContext() context.Context {
+	// TODO: Make timeout configurable
+	c, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	return c
 }
 
 func (f *FuseFormic) handleGetattr(r *fuse.GetattrRequest) {
 	f.logger.Debug("Inside handleGetattr", zap.Any("request", r))
+	attr, err := f.formic.GetAttr(f.newGetContext(), uint64(r.Node))
+	if err != nil {
+		f.logger.Debug("Getattr failed", zap.Error(err))
+		r.RespondError(fuse.EIO)
+		return
+	}
 	resp := &fuse.GetattrResponse{}
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.GetAttr(f.getContext())
-	if err != nil {
-		f.logger.Debug("Getattr failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	if err = stream.Send(&formicproto.GetAttrRequest{RPCID: 1, INode: uint64(r.Node)}); err != nil {
-		f.logger.Debug("Getattr failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	getAttrResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Getattr failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	if getAttrResp.Err != "" {
-		f.logger.Debug("Getattr failed", zap.String("Err", getAttrResp.Err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	copyNewAttr(&resp.Attr, getAttrResp.Attr)
+	copyNewAttr(&resp.Attr, attr)
 	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
 	f.logger.Debug("handleGetattr returning", zap.Any("response", resp))
@@ -356,39 +313,21 @@ func (f *FuseFormic) handleGetattr(r *fuse.GetattrRequest) {
 
 func (f *FuseFormic) handleLookup(req *fuse.LookupRequest) {
 	f.logger.Debug("Inside handleLookup", zap.Any("request", req))
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.Lookup(f.getContext())
+	attr, err := f.formic.Lookup(f.newGetContext(), uint64(req.Node), req.Name)
 	if err != nil {
-		f.logger.Debug("Lookup failed [1]", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if err = stream.Send(&formicproto.LookupRequest{RPCID: 1, Name: req.Name, Parent: uint64(req.Node)}); err != nil {
-		f.logger.Debug("Lookup failed [2]", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	protoResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Lookup failed [3]", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if protoResp.Err != "" {
 		// TODO: Rework this and error codes like this to be more like oort.
-		if protoResp.Err == "not found by remote store" {
+		if err.Error() == "not found by remote store" {
 			f.logger.Debug("ENOENT Lookup", zap.String("name", req.Name))
 			req.RespondError(fuse.ENOENT)
 			return
 		}
-		f.logger.Debug("Lookup failed [4]", zap.String("Err", protoResp.Err))
+		f.logger.Debug("Lookup failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
 	resp := &fuse.LookupResponse{}
-	resp.Node = fuse.NodeID(protoResp.Attr.INode)
-	copyNewAttr(&resp.Attr, protoResp.Attr)
+	resp.Node = fuse.NodeID(attr.INode)
+	copyNewAttr(&resp.Attr, attr)
 	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
@@ -398,39 +337,21 @@ func (f *FuseFormic) handleLookup(req *fuse.LookupRequest) {
 
 func (f *FuseFormic) handleMkdir(req *fuse.MkdirRequest) {
 	f.logger.Debug("Inside handleMkdir", zap.Any("request", req))
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.MkDir(f.getContext())
+	attr, err := f.formic.MkDir(f.newGetContext(), uint64(req.Node), req.Name, &formicproto.Attr{UID: req.Uid, GID: req.Gid, Mode: uint32(req.Mode)})
 	if err != nil {
+		// TODO: Rework this and error codes like this to be more like oort.
+		if err.Error() != "already exists" {
+			f.logger.Debug("EEXIST Mkdir", zap.String("name", req.Name))
+			req.RespondError(fuse.EEXIST)
+			return
+		}
 		f.logger.Debug("Mkdir failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
-		return
-	}
-	if err = stream.Send(&formicproto.MkDirRequest{RPCID: 1, Name: req.Name, Parent: uint64(req.Node), Attr: &formicproto.Attr{UID: req.Uid, GID: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
-		f.logger.Debug("Mkdir failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	protoResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Mkdir failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if protoResp.Err != "" {
-		f.logger.Debug("Mkdir failed", zap.String("Err", protoResp.Err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	// If the name is empty, then the dir already exists
-	if protoResp.Name != req.Name {
-		f.logger.Debug("EEXIST Mkdir", zap.String("name", req.Name))
-		req.RespondError(fuse.EEXIST)
 		return
 	}
 	resp := &fuse.MkdirResponse{}
-	resp.Node = fuse.NodeID(protoResp.Attr.INode)
-	copyNewAttr(&resp.Attr, protoResp.Attr)
+	resp.Node = fuse.NodeID(attr.INode)
+	copyNewAttr(&resp.Attr, attr)
 	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
@@ -455,27 +376,9 @@ func (f *FuseFormic) handleRead(req *fuse.ReadRequest) {
 		// handle directory listing
 		data := f.handles.getReadCache(req.Handle)
 		if data == nil {
-			// TODO: Placeholder code to get things working; needs to be
-			// replaced to be more like oort's client code.
-			stream, err := f.rpc.ReadDirAll(f.getContext())
+			readDirAllEnts, err := f.formic.ReadDirAll(f.newGetContext(), uint64(req.Node))
 			if err != nil {
 				f.logger.Debug("ReadDirAll failed", zap.Error(err))
-				req.RespondError(fuse.EIO)
-				return
-			}
-			if err = stream.Send(&formicproto.ReadDirAllRequest{RPCID: 1, INode: uint64(req.Node)}); err != nil {
-				f.logger.Debug("ReadDirAll failed", zap.Error(err))
-				req.RespondError(fuse.EIO)
-				return
-			}
-			protoResp, err := stream.Recv()
-			if err != nil {
-				f.logger.Debug("ReadDirAll failed", zap.Error(err))
-				req.RespondError(fuse.EIO)
-				return
-			}
-			if protoResp.Err != "" {
-				f.logger.Debug("ReadDirAll failed", zap.String("Err", protoResp.Err), zap.Any("protoResp", protoResp))
 				req.RespondError(fuse.EIO)
 				return
 			}
@@ -489,7 +392,7 @@ func (f *FuseFormic) handleRead(req *fuse.ReadRequest) {
 				Inode: 1, // TODO: not sure what value this should be, but this seems to work fine.
 				Type:  fuse.DT_Dir,
 			})
-			for _, e := range protoResp.Ents {
+			for _, e := range readDirAllEnts {
 				if e == nil || e.Name == "" {
 					continue
 				}
@@ -505,59 +408,22 @@ func (f *FuseFormic) handleRead(req *fuse.ReadRequest) {
 		req.Respond(resp)
 		return
 	}
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.Read(f.getContext())
+	payload, err := f.formic.Read(f.newGetContext(), uint64(req.Node), int64(req.Offset), int64(req.Size))
 	if err != nil {
 		f.logger.Debug("Read failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.ReadRequest{RPCID: 1, INode: uint64(req.Node), Offset: int64(req.Offset), Size: int64(req.Size)}); err != nil {
-		f.logger.Debug("Read failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	readResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Read failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if readResp.Err != "" {
-		f.logger.Debug("Read failed", zap.String("Err", readResp.Err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	req.Respond(&fuse.ReadResponse{Data: readResp.Payload})
+	req.Respond(&fuse.ReadResponse{Data: payload})
 }
 
 func (f *FuseFormic) handleWrite(r *fuse.WriteRequest) {
-	// TODO: Implement write
-	// Currently this is stupid simple and doesn't handle all the possibilities
+	// TODO: Implement write - Currently this is stupid simple and doesn't handle all the possibilities
 	f.logger.Debug("Inside handleWrite", zap.Any("request", r))
 	f.logger.Debug("Writing bytes at offset", zap.Int("bytes", len(r.Data)), zap.Int64("offset", r.Offset))
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.Write(f.getContext())
+	err := f.formic.Write(f.newGetContext(), uint64(r.Node), int64(r.Offset), r.Data)
 	if err != nil {
 		f.logger.Debug("Write failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	if err = stream.Send(&formicproto.WriteRequest{RPCID: 1, INode: uint64(r.Node), Offset: r.Offset, Payload: r.Data}); err != nil {
-		f.logger.Debug("Write failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	writeResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Write failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	if writeResp.Err != "" {
-		f.logger.Debug("Write failed", zap.String("Err", writeResp.Err))
 		r.RespondError(fuse.EIO)
 		return
 	}
@@ -566,38 +432,19 @@ func (f *FuseFormic) handleWrite(r *fuse.WriteRequest) {
 
 func (f *FuseFormic) handleCreate(req *fuse.CreateRequest) {
 	f.logger.Debug("Inside handleCreate", zap.Any("request", req))
-
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.Create(f.getContext())
+	resultingChildAttr, err := f.formic.Create(f.newGetContext(), uint64(req.Node), req.Name, &formicproto.Attr{UID: req.Uid, GID: req.Gid, Mode: uint32(req.Mode)})
 	if err != nil {
 		f.logger.Debug("Create failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if err = stream.Send(&formicproto.CreateRequest{RPCID: 1, Parent: uint64(req.Node), Name: req.Name, Attr: &formicproto.Attr{UID: req.Uid, GID: req.Gid, Mode: uint32(req.Mode)}}); err != nil {
-		f.logger.Debug("Create failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	createResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Create failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if createResp.Err != "" {
-		f.logger.Debug("Create failed", zap.String("Err", createResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}
 	resp := &fuse.CreateResponse{}
-	resp.Node = fuse.NodeID(createResp.Attr.INode)
-	copyNewAttr(&resp.Attr, createResp.Attr)
+	resp.Node = fuse.NodeID(resultingChildAttr.INode)
+	copyNewAttr(&resp.Attr, resultingChildAttr)
 	// TODO: should we make these configurable?
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
-	copyNewAttr(&resp.LookupResponse.Attr, createResp.Attr)
+	copyNewAttr(&resp.LookupResponse.Attr, resultingChildAttr)
 	resp.LookupResponse.Attr.Valid = attrValidTime
 	resp.LookupResponse.EntryValid = entryValidTime
 	f.logger.Debug("handleCreate returning", zap.Any("response", resp))
@@ -632,31 +479,13 @@ func (f *FuseFormic) handleSetattr(r *fuse.SetattrRequest) {
 	if r.Valid.Gid() {
 		a.GID = r.Gid
 	}
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.SetAttr(f.getContext())
+	attr, err := f.formic.SetAttr(f.newGetContext(), a, uint32(r.Valid))
 	if err != nil {
 		f.logger.Debug("Setattr failed", zap.Error(err))
 		r.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.SetAttrRequest{RPCID: 1, Attr: a, Valid: uint32(r.Valid)}); err != nil {
-		f.logger.Debug("Setattr failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	setAttrResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Setattr failed", zap.Error(err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	if setAttrResp.Err != "" {
-		f.logger.Debug("Setattr failed", zap.String("Err", setAttrResp.Err))
-		r.RespondError(fuse.EIO)
-		return
-	}
-	copyNewAttr(&resp.Attr, setAttrResp.Attr)
+	copyNewAttr(&resp.Attr, attr)
 	resp.Attr.Valid = attrValidTime
 	f.logger.Debug("handleSetattr returning", zap.Any("response", resp))
 	r.Respond(resp)
@@ -686,34 +515,16 @@ func (f *FuseFormic) handleForget(r *fuse.ForgetRequest) {
 }
 
 func (f *FuseFormic) handleRemove(req *fuse.RemoveRequest) {
-	// TODO: Handle dir deletions correctly
+	// TODO: Handle dir deletions correctly <- I don't know what this means, but it sounds scary.
 	f.logger.Debug("Inside handleRemove", zap.Any("request", req))
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.Remove(f.getContext())
+	err := f.formic.Remove(f.newGetContext(), uint64(req.Node), req.Name)
 	if err != nil {
+		if err.Error() == "not empty" {
+			f.logger.Debug("Remove failed", zap.Error(err))
+			req.RespondError(fuse.Errno(syscall.ENOTEMPTY))
+			return
+		}
 		f.logger.Debug("Remove failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if err = stream.Send(&formicproto.RemoveRequest{RPCID: 1, Parent: uint64(req.Node), Name: req.Name}); err != nil {
-		f.logger.Debug("Remove failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	removeResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Remove failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if removeResp.Err == "not empty" {
-		f.logger.Debug("Remove failed", zap.String("Err", removeResp.Err))
-		req.RespondError(fuse.Errno(syscall.ENOTEMPTY))
-		return
-	}
-	if removeResp.Err != "" {
-		f.logger.Debug("Remove failed", zap.String("Err", removeResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}
@@ -745,72 +556,28 @@ func (f *FuseFormic) handleInit(r *fuse.InitRequest) {
 
 func (f *FuseFormic) handleStatfs(req *fuse.StatfsRequest) {
 	f.logger.Debug("Inside handleStatfs", zap.Any("request", req))
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.StatFS(f.getContext())
+	resp := &fuse.StatfsResponse{}
+	var err error
+	resp.Blocks, resp.Bfree, resp.Bavail, resp.Files, resp.Ffree, resp.Bsize, resp.Namelen, resp.Frsize, err = f.formic.StatFS(f.newGetContext())
 	if err != nil {
 		f.logger.Debug("Statfs failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
-	}
-	if err = stream.Send(&formicproto.StatFSRequest{RPCID: 1}); err != nil {
-		f.logger.Debug("Statfs failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	statfsResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Statfs failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if statfsResp.Err != "" {
-		f.logger.Debug("Statfs failed", zap.String("Err", statfsResp.Err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	resp := &fuse.StatfsResponse{
-		Blocks:  statfsResp.Blocks,
-		Bfree:   statfsResp.BFree,
-		Bavail:  statfsResp.BAvail,
-		Files:   statfsResp.Files,
-		Ffree:   statfsResp.FFree,
-		Bsize:   statfsResp.BSize,
-		Namelen: statfsResp.NameLen,
-		Frsize:  statfsResp.FrSize,
 	}
 	req.Respond(resp)
 }
 
 func (f *FuseFormic) handleSymlink(req *fuse.SymlinkRequest) {
 	f.logger.Debug("Inside handleSymlink", zap.Any("request", req))
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.SymLink(f.getContext())
+	attr, err := f.formic.SymLink(f.newGetContext(), uint64(req.Node), req.NewName, req.Target, req.Uid, req.Gid)
 	if err != nil {
 		f.logger.Debug("Symlink failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if err = stream.Send(&formicproto.SymLinkRequest{RPCID: 1, Parent: uint64(req.Node), Name: req.NewName, Target: req.Target, UID: req.Uid, GID: req.Gid}); err != nil {
-		f.logger.Debug("Symlink failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	symlinkResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Symlink failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if symlinkResp.Err != "" {
-		f.logger.Debug("Symlink failed", zap.String("Err", symlinkResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}
 	resp := &fuse.SymlinkResponse{}
-	resp.Node = fuse.NodeID(symlinkResp.Attr.INode)
-	copyNewAttr(&resp.Attr, symlinkResp.Attr)
+	resp.Node = fuse.NodeID(attr.INode)
+	copyNewAttr(&resp.Attr, attr)
 	resp.Attr.Valid = attrValidTime
 	resp.EntryValid = entryValidTime
 	f.logger.Debug("handleSymlink returning", zap.Any("response", resp))
@@ -819,32 +586,14 @@ func (f *FuseFormic) handleSymlink(req *fuse.SymlinkRequest) {
 
 func (f *FuseFormic) handleReadlink(req *fuse.ReadlinkRequest) {
 	f.logger.Debug("Inside handleReadlink", zap.Any("request", req))
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.ReadLink(f.getContext())
+	target, err := f.formic.ReadLink(f.newGetContext(), uint64(req.Node))
 	if err != nil {
 		f.logger.Debug("Readlink failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if err = stream.Send(&formicproto.ReadLinkRequest{RPCID: 1, INode: uint64(req.Node)}); err != nil {
-		f.logger.Debug("Readlink failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	readlinkResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Readlink failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if readlinkResp.Err != "" {
-		f.logger.Debug("Readlink failed", zap.String("Err", readlinkResp.Err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	f.logger.Debug("handleReadlink returning", zap.Any("response", readlinkResp.Target))
-	req.Respond(readlinkResp.Target)
+	f.logger.Debug("handleReadlink returning", zap.Any("response", target))
+	req.Respond(target)
 }
 
 func (f *FuseFormic) handleLink(r *fuse.LinkRequest) {
@@ -862,66 +611,30 @@ func (f *FuseFormic) handleGetXAttr(req *fuse.GetxattrRequest) {
 		req.Respond(resp)
 		return
 	}
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.GetXAttr(f.getContext())
-	if err != nil {
-		f.logger.Debug("GetXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole xattr is always returned.
-	if err = stream.Send(&formicproto.GetXAttrRequest{RPCID: 1, INode: uint64(req.Node), Name: req.Name, Size: req.Size, Position: req.Position}); err != nil {
-		f.logger.Debug("GetXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	getXAttrResp, err := stream.Recv()
+	xAttr, err := f.formic.GetXAttr(f.newGetContext(), uint64(req.Node), req.Name, req.Size, req.Position)
 	if err != nil {
 		f.logger.Debug("GetXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if getXAttrResp.Err != "" {
-		f.logger.Debug("GetXAttr failed", zap.String("Err", getXAttrResp.Err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	resp := &fuse.GetxattrResponse{Xattr: getXAttrResp.XAttr}
+	resp := &fuse.GetxattrResponse{Xattr: xAttr}
 	f.logger.Debug("handleGetXAttr returning", zap.Any("response", resp))
 	req.Respond(resp)
 }
 
 func (f *FuseFormic) handleListXAttr(req *fuse.ListxattrRequest) {
 	f.logger.Debug("Inside handleListXAttr", zap.Any("request", req))
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.ListXAttr(f.getContext())
-	if err != nil {
-		f.logger.Debug("ListXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
 	// TODO: Best I can tell, xattr size and position were never implemented.
 	// The whole list of xattrs are always returned.
-	if err = stream.Send(&formicproto.ListXAttrRequest{RPCID: 1, INode: uint64(req.Node), Size: req.Size, Position: req.Position}); err != nil {
-		f.logger.Debug("ListXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	listXAttrResp, err := stream.Recv()
+	xAttr, err := f.formic.ListXAttr(f.newGetContext(), uint64(req.Node), req.Size, req.Position)
 	if err != nil {
 		f.logger.Debug("ListXAttr failed", zap.Error(err))
 		req.RespondError(fuse.EIO)
 		return
 	}
-	if listXAttrResp.Err != "" {
-		f.logger.Debug("ListXAttr failed", zap.String("Err", listXAttrResp.Err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	resp := &fuse.ListxattrResponse{Xattr: listXAttrResp.XAttr}
+	resp := &fuse.ListxattrResponse{Xattr: xAttr}
 	f.logger.Debug("handleListXAttr returning", zap.Any("response", resp))
 	req.Respond(resp)
 }
@@ -935,29 +648,11 @@ func (f *FuseFormic) handleSetXAttr(req *fuse.SetxattrRequest) {
 		req.Respond()
 		return
 	}
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.SetXAttr(f.getContext())
-	if err != nil {
-		f.logger.Debug("SetXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
 	// TODO: Best I can tell, xattr position and flags were never implemented.
 	// The whole xattr is always set and flags are ignored.
-	if err = stream.Send(&formicproto.SetXAttrRequest{RPCID: 1, INode: uint64(req.Node), Name: req.Name, Value: req.Xattr, Position: req.Position, Flags: req.Flags}); err != nil {
-		f.logger.Debug("SetXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	setXAttrResp, err := stream.Recv()
+	err := f.formic.SetXAttr(f.newGetContext(), uint64(req.Node), req.Name, req.Xattr, req.Position, req.Flags)
 	if err != nil {
 		f.logger.Debug("SetXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if setXAttrResp.Err != "" {
-		f.logger.Debug("SetXAttr failed", zap.String("Err", setXAttrResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}
@@ -975,29 +670,9 @@ func (f *FuseFormic) handleRemoveXAttr(req *fuse.RemovexattrRequest) {
 		req.Respond()
 		return
 	}
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.RemoveXAttr(f.getContext())
+	err := f.formic.RemoveXAttr(f.newGetContext(), uint64(req.Node), req.Name)
 	if err != nil {
 		f.logger.Debug("RemoveXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	// TODO: Best I can tell, xattr size and position were never implemented.
-	// The whole list of xattrs are always returned.
-	if err = stream.Send(&formicproto.RemoveXAttrRequest{RPCID: 1, INode: uint64(req.Node), Name: req.Name}); err != nil {
-		f.logger.Debug("RemoveXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	removeXAttrResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("RemoveXAttr failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if removeXAttrResp.Err != "" {
-		f.logger.Debug("RemoveXAttr failed", zap.String("Err", removeXAttrResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}
@@ -1012,29 +687,9 @@ func (f *FuseFormic) handleDestroy(r *fuse.DestroyRequest) {
 
 func (f *FuseFormic) handleRename(req *fuse.RenameRequest) {
 	f.logger.Debug("Inside handleRename", zap.Any("request", req))
-	// TODO: Placeholder code to get things working; needs to be replaced to be
-	// more like oort's client code.
-	stream, err := f.rpc.Rename(f.getContext())
+	err := f.formic.Rename(f.newGetContext(), uint64(req.Node), uint64(req.NewDir), req.OldName, req.NewName)
 	if err != nil {
 		f.logger.Debug("Rename failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	// TODO: Best I can tell, xattr size and position were never implemented.
-	// The whole list of xattrs are always returned.
-	if err = stream.Send(&formicproto.RenameRequest{RPCID: 1, OldParent: uint64(req.Node), NewParent: uint64(req.NewDir), OldName: req.OldName, NewName: req.NewName}); err != nil {
-		f.logger.Debug("Rename failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	renameResp, err := stream.Recv()
-	if err != nil {
-		f.logger.Debug("Rename failed", zap.Error(err))
-		req.RespondError(fuse.EIO)
-		return
-	}
-	if renameResp.Err != "" {
-		f.logger.Debug("Rename failed", zap.String("Err", renameResp.Err))
 		req.RespondError(fuse.EIO)
 		return
 	}

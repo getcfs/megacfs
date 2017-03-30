@@ -1,0 +1,750 @@
+package formic
+
+import (
+    "errors"
+    "sync"
+
+    "github.com/getcfs/megacfs/ftls"
+    "golang.org/x/net/context"
+    "google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+    pb "github.com/getcfs/megacfs/formic/{{.t}}proto"
+)
+
+type {{.T}} struct {
+    lock                sync.Mutex
+    fsid                string
+    addr                string
+    ftlsc               *ftls.Config
+    opts                []grpc.DialOption
+    conn                *grpc.ClientConn
+    client              pb.{{.T}}Client
+    handlersDoneChan    chan struct{}
+    {{range $R := .R}}
+    pending{{$R}}ReqChan    chan *async{{$.T}}{{$R}}Request
+    free{{$R}}ReqChan       chan *async{{$.T}}{{$R}}Request
+    free{{$R}}ResChan       chan *async{{$.T}}{{$R}}Response
+    {{end}}
+}
+
+func New{{.T}}(fsid string, addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *{{.T}} {
+    f := &{{.T}}{
+        fsid:               fsid,
+        addr:               addr,
+        ftlsc:              ftlsConfig,
+        opts:               opts,
+        handlersDoneChan:   make(chan struct{}),
+    }
+    {{range $R := .R}}
+        f.pending{{$R}}ReqChan = make(chan *async{{$.T}}{{$R}}Request, concurrency)
+        f.free{{$R}}ReqChan = make(chan *async{{$.T}}{{$R}}Request, concurrency)
+        f.free{{$R}}ResChan = make(chan *async{{$.T}}{{$R}}Response, concurrency)
+        for i := 0; i < cap(f.free{{$R}}ReqChan); i++ {
+            f.free{{$R}}ReqChan <- &async{{$.T}}{{$R}}Request{resChan: make(chan *async{{$.T}}{{$R}}Response, 1)}
+        }
+        for i := 0; i < cap(f.free{{$R}}ResChan); i++ {
+            f.free{{$R}}ResChan <- &async{{$.T}}{{$R}}Response{}
+        }
+        go f.handle{{$R}}()
+    {{end}}
+    return f
+}
+
+func (f *{{.T}}) Startup(ctx context.Context) error {
+    f.lock.Lock()
+    err := f.startup()
+    f.lock.Unlock()
+    return err
+}
+
+func (f *{{.T}}) startup() error {
+    if f.conn != nil {
+        return nil
+    }
+    var err error
+    creds, err := ftls.NewGRPCClientDialOpt(f.ftlsc)
+    if err != nil {
+        f.conn = nil
+        return err
+    }
+    opts := make([]grpc.DialOption, len(f.opts))
+    copy(opts, f.opts)
+    opts = append(opts, creds)
+    f.conn, err = grpc.Dial(f.addr, opts...)
+    if err != nil {
+        f.conn = nil
+        return err
+    }
+    f.client = pb.New{{.T}}Client(f.conn)
+    return nil
+}
+
+// Shutdown will close any existing connections; note that Startup may
+// automatically get called with any further activity, but it will use a new
+// connection. To ensure the {{.T}} has no further activity, use Close.
+func (f *{{.T}}) Shutdown(ctx context.Context) error {
+    f.lock.Lock()
+    err := f.shutdown()
+    f.lock.Unlock()
+    return err
+}
+
+func (f *{{.T}}) shutdown() error {
+    if f.conn == nil {
+        return nil
+    }
+    f.conn.Close()
+    f.conn = nil
+    f.client = nil
+    return nil
+}
+
+// Close will shutdown outgoing connectivity and stop all background
+// goroutines; note that the {{.T}} is no longer usable after a call to
+// Close, including using Startup.
+func (f *{{.T}}) Close() {
+    f.lock.Lock()
+    f.shutdown()
+    close(f.handlersDoneChan)
+    f.lock.Unlock()
+}
+
+{{range $R := .R}}
+    type async{{$.T}}{{$R}}Request struct {
+        req             pb.{{$R}}Request
+        resChan         chan *async{{$.T}}{{$R}}Response
+        canceledLock    sync.Mutex
+        canceled        bool
+    }
+
+    type async{{$.T}}{{$R}}Response struct {
+        res *pb.{{$R}}Response
+        err error
+    }
+
+    func (f *{{$.T}}) handle{{$R}}() {
+        resChan := make(chan *async{{$.T}}{{$R}}Response, cap(f.free{{$R}}ReqChan))
+        resFunc := func(stream pb.{{$.T}}_{{$R}}Client) {
+            var err error
+            var res *async{{$.T}}{{$R}}Response
+            for {
+                select {
+                case res = <-f.free{{$R}}ResChan:
+                case <-f.handlersDoneChan:
+                    return
+                }
+                res.res, res.err = stream.Recv()
+                err = res.err
+                if err != nil {
+                    res.res = nil
+                }
+                select {
+                case resChan <- res:
+                case <-f.handlersDoneChan:
+                    return
+                }
+                if err != nil {
+                    return
+                }
+            }
+        }
+        var err error
+        var stream pb.{{$.T}}_{{$R}}Client
+        waitingMax := uint32(cap(f.free{{$R}}ReqChan)) - 1
+        waiting := make([]*async{{$.T}}{{$R}}Request, waitingMax+1)
+        waitingIndex := uint32(0)
+        for {
+            select {
+            case req := <-f.pending{{$R}}ReqChan:
+                j := waitingIndex
+                for waiting[waitingIndex] != nil {
+                    waitingIndex++
+                    if waitingIndex > waitingMax {
+                        waitingIndex = 0
+                    }
+                    if waitingIndex == j {
+                        panic("coding error: got more concurrent requests from pending{{$R}}ReqChan than should be available")
+                    }
+                }
+                req.req.RPCID = waitingIndex
+                waiting[waitingIndex] = req
+                waitingIndex++
+                if waitingIndex > waitingMax {
+                    waitingIndex = 0
+                }
+                if stream == nil {
+                    f.lock.Lock()
+                    if f.client == nil {
+                        if err = f.startup(); err != nil {
+                            f.lock.Unlock()
+                            res := <-f.free{{$R}}ResChan
+                            res.err = err
+                            res.res = &pb.{{$R}}Response{RPCID: req.req.RPCID}
+                            resChan <- res
+                            break
+                        }
+                    }
+                    stream, err = f.client.{{$R}}(metadata.NewContext(context.Background(), metadata.Pairs("fsid", f.fsid)))
+                    f.lock.Unlock()
+                    if err != nil {
+                        res := <-f.free{{$R}}ResChan
+                        res.err = err
+                        res.res = &pb.{{$R}}Response{RPCID: req.req.RPCID}
+                        resChan <- res
+                        break
+                    }
+                    go resFunc(stream)
+                }
+                if err = stream.Send(&req.req); err != nil {
+                    stream = nil
+                    res := <-f.free{{$R}}ResChan
+                    res.err = err
+                    res.res = &pb.{{$R}}Response{RPCID: req.req.RPCID}
+                    resChan <- res
+                }
+            case res := <-resChan:
+                if res.res == nil {
+                    // Receiver got unrecoverable error, so we'll have to
+                    // respond with errors to all waiting requests.
+                    wereWaiting := make([]*async{{$.T}}{{$R}}Request, len(waiting))
+                    for i, v := range waiting {
+                        wereWaiting[i] = v
+                    }
+                    err := res.err
+                    if err == nil {
+                        err = errors.New("receiver had error, had to close any other waiting requests")
+                    }
+                    go func(reqs []*async{{$.T}}{{$R}}Request, err error) {
+                        for _, req := range reqs {
+                            if req == nil {
+                                continue
+                            }
+                            res := <-f.free{{$R}}ResChan
+                            res.err = err
+                            res.res = &pb.{{$R}}Response{RPCID: req.req.RPCID}
+                            resChan <- res
+                        }
+                    }(wereWaiting, err)
+                    break
+                }
+                if res.res.RPCID < 0 || res.res.RPCID > waitingMax {
+                    // TODO: Debug log error?
+                    break
+                }
+                req := waiting[res.res.RPCID]
+                if req == nil {
+                    // TODO: Debug log error?
+                    break
+                }
+                waiting[res.res.RPCID] = nil
+                req.canceledLock.Lock()
+                if !req.canceled {
+                    req.resChan <- res
+                } else {
+                    f.free{{$R}}ReqChan <- req
+                    f.free{{$R}}ResChan <- res
+                }
+                req.canceledLock.Unlock()
+            case <-f.handlersDoneChan:
+                return
+            }
+        }
+    }
+
+    {{if eq $R "Check"}}
+        func (f *{{$.T}}) Check(ctx context.Context, parentINode uint64, childName string) (response string, err error) {
+    {{else if eq $R "CreateFS"}}
+        func (f *{{$.T}}) CreateFS(ctx context.Context, token string, fsName string) (data string, err error) {
+    {{else if eq $R "Create"}}
+        func (f *{{$.T}}) Create(ctx context.Context, parentINode uint64, childName string, childAttr *pb.Attr) (resultingChildAttr *pb.Attr, err error) {
+    {{else if eq $R "DeleteFS"}}
+        func (f *{{$.T}}) DeleteFS(ctx context.Context, token string, fsid string) (data string, err error) {
+    {{else if eq $R "GetAttr"}}
+        func (f *{{$.T}}) GetAttr(ctx context.Context, iNode uint64) (attr *pb.Attr, err error) {
+    {{else if eq $R "GetXAttr"}}
+        func (f *{{$.T}}) GetXAttr(ctx context.Context, iNode uint64, name string, size uint32, position uint32) (xAttr []byte, err error) {
+    {{else if eq $R "GrantAddrFS"}}
+        func (f *{{$.T}}) GrantAddrFS(ctx context.Context, token string, fsid string, addr string) (data string, err error) {
+    {{else if eq $R "InitFS"}}
+        func (f *{{$.T}}) InitFS(ctx context.Context) (err error) {
+    {{else if eq $R "ListFS"}}
+        func (f *{{$.T}}) ListFS(ctx context.Context, token string) (data string, err error) {
+    {{else if eq $R "ListXAttr"}}
+        func (f *{{$.T}}) ListXAttr(ctx context.Context, iNode uint64, size uint32, position uint32) (xAttr []byte, err error) {
+    {{else if eq $R "Lookup"}}
+        func (f *{{$.T}}) Lookup(ctx context.Context, parent uint64, name string) (attr *pb.Attr, err error) {
+    {{else if eq $R "MkDir"}}
+        func (f *{{$.T}}) MkDir(ctx context.Context, parent uint64, name string, attr *pb.Attr) (resultingAttr *pb.Attr, err error) {
+    {{else if eq $R "ReadDirAll"}}
+        func (f *{{$.T}}) ReadDirAll(ctx context.Context, iNode uint64) (readDirAllEnts []*pb.ReadDirAllEnt, err error) {
+    {{else if eq $R "ReadLink"}}
+        func (f *{{$.T}}) ReadLink(ctx context.Context, iNode uint64) (target string, err error) {
+    {{else if eq $R "Read"}}
+        func (f *{{$.T}}) Read(ctx context.Context, iNode uint64, offset int64, size int64) (payload []byte, err error) {
+    {{else if eq $R "Remove"}}
+        func (f *{{$.T}}) Remove(ctx context.Context, parent uint64, name string) (err error) {
+    {{else if eq $R "RemoveXAttr"}}
+        func (f *{{$.T}}) RemoveXAttr(ctx context.Context, iNode uint64, name string) (err error) {
+    {{else if eq $R "Rename"}}
+        func (f *{{$.T}}) Rename(ctx context.Context, oldParent uint64, newParent uint64, oldName string, newName string) (err error) {
+    {{else if eq $R "RevokeAddrFS"}}
+        func (f *{{$.T}}) RevokeAddrFS(ctx context.Context, token string, fsid string, addr string) (data string, err error) {
+    {{else if eq $R "SetAttr"}}
+        func (f *{{$.T}}) SetAttr(ctx context.Context, attr *pb.Attr, valid uint32) (resultingAttr *pb.Attr, err error) {
+    {{else if eq $R "SetXAttr"}}
+        func (f *{{$.T}}) SetXAttr(ctx context.Context, iNode uint64, name string, value []byte, position uint32, flags uint32) (err error) {
+    {{else if eq $R "ShowFS"}}
+        func (f *{{$.T}}) ShowFS(ctx context.Context, token string, fsid string) (data string, err error) {
+    {{else if eq $R "StatFS"}}
+        func (f *{{$.T}}) StatFS(ctx context.Context) (blocks uint64, bFree uint64, bAvail uint64, files uint64, fFree uint64, bSize uint32, nameLen uint32, frSize uint32, err error) {
+    {{else if eq $R "SymLink"}}
+        func (f *{{$.T}}) SymLink(ctx context.Context, parent uint64, name string, target string, uid uint32, gid uint32) (attr *pb.Attr, err error) {
+    {{else if eq $R "UpdateFS"}}
+        func (f *{{$.T}}) UpdateFS(ctx context.Context, token string, fsid string, newFSName string) (data string, err error) {
+    {{else if eq $R "Write"}}
+        func (f *{{$.T}}) Write(ctx context.Context, iNode uint64, offset int64, payload []byte) (err error) {
+    {{end}}
+        var req *async{{$.T}}{{$R}}Request
+        select {
+        case req = <-f.free{{$R}}ReqChan:
+        case <-ctx.Done():
+            {{if eq $R "Check"}}
+                return "", ctx.Err()
+            {{else if eq $R "CreateFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "Create"}}
+                return nil, ctx.Err()
+            {{else if eq $R "DeleteFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "GetAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "GetXAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "GrantAddrFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "InitFS"}}
+                return ctx.Err()
+            {{else if eq $R "ListFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "ListXAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "Lookup"}}
+                return nil, ctx.Err()
+            {{else if eq $R "MkDir"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadDirAll"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadLink"}}
+                return "", ctx.Err()
+            {{else if eq $R "Read"}}
+                return nil, ctx.Err()
+            {{else if eq $R "Remove"}}
+                return ctx.Err()
+            {{else if eq $R "RemoveXAttr"}}
+                return ctx.Err()
+            {{else if eq $R "Rename"}}
+                return ctx.Err()
+            {{else if eq $R "RevokeAddrFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "SetAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "SetXAttr"}}
+                return ctx.Err()
+            {{else if eq $R "ShowFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "StatFS"}}
+                return 0, 0, 0, 0, 0, 0, 0, 0, ctx.Err()
+            {{else if eq $R "SymLink"}}
+                return nil, ctx.Err()
+            {{else if eq $R "UpdateFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "Write"}}
+                return ctx.Err()
+            {{end}}
+        }
+        req.canceled = false
+        {{if eq $R "Check"}}
+            req.req.ParentINode = parentINode
+            req.req.ChildName = childName
+        {{else if eq $R "CreateFS"}}
+            req.req.Token = token
+            req.req.FSName = fsName
+        {{else if eq $R "Create"}}
+            req.req.ParentINode = parentINode
+            req.req.ChildName = childName
+            req.req.ChildAttr = childAttr
+        {{else if eq $R "DeleteFS"}}
+            req.req.Token = token
+            req.req.FSID = fsid
+        {{else if eq $R "GetAttr"}}
+            req.req.INode = iNode
+        {{else if eq $R "GetXAttr"}}
+            req.req.INode = iNode
+            req.req.Name = name
+            req.req.Size = size
+            req.req.Position = position
+        {{else if eq $R "GrantAddrFS"}}
+            req.req.Token = token
+            req.req.FSID = fsid
+            req.req.Addr = addr
+        {{else if eq $R "InitFS"}}
+        {{else if eq $R "ListFS"}}
+            req.req.Token = token
+        {{else if eq $R "ListXAttr"}}
+            req.req.INode = iNode
+            req.req.Size = size
+            req.req.Position = position
+        {{else if eq $R "Lookup"}}
+            req.req.Parent = parent
+            req.req.Name = name
+        {{else if eq $R "MkDir"}}
+            req.req.Parent = parent
+            req.req.Name = name
+            req.req.Attr = attr
+        {{else if eq $R "ReadDirAll"}}
+            req.req.INode = iNode
+        {{else if eq $R "ReadLink"}}
+            req.req.INode = iNode
+        {{else if eq $R "Read"}}
+            req.req.INode = iNode
+            req.req.Offset = offset
+            req.req.Size = size
+        {{else if eq $R "Remove"}}
+            req.req.Parent = parent
+            req.req.Name = name
+        {{else if eq $R "RemoveXAttr"}}
+            req.req.INode = iNode
+            req.req.Name = name
+        {{else if eq $R "Rename"}}
+            req.req.OldParent = oldParent
+            req.req.NewParent = newParent
+            req.req.OldName = oldName
+            req.req.NewName = newName
+        {{else if eq $R "RevokeAddrFS"}}
+            req.req.Token = token
+            req.req.FSID = fsid
+            req.req.Addr = addr
+        {{else if eq $R "SetAttr"}}
+            req.req.Attr = attr
+            req.req.Valid = valid
+        {{else if eq $R "SetXAttr"}}
+            req.req.INode = iNode
+            req.req.Name = name
+            req.req.Value = value
+            req.req.Position = position
+            req.req.Flags = flags
+        {{else if eq $R "ShowFS"}}
+            req.req.Token = token
+            req.req.FSID = fsid
+        {{else if eq $R "StatFS"}}
+        {{else if eq $R "SymLink"}}
+            req.req.Parent = parent
+            req.req.Name = name
+            req.req.Target = target
+            req.req.UID = uid
+            req.req.GID = gid
+        {{else if eq $R "UpdateFS"}}
+            req.req.Token = token
+            req.req.FSID = fsid
+            req.req.NewFSName = newFSName
+        {{else if eq $R "Write"}}
+            req.req.INode = iNode
+            req.req.Offset = offset
+            req.req.Payload = payload
+        {{end}}
+        select {
+        case f.pending{{$R}}ReqChan <- req:
+        case <-ctx.Done():
+            f.free{{$R}}ReqChan <- req
+            {{if eq $R "Check"}}
+                return "", ctx.Err()
+            {{else if eq $R "CreateFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "Create"}}
+                return nil, ctx.Err()
+            {{else if eq $R "DeleteFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "GetAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "GetXAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "GrantAddrFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "InitFS"}}
+                return ctx.Err()
+            {{else if eq $R "ListFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "ListXAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "Lookup"}}
+                return nil, ctx.Err()
+            {{else if eq $R "MkDir"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadDirAll"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadLink"}}
+                return "", ctx.Err()
+            {{else if eq $R "Read"}}
+                return nil, ctx.Err()
+            {{else if eq $R "Remove"}}
+                return ctx.Err()
+            {{else if eq $R "RemoveXAttr"}}
+                return ctx.Err()
+            {{else if eq $R "Rename"}}
+                return ctx.Err()
+            {{else if eq $R "RevokeAddrFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "SetAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "SetXAttr"}}
+                return ctx.Err()
+            {{else if eq $R "ShowFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "StatFS"}}
+                return 0, 0, 0, 0, 0, 0, 0, 0, ctx.Err()
+            {{else if eq $R "SymLink"}}
+                return nil, ctx.Err()
+            {{else if eq $R "UpdateFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "Write"}}
+                return ctx.Err()
+            {{end}}
+        }
+        var res *async{{$.T}}{{$R}}Response
+        select {
+        case res = <-req.resChan:
+        case <-ctx.Done():
+            req.canceledLock.Lock()
+            select {
+            case <-req.resChan:
+            default:
+                req.canceled = true
+            }
+            req.canceledLock.Unlock()
+            {{if eq $R "Check"}}
+                return "", ctx.Err()
+            {{else if eq $R "CreateFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "Create"}}
+                return nil, ctx.Err()
+            {{else if eq $R "DeleteFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "GetAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "GetXAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "GrantAddrFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "InitFS"}}
+                return ctx.Err()
+            {{else if eq $R "ListFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "ListXAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "Lookup"}}
+                return nil, ctx.Err()
+            {{else if eq $R "MkDir"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadDirAll"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadLink"}}
+                return "", ctx.Err()
+            {{else if eq $R "Read"}}
+                return nil, ctx.Err()
+            {{else if eq $R "Remove"}}
+                return ctx.Err()
+            {{else if eq $R "RemoveXAttr"}}
+                return ctx.Err()
+            {{else if eq $R "Rename"}}
+                return ctx.Err()
+            {{else if eq $R "RevokeAddrFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "SetAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "SetXAttr"}}
+                return ctx.Err()
+            {{else if eq $R "ShowFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "StatFS"}}
+                return 0, 0, 0, 0, 0, 0, 0, 0, ctx.Err()
+            {{else if eq $R "SymLink"}}
+                return nil, ctx.Err()
+            {{else if eq $R "UpdateFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "Write"}}
+                return ctx.Err()
+            {{end}}
+        }
+        f.free{{$R}}ReqChan <- req
+        if res.err != nil {
+            err = res.err
+            f.free{{$R}}ResChan <- res
+            {{if eq $R "Check"}}
+                return "", err
+            {{else if eq $R "CreateFS"}}
+                return "", err
+            {{else if eq $R "Create"}}
+                return nil, err
+            {{else if eq $R "DeleteFS"}}
+                return "", err
+            {{else if eq $R "GetAttr"}}
+                return nil, err
+            {{else if eq $R "GetXAttr"}}
+                return nil, err
+            {{else if eq $R "GrantAddrFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "InitFS"}}
+                return ctx.Err()
+            {{else if eq $R "ListFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "ListXAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "Lookup"}}
+                return nil, ctx.Err()
+            {{else if eq $R "MkDir"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadDirAll"}}
+                return nil, ctx.Err()
+            {{else if eq $R "ReadLink"}}
+                return "", ctx.Err()
+            {{else if eq $R "Read"}}
+                return nil, ctx.Err()
+            {{else if eq $R "Remove"}}
+                return ctx.Err()
+            {{else if eq $R "RemoveXAttr"}}
+                return ctx.Err()
+            {{else if eq $R "Rename"}}
+                return ctx.Err()
+            {{else if eq $R "RevokeAddrFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "SetAttr"}}
+                return nil, ctx.Err()
+            {{else if eq $R "SetXAttr"}}
+                return ctx.Err()
+            {{else if eq $R "ShowFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "StatFS"}}
+                return 0, 0, 0, 0, 0, 0, 0, 0, ctx.Err()
+            {{else if eq $R "SymLink"}}
+                return nil, ctx.Err()
+            {{else if eq $R "UpdateFS"}}
+                return "", ctx.Err()
+            {{else if eq $R "Write"}}
+                return ctx.Err()
+            {{end}}
+        }
+        {{if eq $R "Check"}}
+            response = res.res.Response
+        {{else if eq $R "CreateFS"}}
+            data = res.res.Data
+        {{else if eq $R "Create"}}
+            resultingChildAttr = res.res.ChildAttr
+        {{else if eq $R "DeleteFS"}}
+            data = res.res.Data
+        {{else if eq $R "GetAttr"}}
+            attr = res.res.Attr
+        {{else if eq $R "GetXAttr"}}
+            xAttr = res.res.XAttr
+        {{else if eq $R "GrantAddrFS"}}
+            data = res.res.Data
+        {{else if eq $R "InitFS"}}
+        {{else if eq $R "ListFS"}}
+            data = res.res.Data
+        {{else if eq $R "ListXAttr"}}
+            xAttr = res.res.XAttr
+        {{else if eq $R "Lookup"}}
+            attr = res.res.Attr
+        {{else if eq $R "MkDir"}}
+            resultingAttr = res.res.Attr
+        {{else if eq $R "ReadDirAll"}}
+            readDirAllEnts = res.res.Ents
+        {{else if eq $R "ReadLink"}}
+            target = res.res.Target
+        {{else if eq $R "Read"}}
+            payload = res.res.Payload
+        {{else if eq $R "Remove"}}
+        {{else if eq $R "RemoveXAttr"}}
+        {{else if eq $R "Rename"}}
+        {{else if eq $R "RevokeAddrFS"}}
+            data = res.res.Data
+        {{else if eq $R "SetAttr"}}
+            resultingAttr = res.res.Attr
+        {{else if eq $R "SetXAttr"}}
+        {{else if eq $R "ShowFS"}}
+            data = res.res.Data
+        {{else if eq $R "StatFS"}}
+            blocks  = res.res.Blocks
+            bFree   = res.res.BFree
+            bAvail  = res.res.BAvail
+            files   = res.res.Files
+            fFree   = res.res.FFree
+            bSize   = res.res.BSize
+            nameLen = res.res.NameLen
+            frSize  = res.res.FrSize
+        {{else if eq $R "SymLink"}}
+            attr = res.res.Attr
+        {{else if eq $R "UpdateFS"}}
+            data = res.res.Data
+        {{else if eq $R "Write"}}
+        {{end}}
+        if res.res.Err == "" {
+            err = nil
+        } else {
+            err = errors.New(res.res.Err)
+        }
+        f.free{{$R}}ResChan <- res
+        {{if eq $R "Check"}}
+            return response, err
+        {{else if eq $R "CreateFS"}}
+            return data, err
+        {{else if eq $R "Create"}}
+            return resultingChildAttr, err
+        {{else if eq $R "DeleteFS"}}
+            return data, err
+        {{else if eq $R "GetAttr"}}
+            return attr, err
+        {{else if eq $R "GetXAttr"}}
+            return xAttr, err
+        {{else if eq $R "GrantAddrFS"}}
+            return data, err
+        {{else if eq $R "InitFS"}}
+            return err
+        {{else if eq $R "ListFS"}}
+            return data, err
+        {{else if eq $R "ListXAttr"}}
+            return xAttr, err
+        {{else if eq $R "Lookup"}}
+            return attr, err
+        {{else if eq $R "MkDir"}}
+            return resultingAttr, err
+        {{else if eq $R "ReadDirAll"}}
+            return readDirAllEnts, err
+        {{else if eq $R "ReadLink"}}
+            return target, err
+        {{else if eq $R "Read"}}
+            return payload, err
+        {{else if eq $R "Remove"}}
+            return err
+        {{else if eq $R "RemoveXAttr"}}
+            return err
+        {{else if eq $R "Rename"}}
+            return err
+        {{else if eq $R "RevokeAddrFS"}}
+            return data, err
+        {{else if eq $R "SetAttr"}}
+            return resultingAttr, err
+        {{else if eq $R "SetXAttr"}}
+            return err
+        {{else if eq $R "ShowFS"}}
+            return data, err
+        {{else if eq $R "StatFS"}}
+            return blocks, bFree, bAvail, files, fFree, bSize, nameLen, frSize, err
+        {{else if eq $R "SymLink"}}
+            return attr, err
+        {{else if eq $R "UpdateFS"}}
+            return data, err
+        {{else if eq $R "Write"}}
+            return err
+        {{end}}
+    }
+{{end}}
