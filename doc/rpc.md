@@ -22,7 +22,7 @@ curl -fsSLo /usr/local/bin/cfsadm $(curl -s https://api.github.com/repos/getcfs/
 curl -fsSLo /usr/local/bin/oort-cli $(curl -s https://api.github.com/repos/getcfs/megacfs/releases | grep -om1 "https://.*/oort-cli")
 curl -fsSLo /usr/local/bin/ring $(curl -s https://api.github.com/repos/getcfs/megacfs/releases | grep -om1 "https://.*/ring")
 chmod +x /usr/local/bin/cfsadm /usr/local/bin/cfsd /usr/local/bin/oort-cli /usr/local/bin/ring 
-wget -q https://raw.githubusercontent.com/letterj/megacfs/master/cfsd/packaging/root/usr/share/cfsd/init/cfsd.conf
+wget -q https://raw.githubusercontent.com/letterj/megacfs/master/allinone/packaging/root/usr/share/cfsd/init/cfsd.conf
 chmod 777 cfs.conf
 mv cfsd.conf /etc/init/
 
