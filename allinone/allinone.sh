@@ -64,7 +64,7 @@ cd $GOPATH/src/github.com/getcfs/megacfs
 cp -av syndicate/packaging/root/usr/share/syndicate/systemd/synd.service /lib/systemd/system
 cp -av oort/packaging/root/usr/share/oort/systemd/oort-valued.service /lib/systemd/system
 cp -av oort/packaging/root/usr/share/oort/systemd/oort-groupd.service /lib/systemd/system
-cp -av formic/packaging/root/usr/share/formicd/systemd/formicd.service /lib/systemd/system
+cp -av allinone/packaging/root/usr/share/formicd/systemd/formicd.service /lib/systemd/system
 systemctl daemon-reload
 
 echo "setting up first rings with dummy nodes"

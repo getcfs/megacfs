@@ -46,7 +46,7 @@
         mode: 0755
 
     - name: Copy over the service init file for cfsd 
-      template: src=../cfsd/packaging/root/usr/share/cfsd/init/cfsd.conf dest=/etc/init/cfsd.conf
+      template: src=../allinone/packaging/root/usr/share/cfsd/init/cfsd.conf dest=/etc/init/cfsd.conf
 
     - name: Set permissions and mode for /etc/init/cfsd.conf
       file:
