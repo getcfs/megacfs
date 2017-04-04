@@ -317,6 +317,10 @@ FIND_LOCAL_NODE:
 		logger.Fatal("Error starting value store", zap.Error(err))
 	}
 
+	authURL := os.Getenv("FORMIC_AUTH_URL")
+	if authURL == "" {
+		authURL = "http://localhost:5000"
+	}
 	newFormic, err := formicserver.NewFormic(&formicserver.FormicConfig{
 		GRPCAddressIndex:      ADDR_FORMIC_GRPC,
 		ValueGRPCAddressIndex: ADDR_VALUE_GRPC,
@@ -328,7 +332,7 @@ FIND_LOCAL_NODE:
 		Ring:                  oneRing,
 		RingPath:              ringPath,
 		SkipAuth:              false,
-		AuthURL:               "http://localhost:5000",
+		AuthURL:               authURL,
 		AuthUser:              "admin",
 		AuthPassword:          "admin",
 		Logger:                logger,
