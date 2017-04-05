@@ -31,6 +31,7 @@ type grpcWrapper struct {
 }
 
 func newGRPCWrapper(fs *oortFS, comms *storeComms, skipAuth bool, authURL string, authUser string, authPassword string) *grpcWrapper {
+	fs.log.Debug("newGRPCWrapper called", zap.Bool("skipAuth", skipAuth), zap.String("authURL", authURL), zap.String("authUser", authUser))
 	return &grpcWrapper{
 		fs:           fs,
 		validIPs:     make(map[string]map[string]time.Time),
