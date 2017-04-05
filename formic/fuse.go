@@ -316,7 +316,7 @@ func (f *FuseFormic) handleLookup(req *fuse.LookupRequest) {
 	attr, err := f.formic.Lookup(f.newGetContext(), uint64(req.Node), req.Name)
 	if err != nil {
 		// TODO: Rework this and error codes like this to be more like oort.
-		if err.Error() == "not found by remote store" {
+		if strings.Contains(err.Error(), "not found by remote store") {
 			f.logger.Debug("ENOENT Lookup", zap.String("name", req.Name))
 			req.RespondError(fuse.ENOENT)
 			return
