@@ -14,6 +14,7 @@ import (
 
 	"github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/gholt/store"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
@@ -88,7 +89,7 @@ func (g *grpcWrapper) CreateFS(stream formicproto.Formic_CreateFSServer) error {
 			return err
 		}
 		resp.Reset()
-		acctID, err := g.validateToken(req.Token)
+		acctID, err := g.validateToken(g.fs.log, req.Token)
 		if err != nil {
 			resp.Err = err.Error()
 		} else if err = g.fs.CreateFS(stream.Context(), req, &resp, acctID); err != nil {
@@ -136,7 +137,7 @@ func (g *grpcWrapper) DeleteFS(stream formicproto.Formic_DeleteFSServer) error {
 			return err
 		}
 		resp.Reset()
-		acctID, err := g.validateToken(req.Token)
+		acctID, err := g.validateToken(g.fs.log, req.Token)
 		if err != nil {
 			resp.Err = err.Error()
 		} else if err = g.fs.DeleteFS(stream.Context(), req, &resp, acctID); err != nil {
@@ -208,7 +209,7 @@ func (g *grpcWrapper) GrantAddrFS(stream formicproto.Formic_GrantAddrFSServer) e
 			return err
 		}
 		resp.Reset()
-		acctID, err := g.validateToken(req.Token)
+		acctID, err := g.validateToken(g.fs.log, req.Token)
 		if err != nil {
 			resp.Err = err.Error()
 		} else if err = g.fs.GrantAddrFS(stream.Context(), req, &resp, acctID); err != nil {
@@ -256,7 +257,7 @@ func (g *grpcWrapper) ListFS(stream formicproto.Formic_ListFSServer) error {
 			return err
 		}
 		resp.Reset()
-		acctID, err := g.validateToken(req.Token)
+		acctID, err := g.validateToken(g.fs.log, req.Token)
 		if err != nil {
 			resp.Err = err.Error()
 		} else if err = g.fs.ListFS(stream.Context(), req, &resp, acctID); err != nil {
@@ -496,7 +497,7 @@ func (g *grpcWrapper) RevokeAddrFS(stream formicproto.Formic_RevokeAddrFSServer)
 			return err
 		}
 		resp.Reset()
-		acctID, err := g.validateToken(req.Token)
+		acctID, err := g.validateToken(g.fs.log, req.Token)
 		if err != nil {
 			resp.Err = err.Error()
 		} else if err = g.fs.RevokeAddrFS(stream.Context(), req, &resp, acctID); err != nil {
@@ -568,7 +569,7 @@ func (g *grpcWrapper) ShowFS(stream formicproto.Formic_ShowFSServer) error {
 			return err
 		}
 		resp.Reset()
-		acctID, err := g.validateToken(req.Token)
+		acctID, err := g.validateToken(g.fs.log, req.Token)
 		if err != nil {
 			resp.Err = err.Error()
 		} else if err = g.fs.ShowFS(stream.Context(), req, &resp, acctID); err != nil {
@@ -640,7 +641,7 @@ func (g *grpcWrapper) UpdateFS(stream formicproto.Formic_UpdateFSServer) error {
 			return err
 		}
 		resp.Reset()
-		acctID, err := g.validateToken(req.Token)
+		acctID, err := g.validateToken(g.fs.log, req.Token)
 		if err != nil {
 			resp.Err = err.Error()
 		} else if err = g.fs.UpdateFS(stream.Context(), req, &resp, acctID); err != nil {
@@ -726,55 +727,74 @@ type validateTokenResponse struct {
 
 // validateToken ensure the token is valid and returns the Account ID or an
 // error.
-func (g *grpcWrapper) validateToken(token string) (string, error) {
+func (g *grpcWrapper) validateToken(logger *zap.Logger, token string) (string, error) {
+	logger.Debug("validateToken called")
 	if g.skipAuth {
+		logger.Debug("validateToken short-circuited due to SKIP AUTH")
 		return "11", nil
 	}
-	serverAuthToken, err := serverAuth(g.authURL, g.authUser, g.authPassword)
+	serverAuthToken, err := serverAuth(logger, g.authURL, g.authUser, g.authPassword)
 	if err != nil {
+		logger.Debug("validateToken error from serverAuth", zap.Error(err))
 		return "", err
 	}
 	req, err := http.NewRequest("GET", g.authURL+"/v3/auth/tokens", nil)
 	if err != nil {
+		logger.Debug("validateToken error from NewRequest GET", zap.Error(err))
 		return "", err
 	}
 	req.Header.Set("X-Auth-Token", serverAuthToken)
 	req.Header.Set("X-Subject-Token", token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		logger.Debug("validateToken error from DefaultClient.Do GET", zap.Error(err))
 		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		logger.Debug("validateToken error from GET return status", zap.Int("status", resp.StatusCode))
 		return "", fmt.Errorf("token validation gave status %d", resp.StatusCode)
 	}
 	var validateResp validateTokenResponse
 	r, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		logger.Debug("validateToken error from GET ReadAll body", zap.Error(err))
 		return "", err
 	}
 	if err = json.Unmarshal(r, &validateResp); err != nil {
+		logger.Debug("validateToken error from GET json.Unmarshal", zap.Error(err))
 		return "", err
 	}
+	logger.Debug("validateToken succeeded", zap.String("Project.ID", validateResp.Token.Project.ID))
 	return validateResp.Token.Project.ID, nil
 }
 
 // serverAuth return the X-Auth-Token to use or an error.
-func serverAuth(url string, user string, password string) (string, error) {
+func serverAuth(logger *zap.Logger, url string, user string, password string) (string, error) {
+	logger.Debug("serverAuth called", zap.String("url", url), zap.String("user", user))
 	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, user, password)
 	rbody := strings.NewReader(body)
 	req, err := http.NewRequest("POST", url+"/v3/auth/tokens", rbody)
 	if err != nil {
+		logger.Debug("serverAuth error from NewRequest POST", zap.String("url", url), zap.String("user", user), zap.Error(err))
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		logger.Debug("serverAuth error from DefaultClient.Do POST", zap.String("url", url), zap.String("user", user), zap.Error(err))
 		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 201 {
+		logger.Debug("serverAuth error from POST return status", zap.String("url", url), zap.String("user", user), zap.Int("status", resp.StatusCode))
 		return "", fmt.Errorf("server auth token request gave status %d", resp.StatusCode)
 	}
-	return resp.Header.Get("X-Subject-Token"), nil
+	rv := resp.Header.Get("X-Subject-Token")
+	if len(rv) == 0 {
+		logger.Debug("serverAuth succeeded, but ended up with zero-length token")
+	} else {
+		logger.Debug("serverAuth succeeded")
+	}
+	return rv, nil
 }
