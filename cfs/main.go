@@ -105,39 +105,41 @@ var goVersion string
 
 func auth(authURL string, username string, password string) string {
 	var token string
-
+	logger.Debug("auth called", zap.String("authURL", authURL), zap.String("username", username))
 	if authURL == "dev" {
+		logger.Debug("auth short-circuited due to 'dev' mode")
 		return ""
 	}
-
 	if token = os.Getenv("OS_TOKEN"); token != "" {
+		logger.Debug("auth short-circuited due to OS_TOKEN set")
 		return token
 	}
-
 	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{
 		"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, username, password)
 	rbody := strings.NewReader(body)
 	req, err := http.NewRequest("POST", authURL+"v3/auth/tokens", rbody)
 	if err != nil {
-		fmt.Printf("%v", err)
+		logger.Debug("auth error from NewRequest POST", zap.Error(err))
 		os.Exit(1)
 	}
 	req.Header.Set("Content-Type", "application/json")
-
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Printf("%v", err)
+		logger.Debug("auth error from DefaultClient.Do POST", zap.Error(err))
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 201 {
-		fmt.Println(resp.Status)
+		logger.Debug("auth error from POST response status", zap.Int("status", resp.StatusCode))
 		os.Exit(1)
 	}
-
 	token = resp.Header.Get("X-Subject-Token")
-
+	if len(token) == 0 {
+		logger.Debug("auth succeeded but ended up with zero-length token")
+	} else {
+		logger.Debug("auth succeeded")
+	}
 	return token
 }
 
