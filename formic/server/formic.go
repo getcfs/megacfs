@@ -150,16 +150,16 @@ func (f *Formic) Startup(ctx context.Context) error {
 		StoreFTLSConfig: ftls.DefaultClientFTLSConf(f.grpcCertFile, f.grpcKeyFile, f.caFile),
 		RingClientID:    grpcHostPort,
 		RingCachePath:   f.ringPath,
-		Logger:          f.logger,
+		Logger:          f.logger.Named("groupstore"),
 	})
 	valueStore := oort.NewReplValueStore(&oort.ValueStoreConfig{
 		AddressIndex:    f.valueGRPCAddressIndex,
 		StoreFTLSConfig: ftls.DefaultClientFTLSConf(f.grpcCertFile, f.grpcKeyFile, f.caFile),
 		RingClientID:    grpcHostPort,
 		RingCachePath:   f.ringPath,
-		Logger:          f.logger,
+		Logger:          f.logger.Named("valuestore"),
 	})
-	comms, err := newStoreComms(valueStore, groupStore, f.logger)
+	comms, err := newStoreComms(valueStore, groupStore, f.logger.Named("storecomms"))
 	if err != nil {
 		close(f.shutdownChan)
 		return err
@@ -174,10 +174,10 @@ func (f *Formic) Startup(ctx context.Context) error {
 			f.nodeID = 1
 		}
 	}
-	fs := newOortFS(comms, f.logger, deleteChan, dirtyChan, blocksize, f.nodeID)
+	fs := newOortFS(comms, f.logger.Named("oortfs"), deleteChan, dirtyChan, blocksize, f.nodeID)
 	f.grpcWrapper = newGRPCWrapper(fs, comms, f.skipAuth, f.authURL, f.authUser, f.authPassword)
-	deletes := newDeletinator(deleteChan, fs, comms, f.logger)
-	cleaner := newCleaninator(dirtyChan, fs, comms, f.logger)
+	deletes := newDeletinator(deleteChan, fs, comms, f.logger.Named("deletinator"))
+	cleaner := newCleaninator(dirtyChan, fs, comms, f.logger.Named("cleaninator"))
 	go deletes.Run()
 	go cleaner.Run()
 

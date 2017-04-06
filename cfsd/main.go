@@ -79,8 +79,8 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	logger = baseLogger.With(zap.String("name", "cfsd"))
-	redirectGRPCLoggerV.sugaredLogger = baseLogger.With(zap.String("name", "cfsd")).Sugar()
+	logger = baseLogger.Named("cfsd")
+	redirectGRPCLoggerV.sugaredLogger = baseLogger.Named("grpc").Sugar()
 	grpclog.SetLogger(&redirectGRPCLoggerV)
 }
 
@@ -248,7 +248,7 @@ FIND_LOCAL_NODE:
 		Scale:            0.4,
 		Path:             dataPath,
 		Ring:             oneRing,
-		Logger:           logger,
+		Logger:           logger.Named("groupstore"),
 	})
 	if err != nil {
 		logger.Fatal("Error initializing group store", zap.Error(err))
@@ -288,7 +288,7 @@ FIND_LOCAL_NODE:
 		Scale:            0.4,
 		Path:             dataPath,
 		Ring:             oneRing,
-		Logger:           logger,
+		Logger:           logger.Named("valuestore"),
 	})
 	if err != nil {
 		logger.Fatal("Error initializing value store", zap.Error(err))
@@ -343,7 +343,7 @@ FIND_LOCAL_NODE:
 		AuthURL:               authURL,
 		AuthUser:              authUser,
 		AuthPassword:          authPassword,
-		Logger:                logger,
+		Logger:                logger.Named("formic"),
 	})
 	if err != nil {
 		logger.Fatal("Error initializing formic", zap.Error(err))
