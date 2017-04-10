@@ -3,11 +3,15 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/pprof"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -22,6 +26,11 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/grpclog"
 )
+
+var version = flag.Bool("version", false, "omit version information and exit")
+var debug = flag.Bool("debug", false, "omit debug information while running")
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+var memprofile = flag.String("memprofile", "", "write mem profile to file")
 
 var logger *zap.Logger
 
@@ -61,16 +70,13 @@ var commitVersion string
 var goVersion string
 
 func init() {
-	debug := brimtext.TrueString(os.Getenv("DEBUG"))
-	for _, arg := range os.Args[1:] {
-		switch arg {
-		case "debug", "--debug":
-			debug = true
-		}
+	if brimtext.TrueString(os.Getenv("DEBUG")) {
+		*debug = true
 	}
+	flag.Parse()
 	var baseLogger *zap.Logger
 	var err error
-	if debug {
+	if *debug {
 		baseLogger, err = zap.NewDevelopmentConfig().Build()
 		baseLogger.Debug("Logging in developer mode.")
 	} else {
@@ -94,15 +100,42 @@ const (
 )
 
 func main() {
-	if len(os.Args) == 2 {
-		switch os.Args[1] {
-		case "version", "-version", "--version":
-			fmt.Println("version:", cfsdVersion)
-			fmt.Println("commit:", commitVersion)
-			fmt.Println("build date:", buildDate)
-			fmt.Println("go version:", goVersion)
-			return
+	var err error
+	var scale float64 = 1 / 3
+	s := os.Getenv("SCALE")
+	if s != "" {
+		scale, err = strconv.ParseFloat(s, 64)
+		if err != nil {
+			logger.Fatal("Could not parse env SCALE", zap.String("scale", s))
 		}
+	}
+	if *version {
+		fmt.Println("version:", cfsdVersion)
+		fmt.Println("commit:", commitVersion)
+		fmt.Println("build date:", buildDate)
+		fmt.Println("go version:", goVersion)
+		return
+	}
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			logger.Fatal("Couldn't open cpuprofile file", zap.String("filename", *cpuprofile), zap.Error(err))
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+	if *memprofile != "" {
+		defer func() {
+			f, err := os.Create(*memprofile)
+			if err != nil {
+				logger.Fatal("Couldn't open memprofile file", zap.String("filename", *memprofile), zap.Error(err))
+			}
+			runtime.GC()
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				logger.Fatal("Couldn't write memprofile", zap.String("filename", *memprofile), zap.Error(err))
+			}
+			f.Close()
+		}()
 	}
 	ringPath := "/etc/cfsd/cfs.ring"
 	caPath := "/etc/cfsd/ca.pem"
@@ -245,7 +278,7 @@ FIND_LOCAL_NODE:
 		ReplCertFile:     replGroupCertPath,
 		ReplKeyFile:      replGroupKeyPath,
 		CAFile:           caPath,
-		Scale:            0.4,
+		Scale:            scale,
 		Path:             dataPath,
 		Ring:             oneRing,
 		Logger:           logger.Named("groupstore"),
@@ -285,7 +318,7 @@ FIND_LOCAL_NODE:
 		ReplCertFile:     replValueCertPath,
 		ReplKeyFile:      replValueKeyPath,
 		CAFile:           caPath,
-		Scale:            0.4,
+		Scale:            scale,
 		Path:             dataPath,
 		Ring:             oneRing,
 		Logger:           logger.Named("valuestore"),
@@ -336,7 +369,7 @@ FIND_LOCAL_NODE:
 		GRPCCertFile:          grpcFormicCertPath,
 		GRPCKeyFile:           grpcFormicKeyPath,
 		CAFile:                caPath,
-		Scale:                 0.2,
+		Scale:                 scale,
 		Ring:                  oneRing,
 		RingPath:              ringPath,
 		SkipAuth:              false,
