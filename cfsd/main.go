@@ -31,6 +31,9 @@ var version = flag.Bool("version", false, "omit version information and exit")
 var debug = flag.Bool("debug", false, "omit debug information while running")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var memprofile = flag.String("memprofile", "", "write mem profile to file")
+var startFormic = flag.Bool("formic", false, "run formic service and not other services unless also specified")
+var startGroup = flag.Bool("group", false, "run group service and not other services unless also specified")
+var startValue = flag.Bool("value", false, "run value service and not other services unless also specified")
 
 var logger *zap.Logger
 
@@ -100,6 +103,11 @@ const (
 )
 
 func main() {
+	if !*startFormic && !*startGroup && !*startValue {
+		*startFormic = true
+		*startGroup = true
+		*startValue = true
+	}
 	var err error
 	var scale float64 = 1 / 3
 	s := os.Getenv("SCALE")
@@ -270,129 +278,135 @@ FIND_LOCAL_NODE:
 	waitGroup := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
 
-	groupStore, groupStoreRestartChan, err := oortserver.NewGroupStore(&oortserver.GroupStoreConfig{
-		GRPCAddressIndex: ADDR_GROUP_GRPC,
-		ReplAddressIndex: ADDR_GROUP_REPL,
-		GRPCCertFile:     grpcGroupCertPath,
-		GRPCKeyFile:      grpcGroupKeyPath,
-		ReplCertFile:     replGroupCertPath,
-		ReplKeyFile:      replGroupKeyPath,
-		CAFile:           caPath,
-		Scale:            scale,
-		Path:             dataPath,
-		Ring:             oneRing,
-		Logger:           logger.Named("groupstore"),
-	})
-	if err != nil {
-		logger.Fatal("Error initializing group store", zap.Error(err))
-	}
-	waitGroup.Add(1)
-	go func() {
-		for {
-			select {
-			case <-groupStoreRestartChan:
-				ctx, _ := context.WithTimeout(context.Background(), time.Minute)
-				groupStore.Shutdown(ctx)
-				ctx, _ = context.WithTimeout(context.Background(), time.Minute)
-				groupStore.Startup(ctx)
-			case <-shutdownChan:
-				ctx, _ := context.WithTimeout(context.Background(), time.Minute)
-				groupStore.Shutdown(ctx)
-				waitGroup.Done()
-				return
-			}
+	if *startGroup {
+		groupStore, groupStoreRestartChan, err := oortserver.NewGroupStore(&oortserver.GroupStoreConfig{
+			GRPCAddressIndex: ADDR_GROUP_GRPC,
+			ReplAddressIndex: ADDR_GROUP_REPL,
+			GRPCCertFile:     grpcGroupCertPath,
+			GRPCKeyFile:      grpcGroupKeyPath,
+			ReplCertFile:     replGroupCertPath,
+			ReplKeyFile:      replGroupKeyPath,
+			CAFile:           caPath,
+			Scale:            scale,
+			Path:             dataPath,
+			Ring:             oneRing,
+			Logger:           logger.Named("groupstore"),
+		})
+		if err != nil {
+			logger.Fatal("Error initializing group store", zap.Error(err))
 		}
-	}()
-	ctx, _ := context.WithTimeout(context.Background(), time.Minute)
-	if err = groupStore.Startup(ctx); err != nil {
-		ctx, _ = context.WithTimeout(context.Background(), time.Minute)
-		groupStore.Shutdown(ctx)
-		logger.Fatal("Error starting group store", zap.Error(err))
-	}
-
-	valueStore, valueStoreRestartChan, err := oortserver.NewValueStore(&oortserver.ValueStoreConfig{
-		GRPCAddressIndex: ADDR_VALUE_GRPC,
-		ReplAddressIndex: ADDR_VALUE_REPL,
-		GRPCCertFile:     grpcValueCertPath,
-		GRPCKeyFile:      grpcValueKeyPath,
-		ReplCertFile:     replValueCertPath,
-		ReplKeyFile:      replValueKeyPath,
-		CAFile:           caPath,
-		Scale:            scale,
-		Path:             dataPath,
-		Ring:             oneRing,
-		Logger:           logger.Named("valuestore"),
-	})
-	if err != nil {
-		logger.Fatal("Error initializing value store", zap.Error(err))
-	}
-	waitGroup.Add(1)
-	go func() {
-		for {
-			select {
-			case <-valueStoreRestartChan:
-				ctx, _ := context.WithTimeout(context.Background(), time.Minute)
-				valueStore.Shutdown(ctx)
-				ctx, _ = context.WithTimeout(context.Background(), time.Minute)
-				valueStore.Startup(ctx)
-			case <-shutdownChan:
-				ctx, _ := context.WithTimeout(context.Background(), time.Minute)
-				valueStore.Shutdown(ctx)
-				waitGroup.Done()
-				return
+		waitGroup.Add(1)
+		go func() {
+			for {
+				select {
+				case <-groupStoreRestartChan:
+					ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+					groupStore.Shutdown(ctx)
+					ctx, _ = context.WithTimeout(context.Background(), time.Minute)
+					groupStore.Startup(ctx)
+				case <-shutdownChan:
+					ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+					groupStore.Shutdown(ctx)
+					waitGroup.Done()
+					return
+				}
 			}
-		}
-	}()
-	ctx, _ = context.WithTimeout(context.Background(), time.Minute)
-	if err = valueStore.Startup(ctx); err != nil {
-		ctx, _ = context.WithTimeout(context.Background(), time.Minute)
-		valueStore.Shutdown(ctx)
-		logger.Fatal("Error starting value store", zap.Error(err))
-	}
-
-	authURL := os.Getenv("AUTH_URL")
-	if authURL == "" {
-		authURL = "http://localhost:5000"
-	}
-	authUser := os.Getenv("AUTH_USER")
-	if authUser == "" {
-		authUser = "admin"
-	}
-	authPassword := os.Getenv("AUTH_PASSWORD")
-	if authPassword == "" {
-		authPassword = "admin"
-	}
-	newFormic, err := formicserver.NewFormic(&formicserver.FormicConfig{
-		GRPCAddressIndex:      ADDR_FORMIC_GRPC,
-		ValueGRPCAddressIndex: ADDR_VALUE_GRPC,
-		GroupGRPCAddressIndex: ADDR_GROUP_GRPC,
-		GRPCCertFile:          grpcFormicCertPath,
-		GRPCKeyFile:           grpcFormicKeyPath,
-		CAFile:                caPath,
-		Scale:                 scale,
-		Ring:                  oneRing,
-		RingPath:              ringPath,
-		SkipAuth:              false,
-		AuthURL:               authURL,
-		AuthUser:              authUser,
-		AuthPassword:          authPassword,
-		Logger:                logger.Named("formic"),
-	})
-	if err != nil {
-		logger.Fatal("Error initializing formic", zap.Error(err))
-	}
-	waitGroup.Add(1)
-	go func() {
-		<-shutdownChan
+		}()
 		ctx, _ := context.WithTimeout(context.Background(), time.Minute)
-		newFormic.Shutdown(ctx)
-		waitGroup.Done()
-	}()
-	ctx, _ = context.WithTimeout(context.Background(), time.Minute)
-	if err = newFormic.Startup(ctx); err != nil {
-		ctx, _ = context.WithTimeout(context.Background(), time.Minute)
-		newFormic.Shutdown(ctx)
-		logger.Fatal("Error starting formic", zap.Error(err))
+		if err = groupStore.Startup(ctx); err != nil {
+			ctx, _ = context.WithTimeout(context.Background(), time.Minute)
+			groupStore.Shutdown(ctx)
+			logger.Fatal("Error starting group store", zap.Error(err))
+		}
+	}
+
+	if *startValue {
+		valueStore, valueStoreRestartChan, err := oortserver.NewValueStore(&oortserver.ValueStoreConfig{
+			GRPCAddressIndex: ADDR_VALUE_GRPC,
+			ReplAddressIndex: ADDR_VALUE_REPL,
+			GRPCCertFile:     grpcValueCertPath,
+			GRPCKeyFile:      grpcValueKeyPath,
+			ReplCertFile:     replValueCertPath,
+			ReplKeyFile:      replValueKeyPath,
+			CAFile:           caPath,
+			Scale:            scale,
+			Path:             dataPath,
+			Ring:             oneRing,
+			Logger:           logger.Named("valuestore"),
+		})
+		if err != nil {
+			logger.Fatal("Error initializing value store", zap.Error(err))
+		}
+		waitGroup.Add(1)
+		go func() {
+			for {
+				select {
+				case <-valueStoreRestartChan:
+					ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+					valueStore.Shutdown(ctx)
+					ctx, _ = context.WithTimeout(context.Background(), time.Minute)
+					valueStore.Startup(ctx)
+				case <-shutdownChan:
+					ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+					valueStore.Shutdown(ctx)
+					waitGroup.Done()
+					return
+				}
+			}
+		}()
+		ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+		if err = valueStore.Startup(ctx); err != nil {
+			ctx, _ = context.WithTimeout(context.Background(), time.Minute)
+			valueStore.Shutdown(ctx)
+			logger.Fatal("Error starting value store", zap.Error(err))
+		}
+	}
+
+	if *startFormic {
+		authURL := os.Getenv("AUTH_URL")
+		if authURL == "" {
+			authURL = "http://localhost:5000"
+		}
+		authUser := os.Getenv("AUTH_USER")
+		if authUser == "" {
+			authUser = "admin"
+		}
+		authPassword := os.Getenv("AUTH_PASSWORD")
+		if authPassword == "" {
+			authPassword = "admin"
+		}
+		newFormic, err := formicserver.NewFormic(&formicserver.FormicConfig{
+			GRPCAddressIndex:      ADDR_FORMIC_GRPC,
+			ValueGRPCAddressIndex: ADDR_VALUE_GRPC,
+			GroupGRPCAddressIndex: ADDR_GROUP_GRPC,
+			GRPCCertFile:          grpcFormicCertPath,
+			GRPCKeyFile:           grpcFormicKeyPath,
+			CAFile:                caPath,
+			Scale:                 scale,
+			Ring:                  oneRing,
+			RingPath:              ringPath,
+			SkipAuth:              false,
+			AuthURL:               authURL,
+			AuthUser:              authUser,
+			AuthPassword:          authPassword,
+			Logger:                logger.Named("formic"),
+		})
+		if err != nil {
+			logger.Fatal("Error initializing formic", zap.Error(err))
+		}
+		waitGroup.Add(1)
+		go func() {
+			<-shutdownChan
+			ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+			newFormic.Shutdown(ctx)
+			waitGroup.Done()
+		}()
+		ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+		if err = newFormic.Startup(ctx); err != nil {
+			ctx, _ = context.WithTimeout(context.Background(), time.Minute)
+			newFormic.Shutdown(ctx)
+			logger.Fatal("Error starting formic", zap.Error(err))
+		}
 	}
 
 	ch := make(chan os.Signal)
