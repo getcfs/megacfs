@@ -3,7 +3,6 @@ sudo: false
 go:
   - 1.7
   - 1.8
-  - tip
 go_import_path: go.uber.org/zap
 env:
   global:
@@ -19,4 +18,4 @@ script:
   - make test
   - make bench
 after_success:
-  - make coveralls
+  - travis_retry make coveralls

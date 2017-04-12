@@ -1,6 +1,14 @@
-12592ca48efc73057c0edcdddc2a279b37c2b27b		branch 'master' of https://github.com/uber-go/zap
-12592ca48efc73057c0edcdddc2a279b37c2b27b	not-for-merge	branch '_start_-bettertest-part_1.0' of https://github.com/uber-go/zap
-25b40c0a56162ff0e1376d8254ce395532b03d07	not-for-merge	branch 'bettertest-part_1.0' of https://github.com/uber-go/zap
-382317ee3ebb6d1eda419167fed89548282d7ee8	not-for-merge	branch 'color' of https://github.com/uber-go/zap
-ee253a188011cba3386f4ddb3321718d537d5a16	not-for-merge	branch 'stacktrace' of https://github.com/uber-go/zap
-7b570da7907863367834f20d9cead0dbc770b1a7	not-for-merge	branch 'update-benchmarks' of https://github.com/uber-go/zap
+a2773be06b9ac7c318a3a105b5c310af5730c6b4		branch 'master' of https://github.com/uber-go/zap
+40f61924f6b5eddd1d31a442282fd40a824b3787	not-for-merge	branch 'ajs-1' of https://github.com/uber-go/zap
+c86c4279298f088485ea635239bf7e71cc07f898	not-for-merge	branch 'ajs-assorted-cleanups' of https://github.com/uber-go/zap
+0746adf5414f2781eb05c41ab270857fa1082db6	not-for-merge	branch 'ajs-buf' of https://github.com/uber-go/zap
+06023a06248a55fd774397214a6ecfbc16cce970	not-for-merge	branch 'ajs-contributing' of https://github.com/uber-go/zap
+fee7614e40a94c834e34f2a33017343e1eb877ff	not-for-merge	branch 'ajs-coveralls-retry' of https://github.com/uber-go/zap
+aa731cc4952db74e968fd0b923a73889fb47c07e	not-for-merge	branch 'ajs-release' of https://github.com/uber-go/zap
+9d2e6b48f1e2b1d5e230c118293743a4f6a1ff34	not-for-merge	branch 'ajs-tips' of https://github.com/uber-go/zap
+cadf7cc380862bcfcf781e7497840688bbe46253	not-for-merge	branch 'observed_filter' of https://github.com/uber-go/zap
+dc73379e4af2616fc67edffe28cd5ef5bc09b347	not-for-merge	branch 'wh-readme' of https://github.com/uber-go/zap
+379bb7757cb331f1806b0aeb7bca9e4d2a8cc939	not-for-merge	branch 'zapgrpc' of https://github.com/uber-go/zap
+a2773be06b9ac7c318a3a105b5c310af5730c6b4	not-for-merge	tag 'v1.1.0' of https://github.com/uber-go/zap
+4257c7cf05477d92ec25c31cfd3d60e89575f18a	not-for-merge	tag 'v1.0.0' of https://github.com/uber-go/zap
+4e517d38b2138e59475d6468e7a6b626eecdaa66	not-for-merge	tag 'v1.0.0-rc.3' of https://github.com/uber-go/zap

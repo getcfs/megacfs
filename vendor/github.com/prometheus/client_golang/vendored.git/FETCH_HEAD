@@ -1,5 +1,6 @@
-69bb3870645f63c67a8dc9c9ef94585fd0d98c80		branch 'master' of https://github.com/prometheus/client_golang
+08fd2e12372a66e68e30523c7642e0cbc3e4fbde		branch 'master' of https://github.com/prometheus/client_golang
 b0be2a1c210191cd76dde6bfe1c1263472f99c9a	not-for-merge	branch 'beorn7/next' of https://github.com/prometheus/client_golang
 70693bc2975db2fd288d10d7f03fa7a074fa7179	not-for-merge	branch 'grobie/update-graphite-exposition' of https://github.com/prometheus/client_golang
-59141bda155266839a1ceb68389694f5bb2a1b66	not-for-merge	branch 'http-client' of https://github.com/prometheus/client_golang
+ff6630365b4f5bf64c7b072c5cb11e5f1ba8a7ae	not-for-merge	branch 'http-client' of https://github.com/prometheus/client_golang
 1ba5ec2439aae6ca02859bdf7885ac13d4b0a355	not-for-merge	branch 'proto3' of https://github.com/prometheus/client_golang
+df6f99b0655aed8ecb073a3f66757244ed5bc562	not-for-merge	branch 'stn/handler-instrumentation' of https://github.com/prometheus/client_golang

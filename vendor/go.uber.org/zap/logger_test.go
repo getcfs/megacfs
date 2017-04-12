@@ -21,13 +21,14 @@
 package zap
 
 import (
+	"errors"
 	"sync"
 	"testing"
 
 	"go.uber.org/zap/internal/exit"
-	"go.uber.org/zap/internal/observer"
-	"go.uber.org/zap/testutils"
 	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -297,11 +298,11 @@ func TestLoggerNames(t *testing.T) {
 }
 
 func TestLoggerWriteFailure(t *testing.T) {
-	errSink := &testutils.Buffer{}
+	errSink := &zaptest.Buffer{}
 	logger := New(
 		zapcore.NewCore(
 			zapcore.NewJSONEncoder(NewProductionConfig().EncoderConfig),
-			zapcore.Lock(zapcore.AddSync(testutils.FailWriter{})),
+			zapcore.Lock(zapcore.AddSync(zaptest.FailWriter{})),
 			DebugLevel,
 		),
 		ErrorOutput(errSink),
@@ -311,6 +312,26 @@ func TestLoggerWriteFailure(t *testing.T) {
 	// Should log the error.
 	assert.Regexp(t, `write error: failed`, errSink.Stripped(), "Expected to log the error to the error output.")
 	assert.True(t, errSink.Called(), "Expected logging an internal error to call Sync the error sink.")
+}
+
+func TestLoggerSync(t *testing.T) {
+	withLogger(t, DebugLevel, nil, func(logger *Logger, _ *observer.ObservedLogs) {
+		assert.NoError(t, logger.Sync(), "Expected syncing a test logger to succeed.")
+		assert.NoError(t, logger.Sugar().Sync(), "Expected syncing a sugared logger to succeed.")
+	})
+}
+
+func TestLoggerSyncFail(t *testing.T) {
+	noSync := &zaptest.Buffer{}
+	err := errors.New("fail")
+	noSync.SetError(err)
+	logger := New(zapcore.NewCore(
+		zapcore.NewJSONEncoder(zapcore.EncoderConfig{}),
+		noSync,
+		DebugLevel,
+	))
+	assert.Equal(t, err, logger.Sync(), "Expected Logger.Sync to propagate errors.")
+	assert.Equal(t, err, logger.Sugar().Sync(), "Expected SugaredLogger.Sync to propagate errors.")
 }
 
 func TestLoggerAddCaller(t *testing.T) {
@@ -341,7 +362,7 @@ func TestLoggerAddCaller(t *testing.T) {
 }
 
 func TestLoggerAddCallerFail(t *testing.T) {
-	errBuf := &testutils.Buffer{}
+	errBuf := &zaptest.Buffer{}
 	withLogger(t, DebugLevel, opts(AddCaller(), ErrorOutput(errBuf)), func(log *Logger, logs *observer.ObservedLogs) {
 		log.callerSkip = 1e3
 		log.Info("Failure.")
@@ -363,7 +384,6 @@ func TestLoggerAddStacktrace(t *testing.T) {
 	assertHasStack := func(t testing.TB, obs observer.LoggedEntry) {
 		assert.Contains(t, obs.Entry.Stack, "zap.TestLoggerAddStacktrace", "Expected to find test function in stacktrace.")
 	}
-
 	withLogger(t, DebugLevel, opts(AddStacktrace(InfoLevel)), func(logger *Logger, logs *observer.ObservedLogs) {
 		logger.Debug("")
 		assert.Empty(

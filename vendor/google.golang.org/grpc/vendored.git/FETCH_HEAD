@@ -1,1 +1,4 @@
-d122f1dfe6ecece11d0c914ce4b2d9cab6d4b4ff		branch 'master' of https://github.com/grpc/grpc-go
+cd8432ec079f38bea795e1e19a1f48a04d0dccb4		branch 'master' of https://github.com/grpc/grpc-go
+377586b314e142ce186a0644138c92fe55b9162e	not-for-merge	branch 'v1.2.x' of https://github.com/grpc/grpc-go
+cdee119ee21e61eef7093a41ba148fa83585e143	not-for-merge	tag 'v1.2.0' of https://github.com/grpc/grpc-go
+8050b9cbc271307e5a716a9d782803d09b0d6f2d	not-for-merge	tag 'v1.2.1' of https://github.com/grpc/grpc-go

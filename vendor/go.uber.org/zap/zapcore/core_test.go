@@ -21,13 +21,14 @@
 package zapcore_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"testing"
 	"time"
 
-	"go.uber.org/zap/testutils"
 	. "go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,7 @@ func TestNopCore(t *testing.T) {
 		assert.False(t, core.Enabled(level), "Expected all levels to be disabled in no-op core.")
 		assert.Equal(t, ce, core.Check(entry, ce), "Expected no-op Check to return checked entry unchanged.")
 		assert.NoError(t, core.Write(entry, nil), "Expected no-op Writes to always succeed.")
+		assert.NoError(t, core.Sync(), "Expected no-op Syncs to always succeed.")
 	}
 }
 
@@ -80,6 +82,7 @@ func TestIOCore(t *testing.T) {
 		temp,
 		InfoLevel,
 	).With([]Field{makeInt64Field("k", 1)})
+	defer assert.NoError(t, core.Sync(), "Expected Syncing a temp file to succeed.")
 
 	if ce := core.Check(Entry{Level: DebugLevel, Message: "debug"}, nil); ce != nil {
 		ce.Write(makeInt64Field("k", 2))
@@ -102,6 +105,25 @@ func TestIOCore(t *testing.T) {
 	)
 }
 
+func TestIOCoreSyncFail(t *testing.T) {
+	sink := &zaptest.Discarder{}
+	err := errors.New("failed")
+	sink.SetError(err)
+
+	core := NewCore(
+		NewJSONEncoder(testEncoderConfig()),
+		sink,
+		DebugLevel,
+	)
+
+	assert.Equal(
+		t,
+		err,
+		core.Sync(),
+		"Expected core.Sync to return errors from underlying WriteSyncer.",
+	)
+}
+
 func TestIOCoreSyncsOutput(t *testing.T) {
 	tests := []struct {
 		entry      Entry
@@ -117,7 +139,7 @@ func TestIOCoreSyncsOutput(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		sink := &testutils.Discarder{}
+		sink := &zaptest.Discarder{}
 		core := NewCore(
 			NewJSONEncoder(testEncoderConfig()),
 			sink,
@@ -132,7 +154,7 @@ func TestIOCoreSyncsOutput(t *testing.T) {
 func TestIOCoreWriteFailure(t *testing.T) {
 	core := NewCore(
 		NewJSONEncoder(testEncoderConfig()),
-		Lock(&testutils.FailWriter{}),
+		Lock(&zaptest.FailWriter{}),
 		DebugLevel,
 	)
 	err := core.Write(Entry{}, nil)

@@ -1,7 +1,11 @@
-83faaee7bbbdf0c59310ec67d340bc0cbe77053f		branch 'master' of https://github.com/gogo/protobuf
+6fe4aed35b712b681d5d372e06da5344c22ed61f		branch 'master' of https://github.com/gogo/protobuf
 25cac421db417203f0a0109834772999b8837382	not-for-merge	branch 'bigendian' of https://github.com/gogo/protobuf
-70f823f878a394e90a4e3860eea189c7afae9925	not-for-merge	branch 'bigskip' of https://github.com/gogo/protobuf
+44aac9e35c90453309e292586885ca99c747a23d	not-for-merge	branch 'bigskip' of https://github.com/gogo/protobuf
 01571f24f42793de4223719640863b58a5d175a4	not-for-merge	branch 'gopherjs' of https://github.com/gogo/protobuf
+42caf6e939e1bd348d4fc0c5a9fc80f099773fd7	not-for-merge	branch 'moretests' of https://github.com/gogo/protobuf
+f0dc1cd29d4524d04c0d29bc867ed4ae874386d9	not-for-merge	branch 'proto3.2.0' of https://github.com/gogo/protobuf
 75029e4bff00727c59a6e851829b040bd8189d53	not-for-merge	branch 'ptypes' of https://github.com/gogo/protobuf
+e52b8d013e672f165ae231ee111d4adb576fa887	not-for-merge	branch 'revert-271-issue-222' of https://github.com/gogo/protobuf
 a516ce9ce2b24437166ce820e0d8a36568049e25	not-for-merge	branch 'std' of https://github.com/gogo/protobuf
 9be605a251b71522e660d6b7ea6a7c500b9a2fd3	not-for-merge	branch 'wkt' of https://github.com/gogo/protobuf
+100ba4e885062801d56799d78530b73b178a78f3	not-for-merge	tag 'v0.4' of https://github.com/gogo/protobuf

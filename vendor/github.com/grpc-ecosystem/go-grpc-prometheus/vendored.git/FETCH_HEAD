@@ -1,4 +1,4 @@
-6b7015e65d366bf3f19b2b2a000a831940f0f7e0		branch 'master' of https://github.com/grpc-ecosystem/go-grpc-prometheus
+2500245aa6110c562d17020fb31a2c133d737799		branch 'master' of https://github.com/grpc-ecosystem/go-grpc-prometheus
 7afd3fc511db6e80308e5ac341ae9eee29096fc5	not-for-merge	branch 'bugfix/grpc_code' of https://github.com/grpc-ecosystem/go-grpc-prometheus
 40bc88d35d2f7f334b35218a98b3af75428039e8	not-for-merge	branch 'feature/client-metrics' of https://github.com/grpc-ecosystem/go-grpc-prometheus
 b9b3e30f320635e6ce37464624fcf826406ad3e0	not-for-merge	branch 'feature/grpc_prefix' of https://github.com/grpc-ecosystem/go-grpc-prometheus

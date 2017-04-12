@@ -22,7 +22,6 @@ package zap
 
 import (
 	"errors"
-	"math"
 	"net"
 	"sync"
 	"testing"
@@ -30,11 +29,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"
-)
-
-var (
-	// Compiler complains about constants overflowing, so store this in a variable.
-	maxUint64 = uint64(math.MaxUint64)
 )
 
 type username string
@@ -80,6 +74,7 @@ func TestFieldConstructors(t *testing.T) {
 		{"Binary", zapcore.Field{Key: "k", Type: zapcore.BinaryType, Interface: []byte("ab12")}, Binary("k", []byte("ab12"))},
 		{"Bool", zapcore.Field{Key: "k", Type: zapcore.BoolType, Integer: 1}, Bool("k", true)},
 		{"Bool", zapcore.Field{Key: "k", Type: zapcore.BoolType, Integer: 1}, Bool("k", true)},
+		{"ByteString", zapcore.Field{Key: "k", Type: zapcore.ByteStringType, Interface: []byte("ab12")}, ByteString("k", []byte("ab12"))},
 		{"Complex128", zapcore.Field{Key: "k", Type: zapcore.Complex128Type, Interface: 1 + 2i}, Complex128("k", 1+2i)},
 		{"Complex64", zapcore.Field{Key: "k", Type: zapcore.Complex64Type, Interface: complex64(1 + 2i)}, Complex64("k", 1+2i)},
 		{"Duration", zapcore.Field{Key: "k", Type: zapcore.DurationType, Integer: 1}, Duration("k", 1)},

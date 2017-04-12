@@ -26,20 +26,19 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/atomic"
+	. "go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
+	"go.uber.org/zap/zaptest/observer"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"go.uber.org/atomic"
-	"go.uber.org/zap/internal/observer"
-	"go.uber.org/zap/testutils"
-	. "go.uber.org/zap/zapcore"
 )
 
 func fakeSampler(lvl LevelEnabler, tick time.Duration, first, thereafter int) (Core, *observer.ObservedLogs) {
-	var logs observer.ObservedLogs
-	core := observer.New(lvl, logs.Add, true)
+	core, logs := observer.New(lvl)
 	core = NewSampler(core, tick, first, thereafter)
-	return core, &logs
+	return core, logs
 }
 
 func assertSequence(t testing.TB, logs []observer.LoggedEntry, lvl Level, seq ...int64) {
@@ -106,7 +105,7 @@ func TestSamplerTicking(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			writeSequence(sampler, i, InfoLevel)
 		}
-		testutils.Sleep(15 * time.Millisecond)
+		zaptest.Sleep(15 * time.Millisecond)
 	}
 	assertSequence(
 		t,
@@ -122,7 +121,7 @@ func TestSamplerTicking(t *testing.T) {
 		for i := 1; i < 18; i++ {
 			writeSequence(sampler, i, InfoLevel)
 		}
-		testutils.Sleep(10 * time.Millisecond)
+		zaptest.Sleep(10 * time.Millisecond)
 	}
 
 	assertSequence(
@@ -139,10 +138,6 @@ type countingCore struct {
 	logs atomic.Uint32
 }
 
-func (c *countingCore) Enabled(Level) bool {
-	return true
-}
-
 func (c *countingCore) Check(ent Entry, ce *CheckedEntry) *CheckedEntry {
 	return ce.AddCore(ent, c)
 }
@@ -152,9 +147,9 @@ func (c *countingCore) Write(Entry, []Field) error {
 	return nil
 }
 
-func (c *countingCore) With([]Field) Core {
-	return c
-}
+func (c *countingCore) With([]Field) Core { return c }
+func (*countingCore) Enabled(Level) bool  { return true }
+func (*countingCore) Sync() error         { return nil }
 
 func TestSamplerConcurrent(t *testing.T) {
 	const (
@@ -165,7 +160,7 @@ func TestSamplerConcurrent(t *testing.T) {
 		expectedCount = numMessages * logsPerTick * numTicks
 	)
 
-	tick := testutils.Timeout(10 * time.Millisecond)
+	tick := zaptest.Timeout(10 * time.Millisecond)
 	cc := &countingCore{}
 	sampler := NewSampler(cc, tick, logsPerTick, 100000)
 
