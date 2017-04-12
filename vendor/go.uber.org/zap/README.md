@@ -6,6 +6,8 @@ Blazing fast, structured, leveled logging in Go.
 
 `go get -u go.uber.org/zap`
 
+Note that zap only supports the two most recent minor versions of Go.
+
 ## Quick Start
 
 In contexts where performance is nice, but not critical, use the
@@ -13,7 +15,7 @@ In contexts where performance is nice, but not critical, use the
 and includes both structured and `printf`-style APIs.
 
 ```go
-logger, _ := NewProduction()
+logger, _ := zap.NewProduction()
 sugar := logger.Sugar()
 sugar.Infow("Failed to fetch URL.",
   // Structured context as loosely-typed key-value pairs.
@@ -28,7 +30,7 @@ When performance and type safety are critical, use the `Logger`. It's even faste
 the `SugaredLogger` and allocates far less, but it only supports structured logging.
 
 ```go
-logger, _ := NewProduction()
+logger, _ := zap.NewProduction()
 logger.Info("Failed to fetch URL.",
   // Structured context as strongly-typed Field values.
   zap.String("url", url),
@@ -59,42 +61,46 @@ Log a message and 10 fields:
 
 | Library | Time | Bytes Allocated | Objects Allocated |
 | :--- | :---: | :---: | :---: |
-| :zap: zap | 1436 ns/op | 705 B/op | 2 allocs/op |
-| :zap: zap (sugared) | 2436 ns/op | 1931 B/op | 21 allocs/op |
-| logrus | 9393 ns/op | 5783 B/op | 77 allocs/op |
-| go-kit | 6929 ns/op | 3119 B/op | 65 allocs/op |
-| log15 | 25004 ns/op | 5535 B/op | 91 allocs/op |
-| apex/log | 18450 ns/op | 4025 B/op | 64 allocs/op |
+| :zap: zap | 1758 ns/op | 705 B/op | 2 allocs/op |
+| :zap: zap (sugared) | 3301 ns/op | 1610 B/op | 20 allocs/op |
+| go-kit | 8923 ns/op | 2895 B/op | 66 allocs/op |
+| lion | 10449 ns/op | 5807 B/op | 63 allocs/op |
+| logrus | 14566 ns/op | 6092 B/op | 78 allocs/op |
+| apex/log | 21129 ns/op | 3833 B/op | 65 allocs/op |
+| log15 | 24687 ns/op | 5632 B/op | 93 allocs/op |
 
 Log a message with a logger that already has 10 fields of context:
 
 | Library | Time | Bytes Allocated | Objects Allocated |
 | :--- | :---: | :---: | :---: |
-| :zap: zap | 368 ns/op | 0 B/op | 0 allocs/op |
-| :zap: zap (sugared) | 388 ns/op | 0 B/op | 0 allocs/op |
-| logrus | 8420 ns/op | 3967 B/op | 61 allocs/op |
-| go-kit | 7288 ns/op | 2950 B/op | 50 allocs/op |
-| log15 | 17678 ns/op | 2546 B/op | 42 allocs/op |
-| apex/log | 16126 ns/op | 2801 B/op | 49 allocs/op |
+| :zap: zap | 519 ns/op | 0 B/op | 0 allocs/op |
+| :zap: zap (sugared) | 690 ns/op | 80 B/op | 2 allocs/op |
+| lion | 6012 ns/op | 4074 B/op | 38 allocs/op |
+| go-kit | 7777 ns/op | 3046 B/op | 52 allocs/op |
+| logrus | 9013 ns/op | 4564 B/op | 63 allocs/op |
+| apex/log | 15824 ns/op | 2897 B/op | 51 allocs/op |
+| log15 | 16194 ns/op | 2642 B/op | 44 allocs/op |
 
 Log a static string, without any context or `printf`-style templating:
 
 | Library | Time | Bytes Allocated | Objects Allocated |
 | :--- | :---: | :---: | :---: |
-| :zap: zap | 398 ns/op | 0 B/op | 0 allocs/op |
-| :zap: zap (sugared) | 400 ns/op | 80 B/op | 2 allocs/op |
-| standard library | 678 ns/op | 80 B/op | 2 allocs/op |
-| logrus | 2778 ns/op | 1409 B/op | 25 allocs/op |
-| go-kit | 1318 ns/op | 656 B/op | 13 allocs/op |
-| log15 | 5720 ns/op | 1496 B/op | 24 allocs/op |
-| apex/log | 3282 ns/op | 584 B/op | 11 allocs/op |
+| :zap: zap | 594 ns/op | 0 B/op | 0 allocs/op |
+| standard library | 633 ns/op | 80 B/op | 2 allocs/op |
+| :zap: zap (sugared) | 702 ns/op | 80 B/op | 2 allocs/op |
+| go-kit | 1004 ns/op | 656 B/op | 13 allocs/op |
+| lion | 1543 ns/op | 1224 B/op | 10 allocs/op |
+| logrus | 2476 ns/op | 1505 B/op | 27 allocs/op |
+| apex/log | 3311 ns/op | 584 B/op | 11 allocs/op |
+| log15 | 6159 ns/op | 1592 B/op | 26 allocs/op |
 
-## Development Status: Release Candidate 2
-The current release is `v1.0.0-rc.2`. No further breaking changes are *planned*
-unless wider use reveals critical bugs or usability issues, but users who need
-absolute stability should wait for the 1.0.0 release.
+## Development Status: Stable
+All APIs are finalized, and no breaking changes will be made in the 1.x series
+of releases. Users of semver-aware dependency management systems should pin zap
+to `^1`.
 
 <hr>
+
 Released under the [MIT License](LICENSE.txt).
 
 <sup id="footnote-versions">1</sup> In particular, keep in mind that we may be

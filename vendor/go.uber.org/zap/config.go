@@ -21,7 +21,6 @@
 package zap
 
 import (
-	"fmt"
 	"sort"
 	"time"
 
@@ -77,6 +76,23 @@ type Config struct {
 	InitialFields map[string]interface{} `json:"initialFields" yaml:"initialFields"`
 }
 
+// NewProductionEncoderConfig returns an opinionated EncoderConfig for
+// production environments.
+func NewProductionEncoderConfig() zapcore.EncoderConfig {
+	return zapcore.EncoderConfig{
+		TimeKey:        "ts",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "msg",
+		StacktraceKey:  "stacktrace",
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.EpochTimeEncoder,
+		EncodeDuration: zapcore.SecondsDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	}
+}
+
 // NewProductionConfig is the recommended production configuration. Logging is
 // enabled at InfoLevel and above.
 //
@@ -90,20 +106,28 @@ func NewProductionConfig() Config {
 			Initial:    100,
 			Thereafter: 100,
 		},
-		Encoding: "json",
-		EncoderConfig: zapcore.EncoderConfig{
-			TimeKey:        "ts",
-			LevelKey:       "level",
-			NameKey:        "logger",
-			CallerKey:      "caller",
-			MessageKey:     "msg",
-			StacktraceKey:  "stacktrace",
-			EncodeLevel:    zapcore.LowercaseLevelEncoder,
-			EncodeTime:     zapcore.EpochTimeEncoder,
-			EncodeDuration: zapcore.SecondsDurationEncoder,
-		},
+		Encoding:         "json",
+		EncoderConfig:    NewProductionEncoderConfig(),
 		OutputPaths:      []string{"stderr"},
 		ErrorOutputPaths: []string{"stderr"},
+	}
+}
+
+// NewDevelopmentEncoderConfig returns an opinionated EncoderConfig for
+// development environments.
+func NewDevelopmentEncoderConfig() zapcore.EncoderConfig {
+	return zapcore.EncoderConfig{
+		// Keys can be anything except the empty string.
+		TimeKey:        "T",
+		LevelKey:       "L",
+		NameKey:        "N",
+		CallerKey:      "C",
+		MessageKey:     "M",
+		StacktraceKey:  "S",
+		EncodeLevel:    zapcore.CapitalLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
 }
 
@@ -118,21 +142,10 @@ func NewDevelopmentConfig() Config {
 	dyn.SetLevel(DebugLevel)
 
 	return Config{
-		Level:       dyn,
-		Development: true,
-		Encoding:    "console",
-		EncoderConfig: zapcore.EncoderConfig{
-			// Keys can be anything except the empty string.
-			TimeKey:        "T",
-			LevelKey:       "L",
-			NameKey:        "N",
-			CallerKey:      "C",
-			MessageKey:     "M",
-			StacktraceKey:  "S",
-			EncodeLevel:    zapcore.CapitalLevelEncoder,
-			EncodeTime:     zapcore.ISO8601TimeEncoder,
-			EncodeDuration: zapcore.StringDurationEncoder,
-		},
+		Level:            dyn,
+		Development:      true,
+		Encoding:         "console",
+		EncoderConfig:    NewDevelopmentEncoderConfig(),
 		OutputPaths:      []string{"stderr"},
 		ErrorOutputPaths: []string{"stderr"},
 	}
@@ -204,24 +217,16 @@ func (cfg Config) buildOptions(errSink zapcore.WriteSyncer) []Option {
 func (cfg Config) openSinks() (zapcore.WriteSyncer, zapcore.WriteSyncer, error) {
 	sink, closeOut, err := Open(cfg.OutputPaths...)
 	if err != nil {
-		closeOut()
 		return nil, nil, err
 	}
-	errSink, closeErr, err := Open(cfg.ErrorOutputPaths...)
+	errSink, _, err := Open(cfg.ErrorOutputPaths...)
 	if err != nil {
 		closeOut()
-		closeErr()
 		return nil, nil, err
 	}
 	return sink, errSink, nil
 }
 
 func (cfg Config) buildEncoder() (zapcore.Encoder, error) {
-	switch cfg.Encoding {
-	case "json":
-		return zapcore.NewJSONEncoder(cfg.EncoderConfig), nil
-	case "console":
-		return zapcore.NewConsoleEncoder(cfg.EncoderConfig), nil
-	}
-	return nil, fmt.Errorf("unknown encoding %q", cfg.Encoding)
+	return newEncoder(cfg.Encoding, cfg.EncoderConfig)
 }

@@ -25,7 +25,6 @@ import (
 	"math"
 	"time"
 
-	"go.uber.org/zap/internal/bufferpool"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -37,7 +36,8 @@ func Skip() zapcore.Field {
 // Binary constructs a field that carries an opaque binary blob.
 //
 // Binary data is serialized in an encoding-appropriate format. For example,
-// zap's JSON encoder base64-encodes binary blobs.
+// zap's JSON encoder base64-encodes binary blobs. To log UTF-8 encoded text,
+// use ByteString.
 func Binary(key string, val []byte) zapcore.Field {
 	return zapcore.Field{Key: key, Type: zapcore.BinaryType, Interface: val}
 }
@@ -49,6 +49,13 @@ func Bool(key string, val bool) zapcore.Field {
 		ival = 1
 	}
 	return zapcore.Field{Key: key, Type: zapcore.BoolType, Integer: ival}
+}
+
+// ByteString constructs a field that carries UTF-8 encoded text as a []byte.
+// To log opaque binary blobs (which aren't necessarily valid UTF-8), use
+// Binary.
+func ByteString(key string, val []byte) zapcore.Field {
+	return zapcore.Field{Key: key, Type: zapcore.ByteStringType, Interface: val}
 }
 
 // Complex128 constructs a field that carries a complex number. Unlike most
@@ -192,19 +199,14 @@ func NamedError(key string, err error) zapcore.Field {
 
 // Stack constructs a field that stores a stacktrace of the current goroutine
 // under provided key. Keep in mind that taking a stacktrace is eager and
-// extremely expensive (relatively speaking); this function both makes an
-// allocation and takes ~10 microseconds.
+// expensive (relatively speaking); this function both makes an allocation and
+// takes about two microseconds.
 func Stack(key string) zapcore.Field {
-	// Try to avoid allocating a buffer.
-	buf := bufferpool.Get()
-	bs := buf.Bytes()
 	// Returning the stacktrace as a string costs an allocation, but saves us
 	// from expanding the zapcore.Field union struct to include a byte slice. Since
 	// taking a stacktrace is already so expensive (~10us), the extra allocation
 	// is okay.
-	field := String(key, takeStacktrace(bs[:cap(bs)], false))
-	bufferpool.Put(buf)
-	return field
+	return String(key, takeStacktrace())
 }
 
 // Duration constructs a field with the given key and value. The encoder

@@ -1,1 +1,2 @@
-69b215d01a5606c843240eab4937eab3acee6530		branch 'master' of https://github.com/golang/protobuf
+2bba0603135d7d7f5cb73b2125beeda19c09f4ef		branch 'master' of https://github.com/golang/protobuf
+154c03a3a9331d88d991096c1c3023aafafecf64	not-for-merge	branch 'revert-275-go-context-stdlib' of https://github.com/golang/protobuf

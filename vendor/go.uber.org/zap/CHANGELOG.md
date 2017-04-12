@@ -1,6 +1,90 @@
 # Changelog
 
+## v1.1.0 (31 Mar 2017)
+
+This release fixes two bugs and adds some enhancements to zap's testing helpers.
+It is fully backward-compatible.
+
+Bugfixes:
+
+* [#385][]: Fix caller path trimming on Windows.
+* [#396][]: Fix a panic when attempting to use non-existent directories with
+  zap's configuration struct.
+
+Enhancements:
+
+* [#386][]: Add filtering helpers to zaptest's observing logger.
+
+Thanks to @moitias for contributing to this release.
+
+## v1.0.0 (14 Mar 2017)
+
+This is zap's first stable release. All exported APIs are now final, and no
+further breaking changes will be made in the 1.x release series. Anyone using a
+semver-aware dependency manager should now pin to `^1`.
+
+Breaking changes:
+
+* [#366][]: Add byte-oriented APIs to encoders to log UTF-8 encoded text without
+  casting from `[]byte` to `string`.
+* [#364][]: To support buffering outputs, add `Sync` methods to `zapcore.Core`,
+  `zap.Logger`, and `zap.SugaredLogger`.
+* [#371][]: Rename the `testutils` package to `zaptest`, which is less likely to
+  clash with other testing helpers.
+
+Bugfixes:
+
+* [#362][]: Make the ISO8601 time formatters fixed-width, which is friendlier
+  for tab-separated console output.
+* [#369][]: Remove the automatic locks in `zapcore.NewCore`, which allows zap to
+  work with concurrency-safe `WriteSyncer` implementations.
+* [#347][]: Stop reporting errors when trying to `fsync` standard out on Linux
+  systems.
+* [#373][]: Report the correct caller from zap's standard library
+  interoperability wrappers.
+
+Enhancements:
+
+* [#348][]: Add a registry allowing third-party encodings to work with zap's
+  built-in `Config`.
+* [#327][]: Make the representation of logger callers configurable (like times,
+  levels, and durations).
+* [#376][]: Allow third-party encoders to use their own buffer pools, which
+  removes the last performance advantage that zap's encoders have over plugins.
+* [#346][]: Add `CombineWriteSyncers`, a convenience function to tee multiple
+  `WriteSyncer`s and lock the result.
+* [#365][]: Make zap's stacktraces compatible with mid-stack inlining (coming in
+  Go 1.9).
+* [#372][]: Export zap's observing logger as `zaptest/observer`. This makes it
+  easier for particularly punctilious users to unit test their application's
+  logging.
+
+Thanks to @suyash, @htrendev, @flisky, @Ulexus, and @skipor for their
+contributions to this release.
+ 
+## v1.0.0-rc.3 (7 Mar 2017)
+
+This is the third release candidate for zap's stable release. There are no
+breaking changes.
+
+Bugfixes:
+
+* [#339][]: Byte slices passed to `zap.Any` are now correctly treated as binary blobs
+  rather than `[]uint8`.
+
+Enhancements:
+
+* [#307][]: Users can opt into colored output for log levels.
+* [#353][]: In addition to hijacking the output of the standard library's
+  package-global logging functions, users can now construct a zap-backed
+  `log.Logger` instance.
+* [#311][]: Frames from common runtime functions and some of zap's internal
+  machinery are now omitted from stacktraces.
+
+Thanks to @ansel1 and @suyash for their contributions to this release.
+
 ## v1.0.0-rc.2 (21 Feb 2017)
+
 This is the second release candidate for zap's stable release. It includes two
 breaking changes.
 
@@ -37,6 +121,7 @@ Enhancements:
 Thanks to @skipor and @chapsuk for their contributions to this release.
 
 ## v1.0.0-rc.1 (14 Feb 2017)
+
 This is the first release candidate for zap's stable release. There are multiple
 breaking changes and improvements from the pre-release version. Most notably:
 
@@ -56,9 +141,10 @@ breaking changes and improvements from the pre-release version. Most notably:
   timer heap.
 
 ## v0.1.0-beta.1 (6 Feb 2017)
+
 This is a minor version, tagged to allow users to pin to the pre-1.0 APIs and
 upgrade at their leisure. Since this is the first tagged release, there are no
-backwards compatibility concerns and all functionality is new.
+backward compatibility concerns and all functionality is new.
 
 Early zap adopters should pin to the 0.1.x minor version until they're ready to
 upgrade to the upcoming stable release.
@@ -71,3 +157,23 @@ upgrade to the upcoming stable release.
 [#333]: https://github.com/uber-go/zap/pull/333
 [#326]: https://github.com/uber-go/zap/pull/326
 [#300]: https://github.com/uber-go/zap/pull/300
+[#339]: https://github.com/uber-go/zap/pull/339
+[#307]: https://github.com/uber-go/zap/pull/307
+[#353]: https://github.com/uber-go/zap/pull/353
+[#311]: https://github.com/uber-go/zap/pull/311
+[#366]: https://github.com/uber-go/zap/pull/366
+[#364]: https://github.com/uber-go/zap/pull/364
+[#371]: https://github.com/uber-go/zap/pull/371
+[#362]: https://github.com/uber-go/zap/pull/362
+[#369]: https://github.com/uber-go/zap/pull/369
+[#347]: https://github.com/uber-go/zap/pull/347
+[#373]: https://github.com/uber-go/zap/pull/373
+[#348]: https://github.com/uber-go/zap/pull/348
+[#327]: https://github.com/uber-go/zap/pull/327
+[#376]: https://github.com/uber-go/zap/pull/376
+[#346]: https://github.com/uber-go/zap/pull/346
+[#365]: https://github.com/uber-go/zap/pull/365
+[#372]: https://github.com/uber-go/zap/pull/372
+[#385]: https://github.com/uber-go/zap/pull/385
+[#396]: https://github.com/uber-go/zap/pull/396
+[#386]: https://github.com/uber-go/zap/pull/386

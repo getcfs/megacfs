@@ -40,17 +40,17 @@ func TestConfig(t *testing.T) {
 			desc:    "production",
 			cfg:     NewProductionConfig(),
 			expectN: 2 + 100 + 1, // 2 from initial logs, 100 initial sampled logs, 1 from off-by-one in sampler
-			expectRe: `{"level":"info","caller":".*/go.uber.org/zap/config_test.go:\d+","msg":"info","k":"v","z":"zz"}` + "\n" +
-				`{"level":"warn","caller":".*/go.uber.org/zap/config_test.go:\d+","msg":"warn","k":"v","z":"zz"}` + "\n",
+			expectRe: `{"level":"info","caller":"zap/config_test.go:\d+","msg":"info","k":"v","z":"zz"}` + "\n" +
+				`{"level":"warn","caller":"zap/config_test.go:\d+","msg":"warn","k":"v","z":"zz"}` + "\n",
 		},
 		{
 			desc:    "development",
 			cfg:     NewDevelopmentConfig(),
 			expectN: 3 + 200, // 3 initial logs, all 200 subsequent logs
-			expectRe: "DEBUG\t.*go.uber.org/zap/config_test.go:" + `\d+` + "\tdebug\t" + `{"k": "v", "z": "zz"}` + "\n" +
-				"INFO\t.*go.uber.org/zap/config_test.go:" + `\d+` + "\tinfo\t" + `{"k": "v", "z": "zz"}` + "\n" +
-				"WARN\t.*go.uber.org/zap/config_test.go:" + `\d+` + "\twarn\t" + `{"k": "v", "z": "zz"}` + "\n" +
-				`goroutine \d+ \[running\]:`,
+			expectRe: "DEBUG\tzap/config_test.go:" + `\d+` + "\tdebug\t" + `{"k": "v", "z": "zz"}` + "\n" +
+				"INFO\tzap/config_test.go:" + `\d+` + "\tinfo\t" + `{"k": "v", "z": "zz"}` + "\n" +
+				"WARN\tzap/config_test.go:" + `\d+` + "\twarn\t" + `{"k": "v", "z": "zz"}` + "\n" +
+				`go.uber.org/zap.Stack`,
 		},
 	}
 
@@ -81,6 +81,28 @@ func TestConfig(t *testing.T) {
 				logger.Info("sampling")
 			}
 			assert.Equal(t, tt.expectN, count.Load(), "Hook called an unexpected number of times.")
+		})
+	}
+}
+
+func TestConfigWithInvalidPaths(t *testing.T) {
+	tests := []struct {
+		desc      string
+		output    string
+		errOutput string
+	}{
+		{"output directory doesn't exist", "/tmp/not-there/foo.log", "stderr"},
+		{"error output directory doesn't exist", "stdout", "/tmp/not-there/foo-errors.log"},
+		{"neither output directory exists", "/tmp/not-there/foo.log", "/tmp/not-there/foo-errors.log"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg := NewProductionConfig()
+			cfg.OutputPaths = []string{tt.output}
+			cfg.ErrorOutputPaths = []string{tt.errOutput}
+			_, err := cfg.Build()
+			assert.Error(t, err, "Expected an error opening a non-existent directory.")
 		})
 	}
 }
