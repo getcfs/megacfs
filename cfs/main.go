@@ -179,8 +179,7 @@ Examples:
 		fmt.Println("Invalid filesystem:", addrFSID)
 		return usageErr
 	}
-	// TODO: Just temp, get rid of + 1 at some point
-	newAddr := fmt.Sprintf("%s:%d", strings.ToLower(parts[0]), PORT+1)
+	addr := fmt.Sprintf("%s:%d", strings.ToLower(parts[0]), PORT)
 	fsid := parts[1]
 	mountpoint := f.Args()[1]
 	// Verify mountpoint exists
@@ -226,7 +225,7 @@ Examples:
 		if err = formic.NewFuseFormic(&formic.FuseFormicConfig{
 			Logger:     logger,
 			Mountpoint: mountpoint,
-			Address:    newAddr,
+			Address:    addr,
 			FSID:       fsid,
 			AllowOther: allowOther,
 			ReadOnly:   readOnly,
@@ -265,7 +264,7 @@ func main() {
 	authURL, _ := config["authURL"]
 	username, _ := config["username"]
 	password, _ := config["password"]
-	newAddr := fmt.Sprintf("%s:%d", ip, PORT+1)
+	addr := fmt.Sprintf("%s:%d", ip, PORT)
 
 	flag.Usage = func() {
 		fmt.Println("Usage:")
@@ -322,7 +321,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := list(newAddr, authURL, username, password)
+		err := list(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -332,7 +331,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := show(newAddr, authURL, username, password)
+		err := show(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -342,7 +341,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := create(newAddr, authURL, username, password)
+		err := create(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -352,7 +351,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := del(newAddr, authURL, username, password)
+		err := del(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -362,7 +361,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := update(newAddr, authURL, username, password)
+		err := update(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -372,7 +371,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := grant(newAddr, authURL, username, password)
+		err := grant(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -382,7 +381,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := revoke(newAddr, authURL, username, password)
+		err := revoke(addr, authURL, username, password)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -392,7 +391,7 @@ func main() {
 			fmt.Println("You must run \"cfs configure\" first.")
 			os.Exit(1)
 		}
-		err := check(newAddr)
+		err := check(addr)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

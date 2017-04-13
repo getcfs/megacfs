@@ -140,10 +140,6 @@ func (f *Formic) Startup(ctx context.Context) error {
 		close(f.shutdownChan)
 		return err
 	}
-	// TODO: Eventually get rid of the + 1
-	if grpcHostPort[len(grpcHostPort)-1] != '1' {
-		grpcHostPort = grpcHostPort[:len(grpcHostPort)-1] + "1"
-	}
 
 	groupStore := oort.NewReplGroupStore(&oort.GroupStoreConfig{
 		AddressIndex:    f.groupGRPCAddressIndex,
