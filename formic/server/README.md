@@ -9,12 +9,12 @@ CFS tracks the filesystems per account, some meta information about each filesys
 AID = account identifier  
 FSID = filesystem identifier  
 
-The following lists the group-store heirarchy where this meta information is stored.
+The following lists the group-store heirarchy where this meta information is stored:
 
 
 ## `/account/<aid>/<fsid>`
 
-These are of the type formicproto.MetaAccount2Filesystem, each containing just an FSID. Use /filesystem/<fsid> to lookup additional filesystem information.
+These are of the type formicproto.MetaAccount2Filesystem, each containing just an FSID. Use `/filesystem/<fsid>` to lookup additional filesystem information.
 
 
 ## `/filesystem/<fsid>`
