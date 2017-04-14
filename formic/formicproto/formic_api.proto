@@ -8,7 +8,7 @@ service Formic {
     rpc DeleteFS(stream DeleteFSRequest) returns (stream DeleteFSResponse) {}
     rpc GetAttr(stream GetAttrRequest) returns (stream GetAttrResponse) {}
     rpc GetXAttr(stream GetXAttrRequest) returns (stream GetXAttrResponse) {}
-    rpc GrantAddrFS(stream GrantAddrFSRequest) returns (stream GrantAddrFSResponse) {}
+    rpc GrantAddressFS(stream GrantAddressFSRequest) returns (stream GrantAddressFSResponse) {}
     rpc InitFS(stream InitFSRequest) returns (stream InitFSResponse) {}
     rpc ListFS(stream ListFSRequest) returns (stream ListFSResponse) {}
     rpc ListXAttr(stream ListXAttrRequest) returns (stream ListXAttrResponse) {}
@@ -20,7 +20,7 @@ service Formic {
     rpc Remove(stream RemoveRequest) returns (stream RemoveResponse) {}
     rpc RemoveXAttr(stream RemoveXAttrRequest) returns (stream RemoveXAttrResponse) {}
     rpc Rename(stream RenameRequest) returns (stream RenameResponse) {}
-    rpc RevokeAddrFS(stream RevokeAddrFSRequest) returns (stream RevokeAddrFSResponse) {}
+    rpc RevokeAddressFS(stream RevokeAddressFSRequest) returns (stream RevokeAddressFSResponse) {}
     rpc SetAttr(stream SetAttrRequest) returns (stream SetAttrResponse) {}
     rpc SetXAttr(stream SetXAttrRequest) returns (stream SetXAttrResponse) {}
     rpc ShowFS(stream ShowFSRequest) returns (stream ShowFSResponse) {}
@@ -47,12 +47,12 @@ message CheckResponse {
 message CreateFSRequest {
     uint32 RPCID  = 1;
     string Token  = 2;
-    string FSName = 3;
+    string Name   = 3;
 }
 
 message CreateFSResponse {
     uint32 RPCID = 1;
-    string Data  = 2;
+    string FSID  = 2;
     string Err   = 3;
 }
 
@@ -79,8 +79,7 @@ message DeleteFSRequest {
 
 message DeleteFSResponse {
     uint32 RPCID = 1;
-    string Data  = 2;
-    string Err   = 3;
+    string Err   = 2;
 }
 
 
@@ -111,17 +110,16 @@ message GetXAttrResponse {
 }
 
 
-message GrantAddrFSRequest {
-    uint32 RPCID = 1;
-    string Token = 2;
-    string FSID  = 3;
-    string Addr  = 4;
+message GrantAddressFSRequest {
+    uint32 RPCID   = 1;
+    string Token   = 2;
+    string FSID    = 3;
+    string Address = 4;
 }
 
-message GrantAddrFSResponse {
+message GrantAddressFSResponse {
     uint32 RPCID = 1;
-    string Data  = 2;
-    string Err   = 3;
+    string Err   = 2;
 }
 
 
@@ -141,9 +139,9 @@ message ListFSRequest{
 }
 
 message ListFSResponse {
-    uint32 RPCID = 1;
-    string Data  = 2;
-    string Err   = 3;
+    uint32            RPCID  = 1;
+    repeated FSIDName List = 2;
+    string            Err    = 3;
 }
 
 
@@ -206,9 +204,9 @@ message ReadDirAllRequest {
 }
 
 message ReadDirAllResponse {
-    uint32                 RPCID   = 1;
-    repeated ReadDirAllEnt Ents = 2;
-    string                 Err     = 3;
+    uint32                 RPCID = 1;
+    repeated ReadDirAllEnt Ents  = 2;
+    string                 Err   = 3;
 }
 
 message ReadDirAllEnt {
@@ -269,17 +267,16 @@ message RenameResponse {
 }
 
 
-message RevokeAddrFSRequest {
-    uint32 RPCID = 1;
-    string Token = 2;
-    string FSID  = 3;
-    string Addr  = 4;
+message RevokeAddressFSRequest {
+    uint32 RPCID   = 1;
+    string Token   = 2;
+    string FSID    = 3;
+    string Address = 4;
 }
 
-message RevokeAddrFSResponse {
+message RevokeAddressFSResponse {
     uint32 RPCID = 1;
-    string Data  = 2;
-    string Err   = 3;
+    string Err   = 2;
 }
 
 
@@ -318,9 +315,10 @@ message ShowFSRequest{
 }
 
 message ShowFSResponse {
-    uint32 RPCID = 1;
-    string Data  = 2;
-    string Err   = 3;
+    uint32          RPCID     = 1;
+	string          Name      = 2;
+	repeated string Addresses = 3;
+    string          Err       = 4;
 }
 
 
@@ -359,15 +357,14 @@ message SymLinkResponse {
 
 
 message UpdateFSRequest {
-    uint32 RPCID     = 1;
-    string Token     = 2;
-    string FSID      = 3;
-    string NewFSName = 4;
+    uint32 RPCID   = 1;
+    string Token   = 2;
+    string FSID    = 3;
+    string NewName = 4;
 }
 
 message UpdateFSResponse {
     uint32 RPCID = 1;
-    string Data  = 2;
     string Err   = 3;
 }
 
@@ -447,3 +444,23 @@ message Dirty {
     uint64 INode  = 4;
     uint64 Blocks = 5; // Blocks from the original object that was dirty
 }
+
+message MetaAccount2Filesystem {
+    string FSID = 1;
+}
+
+message MetaFilesystemEntry {
+    string AID  = 1;
+    string FSID = 2;
+    string Name = 3;
+}
+
+message MetaFilesystem2Address {
+    string Address = 1;
+}
+
+message FSIDName {
+	string FSID = 1;
+	string Name = 2;
+}
+
