@@ -199,8 +199,8 @@ func (g *grpcWrapper) GetXAttr(stream formicproto.Formic_GetXAttrServer) error {
 	}
 }
 
-func (g *grpcWrapper) GrantAddrFS(stream formicproto.Formic_GrantAddrFSServer) error {
-	var resp formicproto.GrantAddrFSResponse
+func (g *grpcWrapper) GrantAddressFS(stream formicproto.Formic_GrantAddressFSServer) error {
+	var resp formicproto.GrantAddressFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -213,7 +213,7 @@ func (g *grpcWrapper) GrantAddrFS(stream formicproto.Formic_GrantAddrFSServer) e
 		acctID, err := g.validateToken(g.fs.log, req.Token)
 		if err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.GrantAddrFS(stream.Context(), req, &resp, acctID); err != nil {
+		} else if err = g.fs.GrantAddressFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.RPCID = req.RPCID
@@ -487,8 +487,8 @@ func (g *grpcWrapper) Rename(stream formicproto.Formic_RenameServer) error {
 	}
 }
 
-func (g *grpcWrapper) RevokeAddrFS(stream formicproto.Formic_RevokeAddrFSServer) error {
-	var resp formicproto.RevokeAddrFSResponse
+func (g *grpcWrapper) RevokeAddressFS(stream formicproto.Formic_RevokeAddressFSServer) error {
+	var resp formicproto.RevokeAddressFSResponse
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -501,7 +501,7 @@ func (g *grpcWrapper) RevokeAddrFS(stream formicproto.Formic_RevokeAddrFSServer)
 		acctID, err := g.validateToken(g.fs.log, req.Token)
 		if err != nil {
 			resp.Err = err.Error()
-		} else if err = g.fs.RevokeAddrFS(stream.Context(), req, &resp, acctID); err != nil {
+		} else if err = g.fs.RevokeAddressFS(stream.Context(), req, &resp, acctID); err != nil {
 			resp.Err = err.Error()
 		}
 		resp.RPCID = req.RPCID
@@ -707,7 +707,7 @@ func (g *grpcWrapper) validateIP(ctx context.Context) (string, error) {
 	if ok && cacheTime.After(time.Now()) {
 		return fsid, nil
 	}
-	_, err = g.comms.ReadGroupItem(ctx, []byte(fmt.Sprintf("/fs/%s/addr", fsid)), []byte(ip))
+	_, err = g.comms.ReadGroupItem(ctx, []byte(fmt.Sprintf("/filesystem/%s/address", fsid)), []byte(ip))
 	if store.IsNotFound(err) {
 		return "", errors.New("permission denied")
 	}

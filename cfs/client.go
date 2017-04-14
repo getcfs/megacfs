@@ -65,18 +65,14 @@ func list(addr, authURL, username, password string) error {
 	}
 	token := auth(authURL, username, password)
 	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
-	jsonData, err := rpc.ListFS(context.Background(), token)
+	fsList, err := rpc.ListFS(context.Background(), token)
 	if err != nil {
 		fmt.Println("ListFS failed:", err)
 		os.Exit(1)
 	}
-	var data []map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
-		return fmt.Errorf("Error unmarshalling response: %v", err)
-	}
 	fmt.Printf("%-36s    %s\n", "ID", "Name")
-	for _, fs := range data {
-		fmt.Printf("%-36s    %s\n", fs["id"], fs["name"])
+	for _, fs := range fsList {
+		fmt.Printf("%-36s    %s\n", fs.FSID, fs.Name)
 	}
 	return nil
 }
@@ -97,20 +93,15 @@ func show(addr, authURL, username, password string) error {
 	fsid := f.Args()[0]
 	token := auth(authURL, username, password)
 	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
-	jsonData, err := rpc.ShowFS(context.Background(), token, fsid)
+	name, addresses, err := rpc.ShowFS(context.Background(), token, fsid)
 	if err != nil {
 		fmt.Println("ShowFS failed", err)
 		os.Exit(1)
 	}
-	var data map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
-		return fmt.Errorf("Error unmarshalling response: %v", err)
-	}
-	fmt.Println("ID:", data["id"])
-	fmt.Println("Name:", data["name"])
-	//fmt.Println("Status:", data["status"])
-	for _, ip := range data["addrs"].([]interface{}) {
-		fmt.Println("IP:", ip)
+	fmt.Println("FSID:   ", fsid)
+	fmt.Println("Name:   ", name)
+	for _, address := range addresses {
+		fmt.Println("Address:", address)
 	}
 	return nil
 }
@@ -132,12 +123,12 @@ func create(addr, authURL, username, password string) error {
 	name := f.Args()[0]
 	token := auth(authURL, username, password)
 	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
-	data, err := rpc.CreateFS(context.Background(), token, name)
+	fsid, err := rpc.CreateFS(context.Background(), token, name)
 	if err != nil {
 		fmt.Println("CreateFS failed:", err)
 		os.Exit(1)
 	}
-	fmt.Println("FSID:", data)
+	fmt.Println("FSID:", fsid)
 	return nil
 }
 
@@ -157,12 +148,11 @@ func del(addr, authURL, username, password string) error {
 	fsid := f.Args()[0]
 	token := auth(authURL, username, password)
 	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
-	data, err := rpc.DeleteFS(context.Background(), token, fsid)
+	err := rpc.DeleteFS(context.Background(), token, fsid)
 	if err != nil {
 		fmt.Println("DeleteFS failed:", err)
 		os.Exit(1)
 	}
-	fmt.Println(data)
 	return nil
 }
 
@@ -183,12 +173,11 @@ func update(addr, authURL, username, password string) error {
 	fsid := f.Args()[1]
 	token := auth(authURL, username, password)
 	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
-	data, err := rpc.UpdateFS(context.Background(), token, fsid, newFSName)
+	err := rpc.UpdateFS(context.Background(), token, fsid, newFSName)
 	if err != nil {
 		fmt.Println("UpdateFS failed:", err)
 		os.Exit(1)
 	}
-	fmt.Println(data)
 	return nil
 }
 
@@ -215,12 +204,11 @@ func grant(addr, authURL, username, password string) error {
 	}
 	token := auth(authURL, username, password)
 	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
-	data, err := rpc.GrantAddrFS(context.Background(), token, fsid, ip)
+	err := rpc.GrantAddressFS(context.Background(), token, fsid, ip)
 	if err != nil {
-		fmt.Println("GrantAddrFS failed:", err)
+		fmt.Println("GrantAddressFS failed:", err)
 		os.Exit(1)
 	}
-	fmt.Println(data)
 	return nil
 }
 
@@ -247,12 +235,11 @@ func revoke(addr, authURL, username, password string) error {
 	}
 	token := auth(authURL, username, password)
 	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
-	data, err := rpc.RevokeAddrFS(context.Background(), token, fsid, ip)
+	err := rpc.RevokeAddressFS(context.Background(), token, fsid, ip)
 	if err != nil {
-		fmt.Println("RevokeAddrFS failed", err)
+		fmt.Println("RevokeAddressFS failed", err)
 		os.Exit(1)
 	}
-	fmt.Println(data)
 	return nil
 }
 

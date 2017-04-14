@@ -45,9 +45,9 @@ type Formic struct {
 	freeGetXAttrReqChan    chan *asyncFormicGetXAttrRequest
 	freeGetXAttrResChan    chan *asyncFormicGetXAttrResponse
 
-	pendingGrantAddrFSReqChan chan *asyncFormicGrantAddrFSRequest
-	freeGrantAddrFSReqChan    chan *asyncFormicGrantAddrFSRequest
-	freeGrantAddrFSResChan    chan *asyncFormicGrantAddrFSResponse
+	pendingGrantAddressFSReqChan chan *asyncFormicGrantAddressFSRequest
+	freeGrantAddressFSReqChan    chan *asyncFormicGrantAddressFSRequest
+	freeGrantAddressFSResChan    chan *asyncFormicGrantAddressFSResponse
 
 	pendingInitFSReqChan chan *asyncFormicInitFSRequest
 	freeInitFSReqChan    chan *asyncFormicInitFSRequest
@@ -93,9 +93,9 @@ type Formic struct {
 	freeRenameReqChan    chan *asyncFormicRenameRequest
 	freeRenameResChan    chan *asyncFormicRenameResponse
 
-	pendingRevokeAddrFSReqChan chan *asyncFormicRevokeAddrFSRequest
-	freeRevokeAddrFSReqChan    chan *asyncFormicRevokeAddrFSRequest
-	freeRevokeAddrFSResChan    chan *asyncFormicRevokeAddrFSResponse
+	pendingRevokeAddressFSReqChan chan *asyncFormicRevokeAddressFSRequest
+	freeRevokeAddressFSReqChan    chan *asyncFormicRevokeAddressFSRequest
+	freeRevokeAddressFSResChan    chan *asyncFormicRevokeAddressFSResponse
 
 	pendingSetAttrReqChan chan *asyncFormicSetAttrRequest
 	freeSetAttrReqChan    chan *asyncFormicSetAttrRequest
@@ -201,16 +201,16 @@ func NewFormic(fsid string, addr string, concurrency int, ftlsConfig *ftls.Confi
 	}
 	go f.handleGetXAttr()
 
-	f.pendingGrantAddrFSReqChan = make(chan *asyncFormicGrantAddrFSRequest, concurrency)
-	f.freeGrantAddrFSReqChan = make(chan *asyncFormicGrantAddrFSRequest, concurrency)
-	f.freeGrantAddrFSResChan = make(chan *asyncFormicGrantAddrFSResponse, concurrency)
-	for i := 0; i < cap(f.freeGrantAddrFSReqChan); i++ {
-		f.freeGrantAddrFSReqChan <- &asyncFormicGrantAddrFSRequest{resChan: make(chan *asyncFormicGrantAddrFSResponse, 1)}
+	f.pendingGrantAddressFSReqChan = make(chan *asyncFormicGrantAddressFSRequest, concurrency)
+	f.freeGrantAddressFSReqChan = make(chan *asyncFormicGrantAddressFSRequest, concurrency)
+	f.freeGrantAddressFSResChan = make(chan *asyncFormicGrantAddressFSResponse, concurrency)
+	for i := 0; i < cap(f.freeGrantAddressFSReqChan); i++ {
+		f.freeGrantAddressFSReqChan <- &asyncFormicGrantAddressFSRequest{resChan: make(chan *asyncFormicGrantAddressFSResponse, 1)}
 	}
-	for i := 0; i < cap(f.freeGrantAddrFSResChan); i++ {
-		f.freeGrantAddrFSResChan <- &asyncFormicGrantAddrFSResponse{}
+	for i := 0; i < cap(f.freeGrantAddressFSResChan); i++ {
+		f.freeGrantAddressFSResChan <- &asyncFormicGrantAddressFSResponse{}
 	}
-	go f.handleGrantAddrFS()
+	go f.handleGrantAddressFS()
 
 	f.pendingInitFSReqChan = make(chan *asyncFormicInitFSRequest, concurrency)
 	f.freeInitFSReqChan = make(chan *asyncFormicInitFSRequest, concurrency)
@@ -333,16 +333,16 @@ func NewFormic(fsid string, addr string, concurrency int, ftlsConfig *ftls.Confi
 	}
 	go f.handleRename()
 
-	f.pendingRevokeAddrFSReqChan = make(chan *asyncFormicRevokeAddrFSRequest, concurrency)
-	f.freeRevokeAddrFSReqChan = make(chan *asyncFormicRevokeAddrFSRequest, concurrency)
-	f.freeRevokeAddrFSResChan = make(chan *asyncFormicRevokeAddrFSResponse, concurrency)
-	for i := 0; i < cap(f.freeRevokeAddrFSReqChan); i++ {
-		f.freeRevokeAddrFSReqChan <- &asyncFormicRevokeAddrFSRequest{resChan: make(chan *asyncFormicRevokeAddrFSResponse, 1)}
+	f.pendingRevokeAddressFSReqChan = make(chan *asyncFormicRevokeAddressFSRequest, concurrency)
+	f.freeRevokeAddressFSReqChan = make(chan *asyncFormicRevokeAddressFSRequest, concurrency)
+	f.freeRevokeAddressFSResChan = make(chan *asyncFormicRevokeAddressFSResponse, concurrency)
+	for i := 0; i < cap(f.freeRevokeAddressFSReqChan); i++ {
+		f.freeRevokeAddressFSReqChan <- &asyncFormicRevokeAddressFSRequest{resChan: make(chan *asyncFormicRevokeAddressFSResponse, 1)}
 	}
-	for i := 0; i < cap(f.freeRevokeAddrFSResChan); i++ {
-		f.freeRevokeAddrFSResChan <- &asyncFormicRevokeAddrFSResponse{}
+	for i := 0; i < cap(f.freeRevokeAddressFSResChan); i++ {
+		f.freeRevokeAddressFSResChan <- &asyncFormicRevokeAddressFSResponse{}
 	}
-	go f.handleRevokeAddrFS()
+	go f.handleRevokeAddressFS()
 
 	f.pendingSetAttrReqChan = make(chan *asyncFormicSetAttrRequest, concurrency)
 	f.freeSetAttrReqChan = make(chan *asyncFormicSetAttrRequest, concurrency)
@@ -825,7 +825,7 @@ func (f *Formic) handleCreateFS() {
 	}
 }
 
-func (f *Formic) CreateFS(ctx context.Context, token string, fsName string) (data string, err error) {
+func (f *Formic) CreateFS(ctx context.Context, token string, name string) (fsid string, err error) {
 
 	var req *asyncFormicCreateFSRequest
 	select {
@@ -838,7 +838,7 @@ func (f *Formic) CreateFS(ctx context.Context, token string, fsName string) (dat
 	req.canceled = false
 
 	req.req.Token = token
-	req.req.FSName = fsName
+	req.req.Name = name
 
 	select {
 	case f.pendingCreateFSReqChan <- req:
@@ -872,7 +872,7 @@ func (f *Formic) CreateFS(ctx context.Context, token string, fsName string) (dat
 
 	}
 
-	data = res.res.Data
+	fsid = res.res.FSID
 
 	if res.res.Err == "" {
 		err = nil
@@ -881,7 +881,7 @@ func (f *Formic) CreateFS(ctx context.Context, token string, fsName string) (dat
 	}
 	f.freeCreateFSResChan <- res
 
-	return data, err
+	return fsid, err
 
 }
 
@@ -1228,14 +1228,14 @@ func (f *Formic) handleDeleteFS() {
 	}
 }
 
-func (f *Formic) DeleteFS(ctx context.Context, token string, fsid string) (data string, err error) {
+func (f *Formic) DeleteFS(ctx context.Context, token string, fsid string) (err error) {
 
 	var req *asyncFormicDeleteFSRequest
 	select {
 	case req = <-f.freeDeleteFSReqChan:
 	case <-ctx.Done():
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
 	req.canceled = false
@@ -1248,7 +1248,7 @@ func (f *Formic) DeleteFS(ctx context.Context, token string, fsid string) (data 
 	case <-ctx.Done():
 		f.freeDeleteFSReqChan <- req
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
 	var res *asyncFormicDeleteFSResponse
@@ -1263,7 +1263,7 @@ func (f *Formic) DeleteFS(ctx context.Context, token string, fsid string) (data 
 		}
 		req.canceledLock.Unlock()
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
 	f.freeDeleteFSReqChan <- req
@@ -1271,11 +1271,9 @@ func (f *Formic) DeleteFS(ctx context.Context, token string, fsid string) (data 
 		err = res.err
 		f.freeDeleteFSResChan <- res
 
-		return "", err
+		return err
 
 	}
-
-	data = res.res.Data
 
 	if res.res.Err == "" {
 		err = nil
@@ -1284,7 +1282,7 @@ func (f *Formic) DeleteFS(ctx context.Context, token string, fsid string) (data 
 	}
 	f.freeDeleteFSResChan <- res
 
-	return data, err
+	return err
 
 }
 
@@ -1691,26 +1689,26 @@ func (f *Formic) GetXAttr(ctx context.Context, iNode uint64, name string, size u
 
 }
 
-type asyncFormicGrantAddrFSRequest struct {
-	req          pb.GrantAddrFSRequest
-	resChan      chan *asyncFormicGrantAddrFSResponse
+type asyncFormicGrantAddressFSRequest struct {
+	req          pb.GrantAddressFSRequest
+	resChan      chan *asyncFormicGrantAddressFSResponse
 	canceledLock sync.Mutex
 	canceled     bool
 }
 
-type asyncFormicGrantAddrFSResponse struct {
-	res *pb.GrantAddrFSResponse
+type asyncFormicGrantAddressFSResponse struct {
+	res *pb.GrantAddressFSResponse
 	err error
 }
 
-func (f *Formic) handleGrantAddrFS() {
-	resChan := make(chan *asyncFormicGrantAddrFSResponse, cap(f.freeGrantAddrFSReqChan))
-	resFunc := func(stream pb.Formic_GrantAddrFSClient) {
+func (f *Formic) handleGrantAddressFS() {
+	resChan := make(chan *asyncFormicGrantAddressFSResponse, cap(f.freeGrantAddressFSReqChan))
+	resFunc := func(stream pb.Formic_GrantAddressFSClient) {
 		var err error
-		var res *asyncFormicGrantAddrFSResponse
+		var res *asyncFormicGrantAddressFSResponse
 		for {
 			select {
-			case res = <-f.freeGrantAddrFSResChan:
+			case res = <-f.freeGrantAddressFSResChan:
 			case <-f.handlersDoneChan:
 				return
 			}
@@ -1730,13 +1728,13 @@ func (f *Formic) handleGrantAddrFS() {
 		}
 	}
 	var err error
-	var stream pb.Formic_GrantAddrFSClient
-	waitingMax := uint32(cap(f.freeGrantAddrFSReqChan)) - 1
-	waiting := make([]*asyncFormicGrantAddrFSRequest, waitingMax+1)
+	var stream pb.Formic_GrantAddressFSClient
+	waitingMax := uint32(cap(f.freeGrantAddressFSReqChan)) - 1
+	waiting := make([]*asyncFormicGrantAddressFSRequest, waitingMax+1)
 	waitingIndex := uint32(0)
 	for {
 		select {
-		case req := <-f.pendingGrantAddrFSReqChan:
+		case req := <-f.pendingGrantAddressFSReqChan:
 			j := waitingIndex
 			for waiting[waitingIndex] != nil {
 				waitingIndex++
@@ -1744,7 +1742,7 @@ func (f *Formic) handleGrantAddrFS() {
 					waitingIndex = 0
 				}
 				if waitingIndex == j {
-					panic("coding error: got more concurrent requests from pendingGrantAddrFSReqChan than should be available")
+					panic("coding error: got more concurrent requests from pendingGrantAddressFSReqChan than should be available")
 				}
 			}
 			req.req.RPCID = waitingIndex
@@ -1758,19 +1756,19 @@ func (f *Formic) handleGrantAddrFS() {
 				if f.client == nil {
 					if err = f.startup(); err != nil {
 						f.lock.Unlock()
-						res := <-f.freeGrantAddrFSResChan
+						res := <-f.freeGrantAddressFSResChan
 						res.err = err
-						res.res = &pb.GrantAddrFSResponse{RPCID: req.req.RPCID}
+						res.res = &pb.GrantAddressFSResponse{RPCID: req.req.RPCID}
 						resChan <- res
 						break
 					}
 				}
-				stream, err = f.client.GrantAddrFS(metadata.NewContext(context.Background(), metadata.Pairs("fsid", f.fsid)))
+				stream, err = f.client.GrantAddressFS(metadata.NewContext(context.Background(), metadata.Pairs("fsid", f.fsid)))
 				f.lock.Unlock()
 				if err != nil {
-					res := <-f.freeGrantAddrFSResChan
+					res := <-f.freeGrantAddressFSResChan
 					res.err = err
-					res.res = &pb.GrantAddrFSResponse{RPCID: req.req.RPCID}
+					res.res = &pb.GrantAddressFSResponse{RPCID: req.req.RPCID}
 					resChan <- res
 					break
 				}
@@ -1778,16 +1776,16 @@ func (f *Formic) handleGrantAddrFS() {
 			}
 			if err = stream.Send(&req.req); err != nil {
 				stream = nil
-				res := <-f.freeGrantAddrFSResChan
+				res := <-f.freeGrantAddressFSResChan
 				res.err = err
-				res.res = &pb.GrantAddrFSResponse{RPCID: req.req.RPCID}
+				res.res = &pb.GrantAddressFSResponse{RPCID: req.req.RPCID}
 				resChan <- res
 			}
 		case res := <-resChan:
 			if res.res == nil {
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
-				wereWaiting := make([]*asyncFormicGrantAddrFSRequest, len(waiting))
+				wereWaiting := make([]*asyncFormicGrantAddressFSRequest, len(waiting))
 				for i, v := range waiting {
 					wereWaiting[i] = v
 				}
@@ -1795,14 +1793,14 @@ func (f *Formic) handleGrantAddrFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
-				go func(reqs []*asyncFormicGrantAddrFSRequest, err error) {
+				go func(reqs []*asyncFormicGrantAddressFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
 							continue
 						}
-						res := <-f.freeGrantAddrFSResChan
+						res := <-f.freeGrantAddressFSResChan
 						res.err = err
-						res.res = &pb.GrantAddrFSResponse{RPCID: req.req.RPCID}
+						res.res = &pb.GrantAddressFSResponse{RPCID: req.req.RPCID}
 						resChan <- res
 					}
 				}(wereWaiting, err)
@@ -1822,8 +1820,8 @@ func (f *Formic) handleGrantAddrFS() {
 			if !req.canceled {
 				req.resChan <- res
 			} else {
-				f.freeGrantAddrFSReqChan <- req
-				f.freeGrantAddrFSResChan <- res
+				f.freeGrantAddressFSReqChan <- req
+				f.freeGrantAddressFSResChan <- res
 			}
 			req.canceledLock.Unlock()
 		case <-f.handlersDoneChan:
@@ -1832,31 +1830,31 @@ func (f *Formic) handleGrantAddrFS() {
 	}
 }
 
-func (f *Formic) GrantAddrFS(ctx context.Context, token string, fsid string, addr string) (data string, err error) {
+func (f *Formic) GrantAddressFS(ctx context.Context, token string, fsid string, address string) (err error) {
 
-	var req *asyncFormicGrantAddrFSRequest
+	var req *asyncFormicGrantAddressFSRequest
 	select {
-	case req = <-f.freeGrantAddrFSReqChan:
+	case req = <-f.freeGrantAddressFSReqChan:
 	case <-ctx.Done():
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
 	req.canceled = false
 
 	req.req.Token = token
 	req.req.FSID = fsid
-	req.req.Addr = addr
+	req.req.Address = address
 
 	select {
-	case f.pendingGrantAddrFSReqChan <- req:
+	case f.pendingGrantAddressFSReqChan <- req:
 	case <-ctx.Done():
-		f.freeGrantAddrFSReqChan <- req
+		f.freeGrantAddressFSReqChan <- req
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
-	var res *asyncFormicGrantAddrFSResponse
+	var res *asyncFormicGrantAddressFSResponse
 	select {
 	case res = <-req.resChan:
 	case <-ctx.Done():
@@ -1868,28 +1866,26 @@ func (f *Formic) GrantAddrFS(ctx context.Context, token string, fsid string, add
 		}
 		req.canceledLock.Unlock()
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
-	f.freeGrantAddrFSReqChan <- req
+	f.freeGrantAddressFSReqChan <- req
 	if res.err != nil {
 		err = res.err
-		f.freeGrantAddrFSResChan <- res
+		f.freeGrantAddressFSResChan <- res
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
-
-	data = res.res.Data
 
 	if res.res.Err == "" {
 		err = nil
 	} else {
 		err = errors.New(res.res.Err)
 	}
-	f.freeGrantAddrFSResChan <- res
+	f.freeGrantAddressFSResChan <- res
 
-	return data, err
+	return err
 
 }
 
@@ -2230,14 +2226,14 @@ func (f *Formic) handleListFS() {
 	}
 }
 
-func (f *Formic) ListFS(ctx context.Context, token string) (data string, err error) {
+func (f *Formic) ListFS(ctx context.Context, token string) (list []*pb.FSIDName, err error) {
 
 	var req *asyncFormicListFSRequest
 	select {
 	case req = <-f.freeListFSReqChan:
 	case <-ctx.Done():
 
-		return "", ctx.Err()
+		return nil, ctx.Err()
 
 	}
 	req.canceled = false
@@ -2249,7 +2245,7 @@ func (f *Formic) ListFS(ctx context.Context, token string) (data string, err err
 	case <-ctx.Done():
 		f.freeListFSReqChan <- req
 
-		return "", ctx.Err()
+		return nil, ctx.Err()
 
 	}
 	var res *asyncFormicListFSResponse
@@ -2264,7 +2260,7 @@ func (f *Formic) ListFS(ctx context.Context, token string) (data string, err err
 		}
 		req.canceledLock.Unlock()
 
-		return "", ctx.Err()
+		return nil, ctx.Err()
 
 	}
 	f.freeListFSReqChan <- req
@@ -2272,11 +2268,11 @@ func (f *Formic) ListFS(ctx context.Context, token string) (data string, err err
 		err = res.err
 		f.freeListFSResChan <- res
 
-		return "", ctx.Err()
+		return nil, ctx.Err()
 
 	}
 
-	data = res.res.Data
+	list = res.res.List
 
 	if res.res.Err == "" {
 		err = nil
@@ -2285,7 +2281,7 @@ func (f *Formic) ListFS(ctx context.Context, token string) (data string, err err
 	}
 	f.freeListFSResChan <- res
 
-	return data, err
+	return list, err
 
 }
 
@@ -4095,26 +4091,26 @@ func (f *Formic) Rename(ctx context.Context, oldParent uint64, newParent uint64,
 
 }
 
-type asyncFormicRevokeAddrFSRequest struct {
-	req          pb.RevokeAddrFSRequest
-	resChan      chan *asyncFormicRevokeAddrFSResponse
+type asyncFormicRevokeAddressFSRequest struct {
+	req          pb.RevokeAddressFSRequest
+	resChan      chan *asyncFormicRevokeAddressFSResponse
 	canceledLock sync.Mutex
 	canceled     bool
 }
 
-type asyncFormicRevokeAddrFSResponse struct {
-	res *pb.RevokeAddrFSResponse
+type asyncFormicRevokeAddressFSResponse struct {
+	res *pb.RevokeAddressFSResponse
 	err error
 }
 
-func (f *Formic) handleRevokeAddrFS() {
-	resChan := make(chan *asyncFormicRevokeAddrFSResponse, cap(f.freeRevokeAddrFSReqChan))
-	resFunc := func(stream pb.Formic_RevokeAddrFSClient) {
+func (f *Formic) handleRevokeAddressFS() {
+	resChan := make(chan *asyncFormicRevokeAddressFSResponse, cap(f.freeRevokeAddressFSReqChan))
+	resFunc := func(stream pb.Formic_RevokeAddressFSClient) {
 		var err error
-		var res *asyncFormicRevokeAddrFSResponse
+		var res *asyncFormicRevokeAddressFSResponse
 		for {
 			select {
-			case res = <-f.freeRevokeAddrFSResChan:
+			case res = <-f.freeRevokeAddressFSResChan:
 			case <-f.handlersDoneChan:
 				return
 			}
@@ -4134,13 +4130,13 @@ func (f *Formic) handleRevokeAddrFS() {
 		}
 	}
 	var err error
-	var stream pb.Formic_RevokeAddrFSClient
-	waitingMax := uint32(cap(f.freeRevokeAddrFSReqChan)) - 1
-	waiting := make([]*asyncFormicRevokeAddrFSRequest, waitingMax+1)
+	var stream pb.Formic_RevokeAddressFSClient
+	waitingMax := uint32(cap(f.freeRevokeAddressFSReqChan)) - 1
+	waiting := make([]*asyncFormicRevokeAddressFSRequest, waitingMax+1)
 	waitingIndex := uint32(0)
 	for {
 		select {
-		case req := <-f.pendingRevokeAddrFSReqChan:
+		case req := <-f.pendingRevokeAddressFSReqChan:
 			j := waitingIndex
 			for waiting[waitingIndex] != nil {
 				waitingIndex++
@@ -4148,7 +4144,7 @@ func (f *Formic) handleRevokeAddrFS() {
 					waitingIndex = 0
 				}
 				if waitingIndex == j {
-					panic("coding error: got more concurrent requests from pendingRevokeAddrFSReqChan than should be available")
+					panic("coding error: got more concurrent requests from pendingRevokeAddressFSReqChan than should be available")
 				}
 			}
 			req.req.RPCID = waitingIndex
@@ -4162,19 +4158,19 @@ func (f *Formic) handleRevokeAddrFS() {
 				if f.client == nil {
 					if err = f.startup(); err != nil {
 						f.lock.Unlock()
-						res := <-f.freeRevokeAddrFSResChan
+						res := <-f.freeRevokeAddressFSResChan
 						res.err = err
-						res.res = &pb.RevokeAddrFSResponse{RPCID: req.req.RPCID}
+						res.res = &pb.RevokeAddressFSResponse{RPCID: req.req.RPCID}
 						resChan <- res
 						break
 					}
 				}
-				stream, err = f.client.RevokeAddrFS(metadata.NewContext(context.Background(), metadata.Pairs("fsid", f.fsid)))
+				stream, err = f.client.RevokeAddressFS(metadata.NewContext(context.Background(), metadata.Pairs("fsid", f.fsid)))
 				f.lock.Unlock()
 				if err != nil {
-					res := <-f.freeRevokeAddrFSResChan
+					res := <-f.freeRevokeAddressFSResChan
 					res.err = err
-					res.res = &pb.RevokeAddrFSResponse{RPCID: req.req.RPCID}
+					res.res = &pb.RevokeAddressFSResponse{RPCID: req.req.RPCID}
 					resChan <- res
 					break
 				}
@@ -4182,16 +4178,16 @@ func (f *Formic) handleRevokeAddrFS() {
 			}
 			if err = stream.Send(&req.req); err != nil {
 				stream = nil
-				res := <-f.freeRevokeAddrFSResChan
+				res := <-f.freeRevokeAddressFSResChan
 				res.err = err
-				res.res = &pb.RevokeAddrFSResponse{RPCID: req.req.RPCID}
+				res.res = &pb.RevokeAddressFSResponse{RPCID: req.req.RPCID}
 				resChan <- res
 			}
 		case res := <-resChan:
 			if res.res == nil {
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
-				wereWaiting := make([]*asyncFormicRevokeAddrFSRequest, len(waiting))
+				wereWaiting := make([]*asyncFormicRevokeAddressFSRequest, len(waiting))
 				for i, v := range waiting {
 					wereWaiting[i] = v
 				}
@@ -4199,14 +4195,14 @@ func (f *Formic) handleRevokeAddrFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
-				go func(reqs []*asyncFormicRevokeAddrFSRequest, err error) {
+				go func(reqs []*asyncFormicRevokeAddressFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
 							continue
 						}
-						res := <-f.freeRevokeAddrFSResChan
+						res := <-f.freeRevokeAddressFSResChan
 						res.err = err
-						res.res = &pb.RevokeAddrFSResponse{RPCID: req.req.RPCID}
+						res.res = &pb.RevokeAddressFSResponse{RPCID: req.req.RPCID}
 						resChan <- res
 					}
 				}(wereWaiting, err)
@@ -4226,8 +4222,8 @@ func (f *Formic) handleRevokeAddrFS() {
 			if !req.canceled {
 				req.resChan <- res
 			} else {
-				f.freeRevokeAddrFSReqChan <- req
-				f.freeRevokeAddrFSResChan <- res
+				f.freeRevokeAddressFSReqChan <- req
+				f.freeRevokeAddressFSResChan <- res
 			}
 			req.canceledLock.Unlock()
 		case <-f.handlersDoneChan:
@@ -4236,31 +4232,31 @@ func (f *Formic) handleRevokeAddrFS() {
 	}
 }
 
-func (f *Formic) RevokeAddrFS(ctx context.Context, token string, fsid string, addr string) (data string, err error) {
+func (f *Formic) RevokeAddressFS(ctx context.Context, token string, fsid string, address string) (err error) {
 
-	var req *asyncFormicRevokeAddrFSRequest
+	var req *asyncFormicRevokeAddressFSRequest
 	select {
-	case req = <-f.freeRevokeAddrFSReqChan:
+	case req = <-f.freeRevokeAddressFSReqChan:
 	case <-ctx.Done():
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
 	req.canceled = false
 
 	req.req.Token = token
 	req.req.FSID = fsid
-	req.req.Addr = addr
+	req.req.Address = address
 
 	select {
-	case f.pendingRevokeAddrFSReqChan <- req:
+	case f.pendingRevokeAddressFSReqChan <- req:
 	case <-ctx.Done():
-		f.freeRevokeAddrFSReqChan <- req
+		f.freeRevokeAddressFSReqChan <- req
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
-	var res *asyncFormicRevokeAddrFSResponse
+	var res *asyncFormicRevokeAddressFSResponse
 	select {
 	case res = <-req.resChan:
 	case <-ctx.Done():
@@ -4272,28 +4268,26 @@ func (f *Formic) RevokeAddrFS(ctx context.Context, token string, fsid string, ad
 		}
 		req.canceledLock.Unlock()
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
-	f.freeRevokeAddrFSReqChan <- req
+	f.freeRevokeAddressFSReqChan <- req
 	if res.err != nil {
 		err = res.err
-		f.freeRevokeAddrFSResChan <- res
+		f.freeRevokeAddressFSResChan <- res
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
-
-	data = res.res.Data
 
 	if res.res.Err == "" {
 		err = nil
 	} else {
 		err = errors.New(res.res.Err)
 	}
-	f.freeRevokeAddrFSResChan <- res
+	f.freeRevokeAddressFSResChan <- res
 
-	return data, err
+	return err
 
 }
 
@@ -4841,14 +4835,14 @@ func (f *Formic) handleShowFS() {
 	}
 }
 
-func (f *Formic) ShowFS(ctx context.Context, token string, fsid string) (data string, err error) {
+func (f *Formic) ShowFS(ctx context.Context, token string, fsid string) (name string, addresses []string, err error) {
 
 	var req *asyncFormicShowFSRequest
 	select {
 	case req = <-f.freeShowFSReqChan:
 	case <-ctx.Done():
 
-		return "", ctx.Err()
+		return "", nil, ctx.Err()
 
 	}
 	req.canceled = false
@@ -4861,7 +4855,7 @@ func (f *Formic) ShowFS(ctx context.Context, token string, fsid string) (data st
 	case <-ctx.Done():
 		f.freeShowFSReqChan <- req
 
-		return "", ctx.Err()
+		return "", nil, ctx.Err()
 
 	}
 	var res *asyncFormicShowFSResponse
@@ -4876,7 +4870,7 @@ func (f *Formic) ShowFS(ctx context.Context, token string, fsid string) (data st
 		}
 		req.canceledLock.Unlock()
 
-		return "", ctx.Err()
+		return "", nil, ctx.Err()
 
 	}
 	f.freeShowFSReqChan <- req
@@ -4884,11 +4878,12 @@ func (f *Formic) ShowFS(ctx context.Context, token string, fsid string) (data st
 		err = res.err
 		f.freeShowFSResChan <- res
 
-		return "", ctx.Err()
+		return "", nil, ctx.Err()
 
 	}
 
-	data = res.res.Data
+	name = res.res.Name
+	addresses = res.res.Addresses
 
 	if res.res.Err == "" {
 		err = nil
@@ -4897,7 +4892,7 @@ func (f *Formic) ShowFS(ctx context.Context, token string, fsid string) (data st
 	}
 	f.freeShowFSResChan <- res
 
-	return data, err
+	return name, addresses, err
 
 }
 
@@ -5451,28 +5446,28 @@ func (f *Formic) handleUpdateFS() {
 	}
 }
 
-func (f *Formic) UpdateFS(ctx context.Context, token string, fsid string, newFSName string) (data string, err error) {
+func (f *Formic) UpdateFS(ctx context.Context, token string, fsid string, newName string) (err error) {
 
 	var req *asyncFormicUpdateFSRequest
 	select {
 	case req = <-f.freeUpdateFSReqChan:
 	case <-ctx.Done():
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
 	req.canceled = false
 
 	req.req.Token = token
 	req.req.FSID = fsid
-	req.req.NewFSName = newFSName
+	req.req.NewName = newName
 
 	select {
 	case f.pendingUpdateFSReqChan <- req:
 	case <-ctx.Done():
 		f.freeUpdateFSReqChan <- req
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
 	var res *asyncFormicUpdateFSResponse
@@ -5487,7 +5482,7 @@ func (f *Formic) UpdateFS(ctx context.Context, token string, fsid string, newFSN
 		}
 		req.canceledLock.Unlock()
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
 	f.freeUpdateFSReqChan <- req
@@ -5495,11 +5490,9 @@ func (f *Formic) UpdateFS(ctx context.Context, token string, fsid string, newFSN
 		err = res.err
 		f.freeUpdateFSResChan <- res
 
-		return "", ctx.Err()
+		return ctx.Err()
 
 	}
-
-	data = res.res.Data
 
 	if res.res.Err == "" {
 		err = nil
@@ -5508,7 +5501,7 @@ func (f *Formic) UpdateFS(ctx context.Context, token string, fsid string, newFSN
 	}
 	f.freeUpdateFSResChan <- res
 
-	return data, err
+	return err
 
 }
 

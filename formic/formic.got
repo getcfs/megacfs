@@ -254,21 +254,21 @@ func (f *{{.T}}) Close() {
     {{if eq $R "Check"}}
         func (f *{{$.T}}) Check(ctx context.Context, parentINode uint64, childName string) (response string, err error) {
     {{else if eq $R "CreateFS"}}
-        func (f *{{$.T}}) CreateFS(ctx context.Context, token string, fsName string) (data string, err error) {
+        func (f *{{$.T}}) CreateFS(ctx context.Context, token string, name string) (fsid string, err error) {
     {{else if eq $R "Create"}}
         func (f *{{$.T}}) Create(ctx context.Context, parentINode uint64, childName string, childAttr *pb.Attr) (resultingChildAttr *pb.Attr, err error) {
     {{else if eq $R "DeleteFS"}}
-        func (f *{{$.T}}) DeleteFS(ctx context.Context, token string, fsid string) (data string, err error) {
+        func (f *{{$.T}}) DeleteFS(ctx context.Context, token string, fsid string) (err error) {
     {{else if eq $R "GetAttr"}}
         func (f *{{$.T}}) GetAttr(ctx context.Context, iNode uint64) (attr *pb.Attr, err error) {
     {{else if eq $R "GetXAttr"}}
         func (f *{{$.T}}) GetXAttr(ctx context.Context, iNode uint64, name string, size uint32, position uint32) (xAttr []byte, err error) {
-    {{else if eq $R "GrantAddrFS"}}
-        func (f *{{$.T}}) GrantAddrFS(ctx context.Context, token string, fsid string, addr string) (data string, err error) {
+    {{else if eq $R "GrantAddressFS"}}
+        func (f *{{$.T}}) GrantAddressFS(ctx context.Context, token string, fsid string, address string) (err error) {
     {{else if eq $R "InitFS"}}
         func (f *{{$.T}}) InitFS(ctx context.Context) (err error) {
     {{else if eq $R "ListFS"}}
-        func (f *{{$.T}}) ListFS(ctx context.Context, token string) (data string, err error) {
+        func (f *{{$.T}}) ListFS(ctx context.Context, token string) (list []*pb.FSIDName, err error) {
     {{else if eq $R "ListXAttr"}}
         func (f *{{$.T}}) ListXAttr(ctx context.Context, iNode uint64, size uint32, position uint32) (xAttr []byte, err error) {
     {{else if eq $R "Lookup"}}
@@ -287,20 +287,20 @@ func (f *{{.T}}) Close() {
         func (f *{{$.T}}) RemoveXAttr(ctx context.Context, iNode uint64, name string) (err error) {
     {{else if eq $R "Rename"}}
         func (f *{{$.T}}) Rename(ctx context.Context, oldParent uint64, newParent uint64, oldName string, newName string) (err error) {
-    {{else if eq $R "RevokeAddrFS"}}
-        func (f *{{$.T}}) RevokeAddrFS(ctx context.Context, token string, fsid string, addr string) (data string, err error) {
+    {{else if eq $R "RevokeAddressFS"}}
+        func (f *{{$.T}}) RevokeAddressFS(ctx context.Context, token string, fsid string, address string) (err error) {
     {{else if eq $R "SetAttr"}}
         func (f *{{$.T}}) SetAttr(ctx context.Context, attr *pb.Attr, valid uint32) (resultingAttr *pb.Attr, err error) {
     {{else if eq $R "SetXAttr"}}
         func (f *{{$.T}}) SetXAttr(ctx context.Context, iNode uint64, name string, value []byte, position uint32, flags uint32) (err error) {
     {{else if eq $R "ShowFS"}}
-        func (f *{{$.T}}) ShowFS(ctx context.Context, token string, fsid string) (data string, err error) {
+        func (f *{{$.T}}) ShowFS(ctx context.Context, token string, fsid string) (name string, addresses []string, err error) {
     {{else if eq $R "StatFS"}}
         func (f *{{$.T}}) StatFS(ctx context.Context) (blocks uint64, bFree uint64, bAvail uint64, files uint64, fFree uint64, bSize uint32, nameLen uint32, frSize uint32, err error) {
     {{else if eq $R "SymLink"}}
         func (f *{{$.T}}) SymLink(ctx context.Context, parent uint64, name string, target string, uid uint32, gid uint32) (attr *pb.Attr, err error) {
     {{else if eq $R "UpdateFS"}}
-        func (f *{{$.T}}) UpdateFS(ctx context.Context, token string, fsid string, newFSName string) (data string, err error) {
+        func (f *{{$.T}}) UpdateFS(ctx context.Context, token string, fsid string, newName string) (err error) {
     {{else if eq $R "Write"}}
         func (f *{{$.T}}) Write(ctx context.Context, iNode uint64, offset int64, payload []byte) (err error) {
     {{end}}
@@ -315,17 +315,17 @@ func (f *{{.T}}) Close() {
             {{else if eq $R "Create"}}
                 return nil, ctx.Err()
             {{else if eq $R "DeleteFS"}}
-                return "", ctx.Err()
+                return ctx.Err()
             {{else if eq $R "GetAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "GetXAttr"}}
                 return nil, ctx.Err()
-            {{else if eq $R "GrantAddrFS"}}
-                return "", ctx.Err()
+            {{else if eq $R "GrantAddressFS"}}
+                return ctx.Err()
             {{else if eq $R "InitFS"}}
                 return ctx.Err()
             {{else if eq $R "ListFS"}}
-                return "", ctx.Err()
+                return nil, ctx.Err()
             {{else if eq $R "ListXAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "Lookup"}}
@@ -344,20 +344,20 @@ func (f *{{.T}}) Close() {
                 return ctx.Err()
             {{else if eq $R "Rename"}}
                 return ctx.Err()
-            {{else if eq $R "RevokeAddrFS"}}
-                return "", ctx.Err()
+            {{else if eq $R "RevokeAddressFS"}}
+                return ctx.Err()
             {{else if eq $R "SetAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "SetXAttr"}}
                 return ctx.Err()
             {{else if eq $R "ShowFS"}}
-                return "", ctx.Err()
+                return "", nil, ctx.Err()
             {{else if eq $R "StatFS"}}
                 return 0, 0, 0, 0, 0, 0, 0, 0, ctx.Err()
             {{else if eq $R "SymLink"}}
                 return nil, ctx.Err()
             {{else if eq $R "UpdateFS"}}
-                return "", ctx.Err()
+                return ctx.Err()
             {{else if eq $R "Write"}}
                 return ctx.Err()
             {{end}}
@@ -368,7 +368,7 @@ func (f *{{.T}}) Close() {
             req.req.ChildName = childName
         {{else if eq $R "CreateFS"}}
             req.req.Token = token
-            req.req.FSName = fsName
+            req.req.Name = name
         {{else if eq $R "Create"}}
             req.req.ParentINode = parentINode
             req.req.ChildName = childName
@@ -383,10 +383,10 @@ func (f *{{.T}}) Close() {
             req.req.Name = name
             req.req.Size = size
             req.req.Position = position
-        {{else if eq $R "GrantAddrFS"}}
+        {{else if eq $R "GrantAddressFS"}}
             req.req.Token = token
             req.req.FSID = fsid
-            req.req.Addr = addr
+            req.req.Address = address
         {{else if eq $R "InitFS"}}
         {{else if eq $R "ListFS"}}
             req.req.Token = token
@@ -420,10 +420,10 @@ func (f *{{.T}}) Close() {
             req.req.NewParent = newParent
             req.req.OldName = oldName
             req.req.NewName = newName
-        {{else if eq $R "RevokeAddrFS"}}
+        {{else if eq $R "RevokeAddressFS"}}
             req.req.Token = token
             req.req.FSID = fsid
-            req.req.Addr = addr
+            req.req.Address = address
         {{else if eq $R "SetAttr"}}
             req.req.Attr = attr
             req.req.Valid = valid
@@ -446,7 +446,7 @@ func (f *{{.T}}) Close() {
         {{else if eq $R "UpdateFS"}}
             req.req.Token = token
             req.req.FSID = fsid
-            req.req.NewFSName = newFSName
+            req.req.NewName = newName
         {{else if eq $R "Write"}}
             req.req.INode = iNode
             req.req.Offset = offset
@@ -463,17 +463,17 @@ func (f *{{.T}}) Close() {
             {{else if eq $R "Create"}}
                 return nil, ctx.Err()
             {{else if eq $R "DeleteFS"}}
-                return "", ctx.Err()
+                return ctx.Err()
             {{else if eq $R "GetAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "GetXAttr"}}
                 return nil, ctx.Err()
-            {{else if eq $R "GrantAddrFS"}}
-                return "", ctx.Err()
+            {{else if eq $R "GrantAddressFS"}}
+                return ctx.Err()
             {{else if eq $R "InitFS"}}
                 return ctx.Err()
             {{else if eq $R "ListFS"}}
-                return "", ctx.Err()
+                return nil, ctx.Err()
             {{else if eq $R "ListXAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "Lookup"}}
@@ -492,20 +492,20 @@ func (f *{{.T}}) Close() {
                 return ctx.Err()
             {{else if eq $R "Rename"}}
                 return ctx.Err()
-            {{else if eq $R "RevokeAddrFS"}}
-                return "", ctx.Err()
+            {{else if eq $R "RevokeAddressFS"}}
+                return ctx.Err()
             {{else if eq $R "SetAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "SetXAttr"}}
                 return ctx.Err()
             {{else if eq $R "ShowFS"}}
-                return "", ctx.Err()
+                return "", nil, ctx.Err()
             {{else if eq $R "StatFS"}}
                 return 0, 0, 0, 0, 0, 0, 0, 0, ctx.Err()
             {{else if eq $R "SymLink"}}
                 return nil, ctx.Err()
             {{else if eq $R "UpdateFS"}}
-                return "", ctx.Err()
+                return ctx.Err()
             {{else if eq $R "Write"}}
                 return ctx.Err()
             {{end}}
@@ -528,17 +528,17 @@ func (f *{{.T}}) Close() {
             {{else if eq $R "Create"}}
                 return nil, ctx.Err()
             {{else if eq $R "DeleteFS"}}
-                return "", ctx.Err()
+                return ctx.Err()
             {{else if eq $R "GetAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "GetXAttr"}}
                 return nil, ctx.Err()
-            {{else if eq $R "GrantAddrFS"}}
-                return "", ctx.Err()
+            {{else if eq $R "GrantAddressFS"}}
+                return ctx.Err()
             {{else if eq $R "InitFS"}}
                 return ctx.Err()
             {{else if eq $R "ListFS"}}
-                return "", ctx.Err()
+                return nil, ctx.Err()
             {{else if eq $R "ListXAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "Lookup"}}
@@ -557,20 +557,20 @@ func (f *{{.T}}) Close() {
                 return ctx.Err()
             {{else if eq $R "Rename"}}
                 return ctx.Err()
-            {{else if eq $R "RevokeAddrFS"}}
-                return "", ctx.Err()
+            {{else if eq $R "RevokeAddressFS"}}
+                return ctx.Err()
             {{else if eq $R "SetAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "SetXAttr"}}
                 return ctx.Err()
             {{else if eq $R "ShowFS"}}
-                return "", ctx.Err()
+                return "", nil, ctx.Err()
             {{else if eq $R "StatFS"}}
                 return 0, 0, 0, 0, 0, 0, 0, 0, ctx.Err()
             {{else if eq $R "SymLink"}}
                 return nil, ctx.Err()
             {{else if eq $R "UpdateFS"}}
-                return "", ctx.Err()
+                return ctx.Err()
             {{else if eq $R "Write"}}
                 return ctx.Err()
             {{end}}
@@ -586,17 +586,17 @@ func (f *{{.T}}) Close() {
             {{else if eq $R "Create"}}
                 return nil, err
             {{else if eq $R "DeleteFS"}}
-                return "", err
+                return err
             {{else if eq $R "GetAttr"}}
                 return nil, err
             {{else if eq $R "GetXAttr"}}
                 return nil, err
-            {{else if eq $R "GrantAddrFS"}}
-                return "", ctx.Err()
+            {{else if eq $R "GrantAddressFS"}}
+                return ctx.Err()
             {{else if eq $R "InitFS"}}
                 return ctx.Err()
             {{else if eq $R "ListFS"}}
-                return "", ctx.Err()
+                return nil, ctx.Err()
             {{else if eq $R "ListXAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "Lookup"}}
@@ -615,20 +615,20 @@ func (f *{{.T}}) Close() {
                 return ctx.Err()
             {{else if eq $R "Rename"}}
                 return ctx.Err()
-            {{else if eq $R "RevokeAddrFS"}}
-                return "", ctx.Err()
+            {{else if eq $R "RevokeAddressFS"}}
+                return ctx.Err()
             {{else if eq $R "SetAttr"}}
                 return nil, ctx.Err()
             {{else if eq $R "SetXAttr"}}
                 return ctx.Err()
             {{else if eq $R "ShowFS"}}
-                return "", ctx.Err()
+                return "", nil, ctx.Err()
             {{else if eq $R "StatFS"}}
                 return 0, 0, 0, 0, 0, 0, 0, 0, ctx.Err()
             {{else if eq $R "SymLink"}}
                 return nil, ctx.Err()
             {{else if eq $R "UpdateFS"}}
-                return "", ctx.Err()
+                return ctx.Err()
             {{else if eq $R "Write"}}
                 return ctx.Err()
             {{end}}
@@ -636,20 +636,18 @@ func (f *{{.T}}) Close() {
         {{if eq $R "Check"}}
             response = res.res.Response
         {{else if eq $R "CreateFS"}}
-            data = res.res.Data
+            fsid = res.res.FSID
         {{else if eq $R "Create"}}
             resultingChildAttr = res.res.ChildAttr
         {{else if eq $R "DeleteFS"}}
-            data = res.res.Data
         {{else if eq $R "GetAttr"}}
             attr = res.res.Attr
         {{else if eq $R "GetXAttr"}}
             xAttr = res.res.XAttr
-        {{else if eq $R "GrantAddrFS"}}
-            data = res.res.Data
+        {{else if eq $R "GrantAddressFS"}}
         {{else if eq $R "InitFS"}}
         {{else if eq $R "ListFS"}}
-            data = res.res.Data
+            list = res.res.List
         {{else if eq $R "ListXAttr"}}
             xAttr = res.res.XAttr
         {{else if eq $R "Lookup"}}
@@ -665,13 +663,13 @@ func (f *{{.T}}) Close() {
         {{else if eq $R "Remove"}}
         {{else if eq $R "RemoveXAttr"}}
         {{else if eq $R "Rename"}}
-        {{else if eq $R "RevokeAddrFS"}}
-            data = res.res.Data
+        {{else if eq $R "RevokeAddressFS"}}
         {{else if eq $R "SetAttr"}}
             resultingAttr = res.res.Attr
         {{else if eq $R "SetXAttr"}}
         {{else if eq $R "ShowFS"}}
-            data = res.res.Data
+            name = res.res.Name
+            addresses = res.res.Addresses
         {{else if eq $R "StatFS"}}
             blocks  = res.res.Blocks
             bFree   = res.res.BFree
@@ -684,7 +682,6 @@ func (f *{{.T}}) Close() {
         {{else if eq $R "SymLink"}}
             attr = res.res.Attr
         {{else if eq $R "UpdateFS"}}
-            data = res.res.Data
         {{else if eq $R "Write"}}
         {{end}}
         if res.res.Err == "" {
@@ -696,21 +693,21 @@ func (f *{{.T}}) Close() {
         {{if eq $R "Check"}}
             return response, err
         {{else if eq $R "CreateFS"}}
-            return data, err
+            return fsid, err
         {{else if eq $R "Create"}}
             return resultingChildAttr, err
         {{else if eq $R "DeleteFS"}}
-            return data, err
+            return err
         {{else if eq $R "GetAttr"}}
             return attr, err
         {{else if eq $R "GetXAttr"}}
             return xAttr, err
-        {{else if eq $R "GrantAddrFS"}}
-            return data, err
+        {{else if eq $R "GrantAddressFS"}}
+            return err
         {{else if eq $R "InitFS"}}
             return err
         {{else if eq $R "ListFS"}}
-            return data, err
+            return list, err
         {{else if eq $R "ListXAttr"}}
             return xAttr, err
         {{else if eq $R "Lookup"}}
@@ -729,20 +726,20 @@ func (f *{{.T}}) Close() {
             return err
         {{else if eq $R "Rename"}}
             return err
-        {{else if eq $R "RevokeAddrFS"}}
-            return data, err
+        {{else if eq $R "RevokeAddressFS"}}
+            return err
         {{else if eq $R "SetAttr"}}
             return resultingAttr, err
         {{else if eq $R "SetXAttr"}}
             return err
         {{else if eq $R "ShowFS"}}
-            return data, err
+            return name, addresses, err
         {{else if eq $R "StatFS"}}
             return blocks, bFree, bAvail, files, fFree, bSize, nameLen, frSize, err
         {{else if eq $R "SymLink"}}
             return attr, err
         {{else if eq $R "UpdateFS"}}
-            return data, err
+            return err
         {{else if eq $R "Write"}}
             return err
         {{end}}

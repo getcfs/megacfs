@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"hash"
@@ -217,70 +216,47 @@ func (o *oortFS) Check(ctx context.Context, req *formicproto.CheckRequest, resp 
 	return nil
 }
 
-func (o *oortFS) CreateFS(ctx context.Context, req *formicproto.CreateFSRequest, resp *formicproto.CreateFSResponse, acctID string) error {
-	var err error
-	var fsRef fileSysRef
-	var fsRefByte []byte
-	var fsSysAttr fileSysAttr
-	var fsSysAttrByte []byte
+func (o *oortFS) CreateFS(ctx context.Context, req *formicproto.CreateFSRequest, resp *formicproto.CreateFSResponse, aid string) error {
+	// TODO: We need to record file system creation requests; not through the
+	// standard logs, those are for true errors, but through some other
+	// mechanism.
 	fsid := uuid.NewV4().String()
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	// Write file system reference entries.
-	// write /fs 								FSID						FileSysRef
-	pKey := "/fs"
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB := murmur3.Sum128([]byte(fsid))
-	fsRef.AcctID = acctID
-	fsRef.FSID = fsid
-	fsRefByte, err = json.Marshal(fsRef)
+	// Make the /account/<aid>/<fsid> entry.
+	byts, err := marshal(&formicproto.MetaAccount2Filesystem{FSID: fsid})
 	if err != nil {
 		return err
 	}
-	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsRefByte)
+	keyA, keyB := murmur3.Sum128([]byte(fmt.Sprintf("/account/%s", aid)))
+	fsidKeyA, fsidKeyB := murmur3.Sum128([]byte(fsid))
+	_, err = o.comms.gstore.Write(ctx, keyA, keyB, fsidKeyA, fsidKeyB, timestampMicro, byts)
 	if err != nil {
 		return err
 	}
-	// write /acct/acctID				FSID						FileSysRef
-	pKey = fmt.Sprintf("/acct/%s", acctID)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsRefByte)
+	// Make the /filesystem/<fsid> entry.
+	byts, err = marshal(&formicproto.MetaFilesystemEntry{AID: aid, FSID: fsid, Name: req.Name})
 	if err != nil {
 		return err
 	}
-	// Write file system attributes
-	// write /fs/FSID						name						FileSysAttr
-	pKey = fmt.Sprintf("/fs/%s", fsid)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
-	fsSysAttr.Attr = "name"
-	fsSysAttr.Value = req.FSName
-	fsSysAttr.FSID = fsid
-	fsSysAttrByte, err = json.Marshal(fsSysAttr)
+	keyA, keyB = murmur3.Sum128([]byte("/filesystem"))
+	_, err = o.comms.gstore.Write(ctx, keyA, keyB, fsidKeyA, fsidKeyB, timestampMicro, byts)
 	if err != nil {
 		return err
 	}
-	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
-	if err != nil {
-		return err
-	}
-	uuID, err := uuid.FromString(fsid)
-	id := getID(uuID.String(), 1, 0)
-	vKeyA, vKeyB := murmur3.Sum128(id)
-	// Check if root entry already exits
-	_, value, err := o.comms.vstore.Read(ctx, vKeyA, vKeyB, nil)
+	// Make root inode entry.
+	rootInodeKeyA, rootInodeKeyB := murmur3.Sum128(getID(fsid, 1, 0))
+	_, value, err := o.comms.vstore.Read(ctx, rootInodeKeyA, rootInodeKeyB, nil)
 	if !store.IsNotFound(err) {
 		if len(value) != 0 {
 			return err
 		}
 		return err
 	}
-	// Create the Root entry data
-	// Prepare the root node
 	nr := &formicproto.INodeEntry{
 		Version: inodeEntryVersion,
 		INode:   1,
 		IsDir:   true,
-		FSID:    uuID.Bytes(),
+		FSID:    []byte(fsid),
 	}
 	ts := time.Now().Unix()
 	nr.Attr = &formicproto.Attr{
@@ -297,7 +273,6 @@ func (o *oortFS) CreateFS(ctx context.Context, req *formicproto.CreateFSRequest,
 	if err != nil {
 		return err
 	}
-	// Use data to Create The First Block
 	crc := crc32.NewIEEE()
 	crc.Write(data)
 	fb := &formicproto.FileBlock{
@@ -309,14 +284,11 @@ func (o *oortFS) CreateFS(ctx context.Context, req *formicproto.CreateFSRequest,
 	if err != nil {
 		return err
 	}
-	// Write root entry
-	_, err = o.comms.vstore.Write(context.Background(), vKeyA, vKeyB, timestampMicro, blkdata)
+	_, err = o.comms.vstore.Write(ctx, rootInodeKeyA, rootInodeKeyB, timestampMicro, blkdata)
 	if err != nil {
 		return err
 	}
-	// Return File System UUID
-	// Log Operation
-	resp.Data = fsid
+	resp.FSID = fsid
 	return nil
 }
 
@@ -341,40 +313,34 @@ func (o *oortFS) Create(ctx context.Context, req *formicproto.CreateRequest, res
 	return nil
 }
 
-func (o *oortFS) DeleteFS(ctx context.Context, req *formicproto.DeleteFSRequest, resp *formicproto.DeleteFSResponse, acctID string) error {
+func (o *oortFS) DeleteFS(ctx context.Context, req *formicproto.DeleteFSRequest, resp *formicproto.DeleteFSResponse, aid string) error {
+	// TODO: We need to record file system deletion requests; not through the
+	// standard logs, those are for true errors, but through some other
+	// mechanism.
 	var err error
 	var value []byte
-	var fsRef fileSysRef
-	var addrData addrRef
-	rowcount := 0
-	// Validate acctID owns this file system
-	pKey := fmt.Sprintf("/fs")
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	var metaFileSystemEntry formicproto.MetaFilesystemEntry
+	// Validate aid owns this file system.
+	pKeyA, pKeyB := murmur3.Sum128([]byte("/filesystem"))
 	cKeyA, cKeyB := murmur3.Sum128([]byte(req.FSID))
 	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		return err
-	}
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(value, &fsRef)
+	err = unmarshal(value, &metaFileSystemEntry)
 	if err != nil {
 		return err
 	}
-	if fsRef.AcctID != acctID {
+	if metaFileSystemEntry.AID != aid {
 		return errors.New("permission denied")
 	}
-	uuID, err := uuid.FromString(req.FSID)
-	id := getID(uuID.String(), 1, 0)
-	// Test if file system is empty.
-	keyA, keyB := murmur3.Sum128(id)
+	// Test if file system is empty. TODO: There is a race here that we need to solve.
+	keyA, keyB := murmur3.Sum128(getID(req.FSID, 1, 0))
 	items, err := o.comms.gstore.ReadGroup(context.Background(), keyA, keyB)
 	if len(items) != 0 {
 		return errors.New("file system not empty")
 	}
-	// Remove the root file system entry from the value store
-	keyA, keyB = murmur3.Sum128(id)
+	// Remove the root inode entry from the value store.
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	_, err = o.comms.vstore.Delete(context.Background(), keyA, keyB, timestampMicro)
 	if err != nil {
@@ -382,62 +348,38 @@ func (o *oortFS) DeleteFS(ctx context.Context, req *formicproto.DeleteFSRequest,
 			return err
 		}
 	}
-	// Delete this record set
-	// IP Addresses																				(x records)
-	//    /fs/FSID/addr			  addr						AddrRef
-	// File System Attributes															(1 record)
-	//    /fs/FSID						name						FileSysAttr
-	// File System Account Reference											(1 record)
-	//    /acct/acctID				FSID						FileSysRef
-	// File System Reference 															(1 record)
-	//    /fs 								FSID						FileSysRef
-	// Read list of granted ip addresses
-	// group-lookup printf("/fs/%s/addr", FSID)
-	pKey = fmt.Sprintf("/fs/%s/addr", req.FSID)
+	// NOTE: Once we've removed the root inode entry, any future errors should
+	//       just be logged and the client can consider the filesytem deleted.
+	//
+	// Remove all filesystem addresses.
+	pKey := fmt.Sprintf("/filesystem/%s/address", req.FSID)
 	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	items, err = o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	metaFilesystem2AddressEncs, err := o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
 	if !store.IsNotFound(err) {
-		// No addr granted
-		for _, v := range items {
-			err = json.Unmarshal(v.Value, &addrData)
+		for _, metaFilesystem2AddressEnc := range metaFilesystem2AddressEncs {
+			var metaFilesystem2Address formicproto.MetaFilesystem2Address
+			err = unmarshal(metaFilesystem2AddressEnc.Value, &metaFilesystem2Address)
 			if err != nil {
-				return err
+				o.log.Error("removing MetaFilesystem2Address", zap.Error(err), zap.String("fsid", req.FSID))
+				continue
 			}
-			err = o.deleteEntry(pKey, addrData.Addr)
+			err = o.deleteEntry(pKey, metaFilesystem2Address.Address)
 			if err != nil {
-				return err
+				o.log.Error("removing MetaFilesystem2Address", zap.Error(err), zap.String("fsid", req.FSID), zap.String("address", metaFilesystem2Address.Address))
+				continue
 			}
-			rowcount++
 		}
 	}
+	// Remove filesystem entry.
+	err = o.deleteEntry("/filesystem", req.FSID)
 	if err != nil {
-		return err
+		o.log.Error("removing MetaFilesystemEntry", zap.Error(err), zap.String("fsid", req.FSID))
 	}
-	// Delete File System Attributes
-	//    /fs/FSID						name						FileSysAttr
-	pKey = fmt.Sprintf("/fs/%s", req.FSID)
-	err = o.deleteEntry(pKey, "name")
+	// Remove account2filesystem reference.
+	err = o.deleteEntry(fmt.Sprintf("/account/%s", aid), req.FSID)
 	if err != nil {
-		return err
+		o.log.Error("removing MetaAccount2Filesystem", zap.Error(err), zap.String("aid", aid), zap.String("fsid", req.FSID))
 	}
-	rowcount++
-	// Delete File System Account Reference
-	//    /acct/acctID				FSID						FileSysRef
-	pKey = fmt.Sprintf("/acct/%s", acctID)
-	err = o.deleteEntry(pKey, req.FSID)
-	if err != nil {
-		return err
-	}
-	rowcount++
-	// File System Reference
-	//    /fs 								FSID						FileSysRef
-	err = o.deleteEntry("/fs", req.FSID)
-	if err != nil {
-		return err
-	}
-	rowcount++
-	// Prep things to return
-	resp.Data = req.FSID
 	return nil
 }
 
@@ -470,60 +412,40 @@ func (o *oortFS) GetXAttr(ctx context.Context, req *formicproto.GetXAttrRequest,
 	return nil
 }
 
-func (o *oortFS) GrantAddrFS(ctx context.Context, req *formicproto.GrantAddrFSRequest, resp *formicproto.GrantAddrFSResponse, acctID string) error {
-	var err error
-	var fsRef fileSysRef
-	var value []byte
-	var addrData addrRef
-	var addrByte []byte
-	srcAddr := ""
-	srcAddrIP := ""
-	// Get incoming ip
-	pr, ok := peer.FromContext(ctx)
-	if ok {
-		srcAddr = pr.Addr.String()
-	}
-	// Read FileSysRef entry to determine if it exists and Account matches
-	pKey := fmt.Sprintf("/fs")
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+func (o *oortFS) GrantAddressFS(ctx context.Context, req *formicproto.GrantAddressFSRequest, resp *formicproto.GrantAddressFSResponse, aid string) error {
+	// TODO: We need to record file system grant requests; not through the
+	// standard logs, those are for true errors, but through some other
+	// mechanism.
+	//
+	// Ensure filesystem exists and the account matches.
+	pKeyA, pKeyB := murmur3.Sum128([]byte(fmt.Sprintf("/filesystem")))
 	cKeyA, cKeyB := murmur3.Sum128([]byte(req.FSID))
-	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		return err
-	}
+	_, value, err := o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(value, &fsRef)
+	var metaFilesystemEntry formicproto.MetaFilesystemEntry
+	err = unmarshal(value, &metaFilesystemEntry)
 	if err != nil {
 		return err
 	}
-	if fsRef.AcctID != acctID {
+	if metaFilesystemEntry.AID != aid {
 		return errors.New("permission denied")
 	}
-	// GRANT an file system entry for the addr
-	// 		write /fs/FSID/addr			addr						AddrRef
-	if req.Addr == "" {
-		srcAddrIP = strings.Split(srcAddr, ":")[0]
-	} else {
-		srcAddrIP = req.Addr
+	grantAddress := req.Address
+	if grantAddress == "" {
+		if pr, ok := peer.FromContext(ctx); ok {
+			grantAddress = strings.Split(pr.Addr.String(), ":")[0]
+		}
 	}
-	pKey = fmt.Sprintf("/fs/%s/addr", req.FSID)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
-	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	addrData.Addr = srcAddrIP
-	addrData.FSID = req.FSID
-	addrByte, err = json.Marshal(addrData)
+	byts, err := marshal(&formicproto.MetaFilesystem2Address{Address: grantAddress})
 	if err != nil {
 		return err
 	}
-	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, addrByte)
-	if err != nil {
-		return err
-	}
-	resp.Data = srcAddrIP
-	return nil
+	pKeyA, pKeyB = murmur3.Sum128([]byte(fmt.Sprintf("/filesystem/%s/address", req.FSID)))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(grantAddress))
+	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, brimtime.TimeToUnixMicro(time.Now()), byts)
+	return err
 }
 
 func (o *oortFS) InitFS(ctx context.Context, req *formicproto.InitFSRequest, resp *formicproto.InitFSResponse, fsid string) error {
@@ -535,70 +457,41 @@ func (o *oortFS) InitFS(ctx context.Context, req *formicproto.InitFSRequest, res
 	return nil
 }
 
-func (o *oortFS) ListFS(ctx context.Context, req *formicproto.ListFSRequest, resp *formicproto.ListFSResponse, acctID string) error {
+func (o *oortFS) ListFS(ctx context.Context, req *formicproto.ListFSRequest, resp *formicproto.ListFSResponse, aid string) error {
 	var value []byte
-	// Read Group /acct/acctID				_						FileSysRef
-	pKey := fmt.Sprintf("/acct/%s", acctID)
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
-	list, err := o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	keyA, keyB := murmur3.Sum128([]byte(fmt.Sprintf("/account/%s", aid)))
+	metaAccount2FilesystemEncs, err := o.comms.gstore.ReadGroup(ctx, keyA, keyB)
 	if err != nil {
 		return err
 	}
-	fsList := make([]fileSysMeta, len(list))
-	for k, v := range list {
-		var fsRef fileSysRef
-		var addrData addrRef
-		var fsAttrData fileSysAttr
-		var aList []string
-		err = json.Unmarshal(v.Value, &fsRef)
+	resp.List = make([]*formicproto.FSIDName, 0, len(metaAccount2FilesystemEncs))
+	var lastErr error
+	for _, metaAccount2FilesystemEnc := range metaAccount2FilesystemEncs {
+		var metaAccount2Filesystem formicproto.MetaAccount2Filesystem
+		err = unmarshal(metaAccount2FilesystemEnc.Value, &metaAccount2Filesystem)
 		if err != nil {
-			return err
+			lastErr = err
+			continue
 		}
-		fsList[k].AcctID = acctID
-		fsList[k].ID = fsRef.FSID
-		// Get File System Name
-		pKey = fmt.Sprintf("/fs/%s", fsList[k].ID)
-		pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-		cKeyA, cKeyB := murmur3.Sum128([]byte("name"))
-		_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-		if store.IsNotFound(err) {
-			return err
-		}
+		pKeyA, pKeyB := murmur3.Sum128([]byte("/filesystem"))
+		cKeyA, cKeyB := murmur3.Sum128([]byte(metaAccount2Filesystem.FSID))
+		_, value, err = o.comms.gstore.Read(ctx, pKeyA, pKeyB, cKeyA, cKeyB, nil)
 		if err != nil {
-			return err
+			lastErr = err
+			continue
 		}
-		err = json.Unmarshal(value, &fsAttrData)
+		var metaFilesystemEntry formicproto.MetaFilesystemEntry
+		err = unmarshal(value, &metaFilesystemEntry)
 		if err != nil {
-			return err
+			lastErr = err
+			continue
 		}
-		fsList[k].Name = fsAttrData.Value
-		// Get List of addrs
-		pKey = fmt.Sprintf("/fs/%s/addr", fsList[k].ID)
-		pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-		items, err := o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
-		if !store.IsNotFound(err) {
-			// No addr granted
-			aList = make([]string, len(items))
-			for sk, sv := range items {
-				err = json.Unmarshal(sv.Value, &addrData)
-				if err != nil {
-					return err
-				}
-				aList[sk] = addrData.Addr
-			}
-		}
-		if err != nil {
-			return err
-		}
-		fsList[k].Addr = aList
+		resp.List = append(resp.List, &formicproto.FSIDName{
+			FSID: metaFilesystemEntry.FSID,
+			Name: metaFilesystemEntry.Name,
+		})
 	}
-	// Return a File System List
-	fsListJSON, jerr := json.Marshal(&fsList)
-	if jerr != nil {
-		return jerr
-	}
-	resp.Data = string(fsListJSON)
-	return nil
+	return lastErr
 }
 
 func (o *oortFS) ListXAttr(ctx context.Context, req *formicproto.ListXAttrRequest, resp *formicproto.ListXAttrResponse, fsid string) error {
@@ -812,56 +705,36 @@ func (o *oortFS) Rename(ctx context.Context, req *formicproto.RenameRequest, res
 	return nil
 }
 
-func (o *oortFS) RevokeAddrFS(ctx context.Context, req *formicproto.RevokeAddrFSRequest, resp *formicproto.RevokeAddrFSResponse, acctID string) error {
-	var err error
-	var value []byte
-	var fsRef fileSysRef
-	srcAddr := ""
-	srcAddrIP := ""
-	// Get incoming ip
-	pr, ok := peer.FromContext(ctx)
-	if ok {
-		srcAddr = pr.Addr.String()
-	}
-	// Validate acctID owns this file system
-	// Read FileSysRef entry to determine if it exists
-	pKey := fmt.Sprintf("/fs")
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+func (o *oortFS) RevokeAddressFS(ctx context.Context, req *formicproto.RevokeAddressFSRequest, resp *formicproto.RevokeAddressFSResponse, aid string) error {
+	// TODO: We need to record file system revoke requests; not through the
+	// standard logs, those are for true errors, but through some other
+	// mechanism.
+	//
+	// Ensure filesystem exists and the account matches.
+	pKeyA, pKeyB := murmur3.Sum128([]byte(fmt.Sprintf("/filesystem")))
 	cKeyA, cKeyB := murmur3.Sum128([]byte(req.FSID))
-	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		return err
-	}
+	_, value, err := o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(value, &fsRef)
+	var metaFilesystemEntry formicproto.MetaFilesystemEntry
+	err = unmarshal(value, &metaFilesystemEntry)
 	if err != nil {
 		return err
 	}
-	if fsRef.AcctID != acctID {
+	if metaFilesystemEntry.AID != aid {
 		return errors.New("permission denied")
 	}
-	// REVOKE an file system entry for the addr
-	// 		delete /fs/FSID/addr			addr						AddrRef
-	if req.Addr == "" {
-		srcAddrIP = strings.Split(srcAddr, ":")[0]
-	} else {
-		srcAddrIP = req.Addr
+	revokeAddress := req.Address
+	if revokeAddress == "" {
+		if pr, ok := peer.FromContext(ctx); ok {
+			revokeAddress = strings.Split(pr.Addr.String(), ":")[0]
+		}
 	}
-	pKey = fmt.Sprintf("/fs/%s/addr", req.FSID)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte(srcAddrIP))
-	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	_, err = o.comms.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro)
-	if store.IsNotFound(err) {
-		return err
-	}
-	if err != nil {
-		return err
-	}
-	resp.Data = srcAddrIP
-	return nil
+	pKeyA, pKeyB = murmur3.Sum128([]byte(fmt.Sprintf("/filesystem/%s/address", req.FSID)))
+	cKeyA, cKeyB = murmur3.Sum128([]byte(revokeAddress))
+	_, err = o.comms.gstore.Delete(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, brimtime.TimeToUnixMicro(time.Now()))
+	return err
 }
 
 func (o *oortFS) SetAttr(ctx context.Context, req *formicproto.SetAttrRequest, resp *formicproto.SetAttrResponse, fsid string) error {
@@ -956,79 +829,39 @@ func (o *oortFS) SetXAttr(ctx context.Context, req *formicproto.SetXAttrRequest,
 	return nil
 }
 
-func (o *oortFS) ShowFS(ctx context.Context, req *formicproto.ShowFSRequest, resp *formicproto.ShowFSResponse, acctID string) error {
-	var err error
-	var fs fileSysMeta
-	var value []byte
-	var fsRef fileSysRef
-	var addrData addrRef
-	var fsAttrData fileSysAttr
-	var aList []string
-	fs.ID = req.FSID
-	// Read FileSysRef entry to determine if it exists
-	pKey := fmt.Sprintf("/fs")
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB := murmur3.Sum128([]byte(fs.ID))
-	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		return err
-	}
+func (o *oortFS) ShowFS(ctx context.Context, req *formicproto.ShowFSRequest, resp *formicproto.ShowFSResponse, aid string) error {
+	// Ensure filesystem exists and the account matches.
+	pKeyA, pKeyB := murmur3.Sum128([]byte("/filesystem"))
+	cKeyA, cKeyB := murmur3.Sum128([]byte(req.FSID))
+	_, value, err := o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(value, &fsRef)
+	var metaFilesystemEntry formicproto.MetaFilesystemEntry
+	err = unmarshal(value, &metaFilesystemEntry)
 	if err != nil {
 		return err
 	}
-	if fsRef.AcctID != acctID {
+	if metaFilesystemEntry.AID != aid {
 		return errors.New("permission denied")
 	}
-	fs.AcctID = fsRef.AcctID
-	// Read the file system attributes
-	// group-lookup /fs			FSID
-	//		Iterate over all the atributes
-	pKey = fmt.Sprintf("/fs/%s", fs.ID)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
-	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		return err
-	}
-	if err != nil {
-		return err
-	}
-	err = json.Unmarshal(value, &fsAttrData)
-	if err != nil {
-		return err
-	}
-	fs.Name = fsAttrData.Value
-	// Read list of granted ip addresses
-	// group-lookup printf("/fs/%s/addr", FSID)
-	pKey = fmt.Sprintf("/fs/%s/addr", fs.ID)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	items, err := o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
+	resp.Name = metaFilesystemEntry.Name
+	// Retrieve address information.
+	pKeyA, pKeyB = murmur3.Sum128([]byte(fmt.Sprintf("/filesystem/%s/address", req.FSID)))
+	metaFilesystem2AddressEncs, lastErr := o.comms.gstore.ReadGroup(context.Background(), pKeyA, pKeyB)
 	if !store.IsNotFound(err) {
-		// No addr granted
-		aList = make([]string, len(items))
-		for k, v := range items {
-			err = json.Unmarshal(v.Value, &addrData)
+		resp.Addresses = make([]string, 0, len(metaFilesystem2AddressEncs))
+		for _, metaFilesystem2AddressEnc := range metaFilesystem2AddressEncs {
+			var metaFilesystem2Address formicproto.MetaFilesystem2Address
+			err = unmarshal(metaFilesystem2AddressEnc.Value, &metaFilesystem2Address)
 			if err != nil {
-				return err
+				lastErr = err
+				continue
 			}
-			aList[k] = addrData.Addr
+			resp.Addresses = append(resp.Addresses, metaFilesystem2Address.Address)
 		}
 	}
-	if err != nil {
-		return err
-	}
-	fs.Addr = aList
-	// Return File System
-	fsJSON, jerr := json.Marshal(&fs)
-	if jerr != nil {
-		return jerr
-	}
-	resp.Data = string(fsJSON)
-	return nil
+	return lastErr
 }
 
 func (o *oortFS) StatFS(ctx context.Context, req *formicproto.StatFSRequest, resp *formicproto.StatFSResponse, fsid string) error {
@@ -1103,54 +936,35 @@ func (o *oortFS) SymLink(ctx context.Context, req *formicproto.SymLinkRequest, r
 	return nil
 }
 
-func (o *oortFS) UpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest, resp *formicproto.UpdateFSResponse, acctID string) error {
-	var err error
-	var value []byte
-	var fsRef fileSysRef
-	var fsSysAttr fileSysAttr
-	var fsSysAttrByte []byte
-	if req.NewFSName == "" {
+func (o *oortFS) UpdateFS(ctx context.Context, req *formicproto.UpdateFSRequest, resp *formicproto.UpdateFSResponse, aid string) error {
+	// TODO: We need to record file system revoke requests; not through the
+	// standard logs, those are for true errors, but through some other
+	// mechanism.
+	if req.NewName == "" {
 		return errors.New("file system name cannot be empty")
 	}
-	// validate that acctID owns this file system
-	// Read FileSysRef entry to determine if it exists
-	pKey := fmt.Sprintf("/fs")
-	pKeyA, pKeyB := murmur3.Sum128([]byte(pKey))
+	// Ensure filesystem exists and the account matches.
+	pKeyA, pKeyB := murmur3.Sum128([]byte("/filesystem"))
 	cKeyA, cKeyB := murmur3.Sum128([]byte(req.FSID))
-	_, value, err = o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
-	if store.IsNotFound(err) {
-		return err
-	}
+	_, value, err := o.comms.gstore.Read(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, nil)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(value, &fsRef)
+	var metaFilesystemEntry formicproto.MetaFilesystemEntry
+	err = unmarshal(value, &metaFilesystemEntry)
 	if err != nil {
 		return err
 	}
-	if fsRef.AcctID != acctID {
+	if metaFilesystemEntry.AID != aid {
 		return errors.New("permission denied")
 	}
-	// Write file system attributes
-	// write /fs/FSID						name						FileSysAttr
-	pKey = fmt.Sprintf("/fs/%s", req.FSID)
-	pKeyA, pKeyB = murmur3.Sum128([]byte(pKey))
-	cKeyA, cKeyB = murmur3.Sum128([]byte("name"))
-	fsSysAttr.Attr = "name"
-	fsSysAttr.Value = req.NewFSName
-	fsSysAttr.FSID = req.FSID
-	fsSysAttrByte, err = json.Marshal(fsSysAttr)
+	metaFilesystemEntry.Name = req.NewName
+	byts, err := marshal(&metaFilesystemEntry)
 	if err != nil {
 		return err
 	}
-	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
-	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, timestampMicro, fsSysAttrByte)
-	if err != nil {
-		return err
-	}
-	// return message
-	resp.Data = req.FSID
-	return nil
+	_, err = o.comms.gstore.Write(context.Background(), pKeyA, pKeyB, cKeyA, cKeyB, brimtime.TimeToUnixMicro(time.Now()), byts)
+	return err
 }
 
 func (o *oortFS) Write(ctx context.Context, req *formicproto.WriteRequest, resp *formicproto.WriteResponse, fsid string) error {
