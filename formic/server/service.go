@@ -181,7 +181,7 @@ func newOortFS(comms *storeComms, logger *zap.Logger, deleteChan chan *deleteIte
 		deleteChan: deleteChan,
 		dirtyChan:  dirtyChan,
 		blocksize:  blocksize,
-		fl:         flother.NewFlother(time.Time{}, uint64(nodeID)),
+		fl:         flother.NewFlother(time.Time{}, uint64(nodeID), flother.DEFAULT_TIME_BITS, flother.DEFAULT_NODE_BITS),
 	}
 	return o
 }
@@ -294,7 +294,7 @@ func (o *oortFS) CreateFS(ctx context.Context, req *formicproto.CreateFSRequest,
 
 func (o *oortFS) Create(ctx context.Context, req *formicproto.CreateRequest, resp *formicproto.CreateResponse, fsid string) error {
 	ts := time.Now().Unix()
-	inode := o.fl.GetID()
+	inode := o.fl.NewID()
 	attr := &formicproto.Attr{
 		INode:  inode,
 		ATime:  ts,
@@ -577,7 +577,7 @@ func (o *oortFS) ReadLink(ctx context.Context, req *formicproto.ReadLinkRequest,
 
 func (o *oortFS) MkDir(ctx context.Context, req *formicproto.MkDirRequest, resp *formicproto.MkDirResponse, fsid string) error {
 	ts := time.Now().Unix()
-	inode := o.fl.GetID()
+	inode := o.fl.NewID()
 	attr := &formicproto.Attr{
 		INode:  inode,
 		ATime:  ts,
@@ -878,7 +878,7 @@ func (o *oortFS) StatFS(ctx context.Context, req *formicproto.StatFSRequest, res
 
 func (o *oortFS) SymLink(ctx context.Context, req *formicproto.SymLinkRequest, resp *formicproto.SymLinkResponse, fsid string) error {
 	parent := getID(fsid, req.Parent, 0)
-	inode := o.fl.GetID()
+	inode := o.fl.NewID()
 	id := getID(fsid, inode, 0)
 	ts := time.Now().Unix()
 	attr := &formicproto.Attr{

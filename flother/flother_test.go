@@ -6,9 +6,9 @@ import (
 )
 
 func TestGetID(t *testing.T) {
-	f := NewFlother(time.Now(), 1)
-	id1 := f.GetID()
-	id2 := f.GetID()
+	f := NewFlother(time.Now(), 1, DEFAULT_TIME_BITS, DEFAULT_NODE_BITS)
+	id1 := f.NewID()
+	id2 := f.NewID()
 	if id1 != 1025 {
 		t.Errorf("Unexpected first id %d", id1)
 	}
@@ -18,8 +18,8 @@ func TestGetID(t *testing.T) {
 }
 
 func BenchmarkGetID(b *testing.B) {
-	f := NewFlother(time.Now(), 1)
+	f := NewFlother(time.Now(), 1, DEFAULT_TIME_BITS, DEFAULT_NODE_BITS)
 	for i := 0; i < b.N; i++ {
-		f.GetID()
+		f.NewID()
 	}
 }
