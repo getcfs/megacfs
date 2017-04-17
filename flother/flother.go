@@ -2,7 +2,7 @@
 // generation.
 //
 // See: https://blog.twitter.com/2010/announcing-snowflake
-//  or: http://instagram-engineering.tumblr.com/post/10853187575/sharding-ids-at-instagram
+// or: http://instagram-engineering.tumblr.com/post/10853187575/sharding-ids-at-instagram
 package flother
 
 import (
@@ -10,6 +10,16 @@ import (
 	"sync/atomic"
 	"time"
 )
+
+// DEFAULT_TIME_BITS is set to 41 bits to allow for almost 70 years of ids with
+// an epoch.
+const DEFAULT_TIME_BITS = 41
+
+// DEFAULT_NODE_BITS is set to 13 bits to allow for 8192 nodes.
+const DEFAULT_NODE_BITS = 13
+
+// The above defaults would leave 10 bits for seqBits, allowing for 1024 IDs
+// per millisecond.
 
 type Flother struct {
 	epoch    time.Time
@@ -20,32 +30,36 @@ type Flother struct {
 	node     uint64
 }
 
-// epoch is the offset to use for the id generation and node is the unique node id for this node.
-func NewFlother(epoch time.Time, node uint64) *Flother {
-	f := &Flother{
-		timeBits: 41, // 41 bits should allow for almost 70 years of ids with an epoch
-		nodeBits: 13, // 13 bits allows for 8192 nodes
-		seqBits:  10, // 10 bits allows for 1024 IDs per milisecond
+// NewFlother returns a *Flother can be used to generate unique ids.
+//
+// epoch is the offset to use for the id generation.
+//
+// node is the unique node id for this server / application.
+//
+// timeBits are the number of bits to use to represent the time; recommended DEFAULT_TIME_BITS.
+//
+// nodeBits are the number of bits to use to represent the unique node; recommended DEFAULT_NODE_BITS.
+func NewFlother(epoch time.Time, node uint64, timeBits uint64, nodeBits uint64) *Flother {
+	return &Flother{
+		timeBits: timeBits,
+		nodeBits: nodeBits,
+		seqBits:  64 - timeBits - nodeBits,
 		epoch:    epoch,
 		counter:  0,
-		node:     node,
+		node:     node & uint64(math.Pow(2, float64(nodeBits))-1),
 	}
-	// ensure that node is only the number of bits we want
-	f.node = node & uint64(math.Pow(2, float64(f.nodeBits))-1)
-	return f
 }
 
-// Get an ID
-func (f *Flother) GetID() uint64 {
-	ms := uint64(time.Now().UnixNano()-f.epoch.UnixNano()) / 1000000 // miliseconds
-	id := ms << (64 - f.timeBits)
+// NewID returns a new unique identifier.
+func (f *Flother) NewID() uint64 {
+	milliseconds := uint64(time.Now().UnixNano()-f.epoch.UnixNano()) / 1000000
+	id := milliseconds << (64 - f.timeBits)
 	id |= f.node << (64 - f.timeBits - f.nodeBits)
-	c := atomic.AddUint64(&f.counter, 1)
-	id |= c % (1 << f.seqBits)
+	id |= atomic.AddUint64(&f.counter, 1) % (1 << f.seqBits)
 	return id
 }
 
-// Get the node ID
-func (f *Flother) GetNodeID() uint64 {
+// NodeID returns the node identifier given when creating this Flother.
+func (f *Flother) NodeID() uint64 {
 	return f.node
 }
