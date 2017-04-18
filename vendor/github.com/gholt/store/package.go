@@ -69,7 +69,7 @@
 // continue.
 //
 // There is also a modified form of ValueStore called GroupStore that expands
-// the primary key to two 128 bit keys and offers a Lookup methods which
+// the primary key to two 128 bit keys and offers a Lookup method which
 // retrieves all matching items for the first key.
 package store
 
@@ -146,10 +146,19 @@ const (
 )
 
 const (
+	// TIMESTAMPMICRO_MIN is the minimum usable time for writes and deletes.
+	// Default is 1970-01-01 00:00:00 +0000 UTC (+1 microsecond because all
+	// zeroes indicates a missing item).
 	TIMESTAMPMICRO_MIN = int64(uint64(1) << _TSB_UTIL_BITS)
+
+	// TIMESTAMPMICRO_MAX is the maximum usable time for writes and deletes.
+	// Default is 4253-05-31 22:20:37.927935 +0000 UTC.
 	TIMESTAMPMICRO_MAX = int64(uint64(math.MaxUint64) >> _TSB_UTIL_BITS)
 )
 
+// IsNotFound returns true if the err indicates the store could not find a key
+// in question; this function can accept nil in which case it will return
+// false.
 func IsNotFound(err error) bool {
 	if err == nil {
 		return false
@@ -158,6 +167,7 @@ func IsNotFound(err error) bool {
 	return is
 }
 
+// ErrNotFound is an interface IsNotFound uses to check an error's type.
 type ErrNotFound interface {
 	ErrNotFound() string
 }
@@ -170,11 +180,18 @@ func (e _errNotFound) Error() string { return "not found" }
 
 func (e _errNotFound) ErrNotFound() string { return "not found" }
 
+// IsDisabled returns true if the err indicates the store is currently
+// disabled, such as when a disk fills up and writes become disabled; this
+// function can accept nil in which case it will return false.
 func IsDisabled(err error) bool {
+	if err == nil {
+		return false
+	}
 	_, is := err.(ErrDisabled)
 	return is
 }
 
+// ErrDisabled is an interface IsDisabled uses to check an error's type.
 type ErrDisabled interface {
 	ErrDisabled() string
 }

@@ -13,7 +13,7 @@ func TestGroupValuesFileReading(t *testing.T) {
 	cfg := newTestGroupStoreConfig()
 	buf := &memBuf{buf: []byte("GROUPSTORE v0                   0123456789abcdef")}
 	binary.BigEndian.PutUint32(buf.buf[28:], 65532)
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestGroupStore(cfg)
@@ -103,10 +103,10 @@ func TestGroupValuesFileWritingEmpty(t *testing.T) {
 	cfg := newTestGroupStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestGroupStore(cfg)
@@ -141,10 +141,10 @@ func TestGroupValuesFileWritingEmpty2(t *testing.T) {
 	cfg := newTestGroupStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestGroupStore(cfg)
@@ -185,10 +185,10 @@ func TestGroupValuesFileWriting(t *testing.T) {
 	cfg := newTestGroupStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestGroupStore(cfg)
@@ -232,10 +232,10 @@ func TestGroupValuesFileWritingMore(t *testing.T) {
 	cfg := newTestGroupStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestGroupStore(cfg)
@@ -278,10 +278,10 @@ func TestGroupValuesFileWritingMultiple(t *testing.T) {
 	cfg := newTestGroupStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestGroupStore(cfg)
