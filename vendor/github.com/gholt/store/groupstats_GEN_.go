@@ -9,6 +9,8 @@ import (
 	"golang.org/x/net/context"
 )
 
+// GroupStoreStats contains all the statistics gathered by the Store's Stats
+// call.
 type GroupStoreStats struct {
 	// Values is the number of values in the GroupStore.
 	Values uint64
@@ -369,6 +371,7 @@ func (store *defaultGroupStore) Stats(ctx context.Context, debug bool) (fmt.Stri
 	return stats, nil
 }
 
+// String returns a string representation of the GroupStoreStats structure.
 func (stats *GroupStoreStats) String() string {
 	report := [][]string{
 		{"Values", fmt.Sprintf("%d", stats.Values)},

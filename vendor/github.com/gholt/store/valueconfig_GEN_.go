@@ -274,16 +274,15 @@ type ValueStoreConfig struct {
 	// default: 0.90 (90%)
 	MemUsageReenableThreshold float64
 
-	OpenReadSeeker    func(fullPath string) (io.ReadSeeker, error)
-	OpenWriteSeeker   func(fullPath string) (io.WriteSeeker, error)
-	Readdirnames      func(fullPath string) ([]string, error)
-	CreateWriteCloser func(fullPath string) (io.WriteCloser, error)
-	Stat              func(fullPath string) (os.FileInfo, error)
-	Remove            func(fullPath string) error
-	Rename            func(oldFullPath string, newFullPath string) error
-	IsNotExist        func(err error) bool
-
-	minValueAlloc int
+	openReadSeeker    func(fullPath string) (io.ReadSeeker, error)
+	openWriteSeeker   func(fullPath string) (io.WriteSeeker, error)
+	readdirnames      func(fullPath string) ([]string, error)
+	createWriteCloser func(fullPath string) (io.WriteCloser, error)
+	stat              func(fullPath string) (os.FileInfo, error)
+	remove            func(fullPath string) error
+	rename            func(oldFullPath string, newFullPath string) error
+	isNotExist        func(err error) bool
+	minValueAlloc     int
 }
 
 func resolveValueStoreConfig(c *ValueStoreConfig) *ValueStoreConfig {
@@ -891,29 +890,29 @@ func resolveValueStoreConfig(c *ValueStoreConfig) *ValueStoreConfig {
 		cfg.MemUsageReenableThreshold = 0
 	}
 
-	if cfg.OpenReadSeeker == nil {
-		cfg.OpenReadSeeker = osOpenReadSeeker
+	if cfg.openReadSeeker == nil {
+		cfg.openReadSeeker = osOpenReadSeeker
 	}
-	if cfg.OpenWriteSeeker == nil {
-		cfg.OpenWriteSeeker = osOpenWriteSeeker
+	if cfg.openWriteSeeker == nil {
+		cfg.openWriteSeeker = osOpenWriteSeeker
 	}
-	if cfg.Readdirnames == nil {
-		cfg.Readdirnames = osReaddirnames
+	if cfg.readdirnames == nil {
+		cfg.readdirnames = osReaddirnames
 	}
-	if cfg.CreateWriteCloser == nil {
-		cfg.CreateWriteCloser = osCreateWriteCloser
+	if cfg.createWriteCloser == nil {
+		cfg.createWriteCloser = osCreateWriteCloser
 	}
-	if cfg.Stat == nil {
-		cfg.Stat = os.Stat
+	if cfg.stat == nil {
+		cfg.stat = os.Stat
 	}
-	if cfg.Remove == nil {
-		cfg.Remove = os.Remove
+	if cfg.remove == nil {
+		cfg.remove = os.Remove
 	}
-	if cfg.Rename == nil {
-		cfg.Rename = os.Rename
+	if cfg.rename == nil {
+		cfg.rename = os.Rename
 	}
-	if cfg.IsNotExist == nil {
-		cfg.IsNotExist = os.IsNotExist
+	if cfg.isNotExist == nil {
+		cfg.isNotExist = os.IsNotExist
 	}
 	return cfg
 }

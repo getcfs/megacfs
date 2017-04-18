@@ -13,7 +13,7 @@ func TestValueValuesFileReading(t *testing.T) {
 	cfg := newTestValueStoreConfig()
 	buf := &memBuf{buf: []byte("VALUESTORE v0                   0123456789abcdef")}
 	binary.BigEndian.PutUint32(buf.buf[28:], 65532)
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestValueStore(cfg)
@@ -103,10 +103,10 @@ func TestValueValuesFileWritingEmpty(t *testing.T) {
 	cfg := newTestValueStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestValueStore(cfg)
@@ -141,10 +141,10 @@ func TestValueValuesFileWritingEmpty2(t *testing.T) {
 	cfg := newTestValueStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestValueStore(cfg)
@@ -185,10 +185,10 @@ func TestValueValuesFileWriting(t *testing.T) {
 	cfg := newTestValueStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestValueStore(cfg)
@@ -232,10 +232,10 @@ func TestValueValuesFileWritingMore(t *testing.T) {
 	cfg := newTestValueStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestValueStore(cfg)
@@ -278,10 +278,10 @@ func TestValueValuesFileWritingMultiple(t *testing.T) {
 	cfg := newTestValueStoreConfig()
 	cfg.ChecksumInterval = 64*1024 - 4
 	buf := &memBuf{}
-	cfg.CreateWriteCloser = func(fullPath string) (io.WriteCloser, error) {
+	cfg.createWriteCloser = func(fullPath string) (io.WriteCloser, error) {
 		return &memFile{buf: buf}, nil
 	}
-	cfg.OpenReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
+	cfg.openReadSeeker = func(fullPath string) (io.ReadSeeker, error) {
 		return &memFile{buf: buf}, nil
 	}
 	store, _ := newTestValueStore(cfg)

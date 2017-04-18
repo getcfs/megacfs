@@ -84,13 +84,13 @@ func init() {
 	} else {
 		loggerConfig = zap.NewProductionConfig()
 	}
-    baseLogger, err := loggerConfig.Build()
+	baseLogger, err := loggerConfig.Build()
 	if err != nil {
 		panic(err)
 	}
 	if *debug {
 		baseLogger.Debug("Logging in developer mode.")
-    }
+	}
 	logger = baseLogger.Named("cfsd")
 	redirectGRPCLoggerV.sugaredLogger = baseLogger.Named("grpc").Sugar()
 	grpclog.SetLogger(&redirectGRPCLoggerV)
@@ -276,7 +276,7 @@ FIND_LOCAL_NODE:
 	}
 	logger.Debug("Need to switch Prometheus to using TLS; or at least allow it.", zap.String("cert", prometheusCertPath), zap.String("key", prometheusKeyPath))
 	http.Handle("/metrics", prometheus.Handler())
-    http.Handle("/log/level", loggerConfig.Level)
+	http.Handle("/log/level", loggerConfig.Level)
 	go http.ListenAndServe(hostPort, nil)
 
 	waitGroup := &sync.WaitGroup{}

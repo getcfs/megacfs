@@ -35,28 +35,28 @@ func newTestValueStoreConfig() *ValueStoreConfig {
 		TombstoneDiscardBatchSize: 1024,
 		OutPullReplicationBloomN:  1000,
 
-		OpenReadSeeker: func(fullPath string) (io.ReadSeeker, error) {
+		openReadSeeker: func(fullPath string) (io.ReadSeeker, error) {
 			return &memFile{buf: &memBuf{}}, nil
 		},
-		OpenWriteSeeker: func(fullPath string) (io.WriteSeeker, error) {
+		openWriteSeeker: func(fullPath string) (io.WriteSeeker, error) {
 			return &memFile{buf: &memBuf{}}, nil
 		},
-		Readdirnames: func(fullPath string) ([]string, error) {
+		readdirnames: func(fullPath string) ([]string, error) {
 			return nil, nil
 		},
-		CreateWriteCloser: func(fullPath string) (io.WriteCloser, error) {
+		createWriteCloser: func(fullPath string) (io.WriteCloser, error) {
 			return &memFile{buf: &memBuf{}}, nil
 		},
-		Stat: func(fullPath string) (os.FileInfo, error) {
+		stat: func(fullPath string) (os.FileInfo, error) {
 			return &memFileInfo{}, nil
 		},
-		Remove: func(fullPath string) error {
+		remove: func(fullPath string) error {
 			return nil
 		},
-		Rename: func(oldFullPath string, newFullPath string) error {
+		rename: func(oldFullPath string, newFullPath string) error {
 			return nil
 		},
-		IsNotExist: func(err error) bool {
+		isNotExist: func(err error) bool {
 			return false
 		},
 	}

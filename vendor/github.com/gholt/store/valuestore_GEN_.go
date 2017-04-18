@@ -161,17 +161,17 @@ type valueLocBlock interface {
 }
 
 // NewValueStore creates a ValueStore for use in storing []byte values
-// referenced by 128 bit keys; the store, restart channel (chan error), or any
-// error during construction is returned.
+// referenced by 128 bit keys; returned are the store and restart channel (chan
+// error), or any error during construction.
 //
 // The restart channel (chan error) should be read from continually during the
 // life of the store and, upon any error from the channel, the store should be
 // restarted with Shutdown and Startup. This restart procedure is needed when
 // data on disk is detected as corrupted and cannot be easily recovered from; a
-// restart will cause only good entries to be loaded therefore discarding any
-// bad entries due to the corruption. A restart may also be requested if the
-// store reaches an unrecoverable state, such as no longer being able to open
-// new files.
+// restart will cause only good entries to be loaded from disk therefore
+// discarding any bad entries due to the corruption. A restart may also be
+// requested if the store reaches an unrecoverable state, such as no longer
+// being able to open new files.
 //
 // Note that a lot of buffering, multiple cores, and background processes can
 // be in use and therefore Shutdown should be called prior to the process
@@ -204,14 +204,14 @@ func NewValueStore(c *ValueStoreConfig) (ValueStore, chan error) {
 		checksumInterval:        uint32(cfg.ChecksumInterval),
 		msgRing:                 cfg.MsgRing,
 		restartChan:             make(chan error),
-		openReadSeeker:          cfg.OpenReadSeeker,
-		openWriteSeeker:         cfg.OpenWriteSeeker,
-		readdirnames:            cfg.Readdirnames,
-		createWriteCloser:       cfg.CreateWriteCloser,
-		stat:                    cfg.Stat,
-		remove:                  cfg.Remove,
-		rename:                  cfg.Rename,
-		isNotExist:              cfg.IsNotExist,
+		openReadSeeker:          cfg.openReadSeeker,
+		openWriteSeeker:         cfg.openWriteSeeker,
+		readdirnames:            cfg.readdirnames,
+		createWriteCloser:       cfg.createWriteCloser,
+		stat:                    cfg.stat,
+		remove:                  cfg.remove,
+		rename:                  cfg.rename,
+		isNotExist:              cfg.isNotExist,
 	}
 	if store.logger == nil {
 		var err error
