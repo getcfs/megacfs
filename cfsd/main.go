@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -36,6 +37,7 @@ var startGroup = flag.Bool("group", false, "run group service and not other serv
 var startValue = flag.Bool("value", false, "run value service and not other services unless also specified")
 
 var logger *zap.Logger
+var loggerConfig zap.Config
 
 type redirectGRPCLogger struct {
 	sugaredLogger *zap.SugaredLogger
@@ -77,17 +79,18 @@ func init() {
 		*debug = true
 	}
 	flag.Parse()
-	var baseLogger *zap.Logger
-	var err error
 	if *debug {
-		baseLogger, err = zap.NewDevelopmentConfig().Build()
-		baseLogger.Debug("Logging in developer mode.")
+		loggerConfig = zap.NewDevelopmentConfig()
 	} else {
-		baseLogger, err = zap.NewProduction()
+		loggerConfig = zap.NewProductionConfig()
 	}
+    baseLogger, err := loggerConfig.Build()
 	if err != nil {
 		panic(err)
 	}
+	if *debug {
+		baseLogger.Debug("Logging in developer mode.")
+    }
 	logger = baseLogger.Named("cfsd")
 	redirectGRPCLoggerV.sugaredLogger = baseLogger.Named("grpc").Sugar()
 	grpclog.SetLogger(&redirectGRPCLoggerV)
@@ -273,6 +276,7 @@ FIND_LOCAL_NODE:
 	}
 	logger.Debug("Need to switch Prometheus to using TLS; or at least allow it.", zap.String("cert", prometheusCertPath), zap.String("key", prometheusKeyPath))
 	http.Handle("/metrics", prometheus.Handler())
+    http.Handle("/log/level", loggerConfig.Level)
 	go http.ListenAndServe(hostPort, nil)
 
 	waitGroup := &sync.WaitGroup{}
