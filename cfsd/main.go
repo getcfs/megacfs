@@ -29,7 +29,7 @@ import (
 )
 
 var version = flag.Bool("version", false, "omit version information and exit")
-var debug = flag.Bool("debug", false, "omit debug information while running")
+var debug = flag.Bool("debug", false, "omit debug information while running\n    \tnote that the log level can be changed on the fly with a command like:\n    \tcurl -XPUT http://127.0.0.1:9100/log/level --data-binary '{\"level\":\"debug\"}'")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var memprofile = flag.String("memprofile", "", "write mem profile to file")
 var startFormic = flag.Bool("formic", false, "run formic service and not other services unless also specified")
