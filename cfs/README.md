@@ -10,7 +10,15 @@ Quick Start
 
 1) Install FUSE
 ```bash
-apt-get install fuse
+sudo apt-get install fuse   # Debian or Ubuntu
+sudo yum install fuse       # CentOS
+sudo dnf install fuse       # Fedora
+```
+
+CFS requires FUSE version 2.6 or greater, which you can verify with the following command.
+```
+$ fusermount -V
+fusermount version: 2.9.3
 ```
 
 2) Install CFS
