@@ -1,0 +1,42 @@
+# pack-refs with: peeled fully-peeled 
+fc4bd86e8a8c3b1b434c0122e93b0db4226a80c8 refs/remotes/origin/add-pending-updates
+5a6db5c8d22f9a73473014f42cfc5bc18053666d refs/remotes/origin/bjk/mountstats_mountpoint
+bde6e5d2905bfaa03c3399a2d11b74c902f3ec66 refs/remotes/origin/bjk/ntpd_metrics
+3d7f6b1c2e4b9a44822655d86ece273e84a8ecdf refs/remotes/origin/consul-exporter
+8e50b80d1285be8334066aca7a9f7ec26221f7c1 refs/remotes/origin/fish-use-const-metrics
+7e5aaa9e3359cc7af7e394ce7634c33f697fdafb refs/remotes/origin/fish/darwin-enable-meminfo
+e8c4cf64b19817aa1998fe0a7fa583f28b3ab672 refs/remotes/origin/fish/scope-clarify-deprecate
+549217596e3f0835df918a8d695ffd7ef6a18192 refs/remotes/origin/fix/munin
+65768ceac81bb203d8d01490d7d16c1730ea47c0 refs/remotes/origin/grobie/checksums
+e7ea5c1867e0c5ffe2c9c964a941139ff66cbbf9 refs/remotes/origin/master
+887127e713c8620a6f582b65b69151938d485adf refs/remotes/origin/superq/disable_pcc
+a05966a3a94d066208e81ff1d2f6a31fdf4a9d71 refs/remotes/origin/superq/improve_smartmon_script
+276112c7effe9ca117a7c6552c3fb1e420b13628 refs/remotes/origin/superq/no_idle_cpu
+7f06f1b34c02be2c2b5d68a381cd740c234e209d refs/remotes/origin/superq/ntp_offset
+ca050b599db24873946c6c242cdbe541ca0a505c refs/remotes/origin/superq/tools
+dfb22045d7b250992442a612723a32c4e24eb065 refs/remotes/origin/superq/v0.13.0-rc.2
+484eedbf015f1848e9a5412c55a3c4bdfdf8a685 refs/tags/0.10.0
+f2dfeb3fd6fc18b51cd82f102a0a7634d2e98fa2 refs/tags/0.11.0
+8b39ceac35e1c62ceb59362d4ed3af0eee90efd0 refs/tags/0.12.0
+^df8dcd27e242c9df76dac84f5502503577e84895
+524c4bd45826f58c1d520fcc8fb7a7579fb8308d refs/tags/0.12.0rc1
+^e70cbd2045bc63df74fa652213f1ace470e8b796
+a05966a3a94d066208e81ff1d2f6a31fdf4a9d71 refs/tags/0.12.0rc2
+20ecedd0b4c983bd7b88f97cd7a21461988a6c12 refs/tags/0.12.0rc3
+42d1658d5632fe0bfb281761d5e3620cfc37990b refs/tags/0.13.0-rc.2
+90f13720c911ab6fd62e9297a06771de34fa3946 refs/tags/0.6.0
+^d06281286dca55f608f76402874d808f7d66cb2a
+9bf284fcbeed1fa36d0f7ddee615abba6f195ed7 refs/tags/0.7.0
+^139155a243dbaaea618edc0768866f25f73dc087
+13df4293f211c59c4f59d111cee01b277ada2f08 refs/tags/0.7.1
+^bb3132714c01ff98d9d101c76b86d556a5c6af40
+cdee2e462001e3e4c31af29def66e67ce7dcf311 refs/tags/0.8.0
+^b3e5a8e04641a3f4eb9aa72d15afd71959994edd
+d1822e474959c06e3b4885c34e8d200b9e83a305 refs/tags/0.8.1
+a7c682cf701ef464068db1bb75d54bec57b827bf refs/tags/0.9.0
+006d1c7922b765f458fe9b92ce646641bded0f52 refs/tags/v0.13.0
+2ff8e5f0e4553371161b98293d52ed98ecb8117b refs/tags/v0.13.0-rc.1
+42d1658d5632fe0bfb281761d5e3620cfc37990b refs/tags/v0.13.0-rc.2
+840ba5dcc71a084a3bc63cb6063003c1f94435a6 refs/tags/v0.14.0
+5a07f4173d97fa0dd307db5bd3c2e6da26a4b16e refs/tags/v0.14.0-rc.1
+0e60bb8e005c638605e59ac3f307e3d47e891a9f refs/tags/v0.14.0-rc.2

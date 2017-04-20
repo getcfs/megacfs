@@ -275,6 +275,7 @@ FIND_LOCAL_NODE:
 		logger.Fatal("Error translating configured prometheus address.", zap.Error(err))
 	}
 	logger.Debug("Need to switch Prometheus to using TLS; or at least allow it.", zap.String("cert", prometheusCertPath), zap.String("key", prometheusKeyPath))
+	nodeExporterMain()
 	http.Handle("/metrics", prometheus.Handler())
 	http.Handle("/log/level", loggerConfig.Level)
 	go http.ListenAndServe(hostPort, nil)
