@@ -28,13 +28,15 @@ import (
 	"google.golang.org/grpc/grpclog"
 )
 
-var version = flag.Bool("version", false, "omit version information and exit")
-var debug = flag.Bool("debug", false, "omit debug information while running\n    \tnote that the log level can be changed on the fly with a command like:\n    \tcurl -XPUT http://127.0.0.1:9100/log/level --data-binary '{\"level\":\"debug\"}'")
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-var memprofile = flag.String("memprofile", "", "write mem profile to file")
-var startFormic = flag.Bool("formic", false, "run formic service and not other services unless also specified")
-var startGroup = flag.Bool("group", false, "run group service and not other services unless also specified")
-var startValue = flag.Bool("value", false, "run value service and not other services unless also specified")
+var cfsdFlag = flag.NewFlagSet("cfsd", flag.ExitOnError)
+
+var version *bool
+var debug *bool
+var cpuprofile *string
+var memprofile *string
+var startFormic *bool
+var startGroup *bool
+var startValue *bool
 
 var logger *zap.Logger
 var loggerConfig zap.Config
@@ -75,10 +77,16 @@ var commitVersion string
 var goVersion string
 
 func init() {
-	if brimtext.TrueString(os.Getenv("DEBUG")) {
-		*debug = true
+	version = cfsdFlag.Bool("version", false, "omit version information and exit")
+	debug = cfsdFlag.Bool("debug", brimtext.TrueString(os.Getenv("DEBUG")), "omit debug information while running\n    \tnote that the log level can be changed on the fly with a command like:\n    \tcurl -XPUT http://127.0.0.1:9100/log/level --data-binary '{\"level\":\"debug\"}'")
+	cpuprofile = cfsdFlag.String("cpuprofile", "", "write cpu profile to file")
+	memprofile = cfsdFlag.String("memprofile", "", "write mem profile to file")
+	startFormic = cfsdFlag.Bool("formic", false, "run formic service and not other services unless also specified")
+	startGroup = cfsdFlag.Bool("group", false, "run group service and not other services unless also specified")
+	startValue = cfsdFlag.Bool("value", false, "run value service and not other services unless also specified")
+	if err := cfsdFlag.Parse(os.Args[1:]); err != nil {
+		panic(err)
 	}
-	flag.Parse()
 	if *debug {
 		loggerConfig = zap.NewDevelopmentConfig()
 	} else {
