@@ -1,0 +1,11 @@
+Updated watcher to be smarter
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch master
+# Your branch is up-to-date with 'origin/master'.
+#
+# Changes to be committed:
+#	modified:   groupwatcher_GEN_.go
+#	modified:   valuewatcher_GEN_.go
+#	modified:   watcher.got
+#
