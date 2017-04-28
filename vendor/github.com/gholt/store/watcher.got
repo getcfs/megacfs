@@ -1,6 +1,7 @@
 package store
 
 import (
+    "fmt"
     "time"
     "sync"
     "sync/atomic"
@@ -74,7 +75,14 @@ func (store *default{{.T}}Store) watcherLauncher(notifyChan chan *bgNotification
     store.randMutex.Lock()
     nextRun := time.Now().Add(time.Duration(interval + interval*store.rand.NormFloat64()*0.1))
     store.randMutex.Unlock()
-    disabled := false
+    const (
+        CLEAR = iota
+        DISK_FREE
+        DISK_USAGE
+        MEM_FREE
+        MEM_USAGE
+    )
+    state := CLEAR
     running := true
     for running {
         var notification *bgNotification
@@ -134,43 +142,57 @@ func (store *default{{.T}}Store) watcherLauncher(notifyChan chan *bgNotification
             atomic.StoreUint64(&store.watcherState.memSize, m.Total)
             store.logger.Debug("memStat", zap.String("name", store.loggerPrefix + "watcher"), zap.Uint64("actualFree", m.ActualFree), zap.Uint64("actualUsed", m.ActualUsed), zap.Uint64("total", m.Total), zap.Float64("usage", memUsage*100))
         }
-        var wantToDisable string
-        var wantToReenable string
-		if store.watcherState.diskFreeDisableThreshold > 1 && (diskFree <= store.watcherState.diskFreeDisableThreshold || diskFreeTOC <= store.watcherState.diskFreeDisableThreshold) {
-            wantToDisable = "passed the disk free threshold for automatic disabling"
-        }
-        if store.watcherState.diskUsageDisableThreshold > 0 && (diskUsage >= store.watcherState.diskUsageDisableThreshold || diskUsageTOC >= store.watcherState.diskUsageDisableThreshold) {
-            wantToDisable = "passed the disk usage threshold for automatic disabling"
-        }
-		if store.watcherState.memFreeDisableThreshold > 1 && m != nil && m.ActualFree <= store.watcherState.memFreeDisableThreshold {
-            wantToDisable = "passed the mem free threshold for automatic disabling"
-        }
-        if store.watcherState.memUsageDisableThreshold > 0 && m != nil && memUsage >= store.watcherState.memUsageDisableThreshold {
-            wantToDisable = "passed the mem usage threshold for automatic disabling"
-        }
-		if store.watcherState.diskFreeReenableThreshold > 1 && diskFree >= store.watcherState.diskFreeReenableThreshold && diskFreeTOC >= store.watcherState.diskFreeReenableThreshold {
-            wantToReenable = "passed the disk free threshold for automatic re-enabling"
-        }
-        if store.watcherState.diskUsageReenableThreshold > 0 && diskUsage <= store.watcherState.diskUsageReenableThreshold && diskUsageTOC <= store.watcherState.diskUsageReenableThreshold {
-            wantToReenable = "passed the disk usage threshold for automatic re-enabling"
-        }
-		if store.watcherState.memFreeReenableThreshold > 1 && m != nil && m.ActualFree >= store.watcherState.memFreeReenableThreshold {
-            wantToReenable = "passed the mem free threshold for automatic re-enabling"
-        }
-        if store.watcherState.memUsageReenableThreshold > 0 && m != nil && memUsage <= store.watcherState.memUsageReenableThreshold {
-            wantToReenable = "passed the mem usage threshold for automatic re-enabling"
-        }
-        if wantToDisable != "" {
-            if !disabled {
-                store.logger.Error(wantToDisable, zap.String("name", store.loggerPrefix + "watcher"))
-                store.disableWrites(false) // false indicates non-user call
-                disabled = true
+        if state == CLEAR {
+            var msg string
+            if store.watcherState.diskFreeDisableThreshold > 1 && (diskFree <= store.watcherState.diskFreeDisableThreshold || diskFreeTOC <= store.watcherState.diskFreeDisableThreshold) {
+                msg = fmt.Sprintf("passed the disk free threshold %d for automatic disabling", store.watcherState.diskFreeDisableThreshold)
+                state = DISK_FREE
             }
-        } else if wantToReenable != "" {
-            if disabled {
-                store.logger.Error(wantToReenable, zap.String("name", store.loggerPrefix + "watcher"))
+            if store.watcherState.diskUsageDisableThreshold > 0 && (diskUsage >= store.watcherState.diskUsageDisableThreshold || diskUsageTOC >= store.watcherState.diskUsageDisableThreshold) {
+                msg = fmt.Sprintf("passed the disk usage threshold %f for automatic disabling", store.watcherState.diskUsageDisableThreshold)
+                state = DISK_USAGE
+            }
+            if store.watcherState.memFreeDisableThreshold > 1 && m != nil && m.ActualFree <= store.watcherState.memFreeDisableThreshold {
+                msg = fmt.Sprintf("passed the mem free threshold %d for automatic disabling", store.watcherState.memFreeDisableThreshold)
+                state = MEM_FREE
+            }
+            if store.watcherState.memUsageDisableThreshold > 0 && m != nil && memUsage >= store.watcherState.memUsageDisableThreshold {
+                msg = fmt.Sprintf("passed the mem usage threshold %f for automatic disabling", store.watcherState.memUsageDisableThreshold)
+                state = MEM_USAGE
+            }
+            if state != CLEAR {
+                store.logger.Error(msg, zap.String("name", store.loggerPrefix + "watcher"))
+                store.disableWrites(false) // false indicates non-user call
+            }
+        } else {
+            var msg string
+            switch state {
+            case DISK_FREE:
+                if store.watcherState.diskFreeReenableThreshold > 1 && diskFree >= store.watcherState.diskFreeReenableThreshold && diskFreeTOC >= store.watcherState.diskFreeReenableThreshold {
+                    msg = fmt.Sprintf("passed the disk free threshold %d for automatic re-enabling", store.watcherState.diskFreeReenableThreshold)
+                    state = CLEAR
+                }
+            case DISK_USAGE:
+                if store.watcherState.diskUsageReenableThreshold > 0 && diskUsage <= store.watcherState.diskUsageReenableThreshold && diskUsageTOC <= store.watcherState.diskUsageReenableThreshold {
+                    msg = fmt.Sprintf("passed the disk usage threshold %f for automatic re-enabling", store.watcherState.diskUsageReenableThreshold)
+                    state = CLEAR
+                }
+            case MEM_FREE:
+                if store.watcherState.memFreeReenableThreshold > 1 && m != nil && m.ActualFree >= store.watcherState.memFreeReenableThreshold {
+                    msg = fmt.Sprintf("passed the mem free threshold %d for automatic re-enabling", store.watcherState.memFreeReenableThreshold)
+                    state = CLEAR
+                }
+            case MEM_USAGE:
+                if store.watcherState.memUsageReenableThreshold > 0 && m != nil && memUsage <= store.watcherState.memUsageReenableThreshold {
+                    msg = fmt.Sprintf("passed the mem usage threshold %f for automatic re-enabling", store.watcherState.memUsageReenableThreshold)
+                    state = CLEAR
+                }
+            default:
+                store.logger.Fatal("programmer error", zap.Int("state", state))
+            }
+            if state == CLEAR {
+                store.logger.Error(msg, zap.String("name", store.loggerPrefix + "watcher"))
                 store.enableWrites(false)
-                disabled = false
             }
         }
     }
