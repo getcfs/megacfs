@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -153,10 +154,11 @@ func mount(config map[string]string) error {
 Usage:
     cfs mount [-o option,...] [serveraddr:]<fsid> <mountpoint>
 Options:
-    -o debug          enables debug output
-    -o ro             mount the filesystem read only
-    -o allow_other    allow access to other users
-    -o noumount       skips the fusermount -uz retry on first error
+    -o debug               enables debug output
+    -o ro                  mount the filesystem read only
+    -o allow_other         allow access to other users
+    -o noumount            skips the fusermount -uz retry on first error
+    -o pprof=<host:port>   Go tool pprof support; listens on <host:port>
 Examples:
     cfs mount 11111111-1111-1111-1111-111111111111 /mnt/test
     cfs mount -o debug,ro 127.0.0.1:11111111-1111-1111-1111-111111111111 /mnt/test
@@ -189,6 +191,15 @@ Examples:
 	}
 	// parse mount options string
 	clargs := getArgs(options)
+	if hostPort, ok := clargs["pprof"]; ok {
+		if hostPort == "" {
+			hostPort = ":9100"
+		}
+		if strings.HasPrefix(hostPort, "*:") {
+			hostPort = hostPort[1:]
+		}
+		go http.ListenAndServe(hostPort, nil)
+	}
 	for iteration := 0; ; iteration++ {
 		switch iteration {
 		case 0:
