@@ -7,12 +7,14 @@ import (
     "github.com/getcfs/megacfs/ftls"
     "golang.org/x/net/context"
     "google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
+    "google.golang.org/grpc/metadata"
+    "go.uber.org/zap"
     pb "github.com/getcfs/megacfs/formic/{{.t}}proto"
 )
 
 type {{.T}} struct {
     lock                sync.Mutex
+    logger              *zap.Logger
     fsid                string
     addr                string
     ftlsc               *ftls.Config
@@ -27,8 +29,9 @@ type {{.T}} struct {
     {{end}}
 }
 
-func New{{.T}}(fsid string, addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *{{.T}} {
+func New{{.T}}(logger *zap.Logger, fsid string, addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *{{.T}} {
     f := &{{.T}}{
+        logger:             logger,
         fsid:               fsid,
         addr:               addr,
         ftlsc:              ftlsConfig,
@@ -204,6 +207,7 @@ func (f *{{.T}}) Close() {
                 }
             case res := <-resChan:
                 if res.res == nil {
+                    stream = nil
                     // Receiver got unrecoverable error, so we'll have to
                     // respond with errors to all waiting requests.
                     wereWaiting := make([]*async{{$.T}}{{$R}}Request, len(waiting))
@@ -214,6 +218,7 @@ func (f *{{.T}}) Close() {
                     if err == nil {
                         err = errors.New("receiver had error, had to close any other waiting requests")
                     }
+                    f.free{{$R}}ResChan <- res
                     go func(reqs []*async{{$.T}}{{$R}}Request, err error) {
                         for _, req := range reqs {
                             if req == nil {
@@ -516,7 +521,8 @@ func (f *{{.T}}) Close() {
         case <-ctx.Done():
             req.canceledLock.Lock()
             select {
-            case <-req.resChan:
+            case res = <-req.resChan:
+                f.free{{$R}}ResChan <- res
             default:
                 req.canceled = true
             }

@@ -12,6 +12,7 @@ import (
 	"github.com/getcfs/megacfs/formic"
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/pkg/xattr"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
 
@@ -64,7 +65,7 @@ func list(addr, authURL, username, password string) error {
 		f.Usage()
 	}
 	token := auth(authURL, username, password)
-	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	rpc := formic.NewFormic(zap.L(), "", addr, 1, &ftls.Config{InsecureSkipVerify: true})
 	fsList, err := rpc.ListFS(context.Background(), token)
 	if err != nil {
 		fmt.Println("ListFS failed:", err)
@@ -92,7 +93,7 @@ func show(addr, authURL, username, password string) error {
 	}
 	fsid := f.Args()[0]
 	token := auth(authURL, username, password)
-	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	rpc := formic.NewFormic(zap.L(), "", addr, 1, &ftls.Config{InsecureSkipVerify: true})
 	name, addresses, err := rpc.ShowFS(context.Background(), token, fsid)
 	if err != nil {
 		fmt.Println("ShowFS failed", err)
@@ -122,7 +123,7 @@ func create(addr, authURL, username, password string) error {
 	}
 	name := f.Args()[0]
 	token := auth(authURL, username, password)
-	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	rpc := formic.NewFormic(zap.L(), "", addr, 1, &ftls.Config{InsecureSkipVerify: true})
 	fsid, err := rpc.CreateFS(context.Background(), token, name)
 	if err != nil {
 		fmt.Println("CreateFS failed:", err)
@@ -147,7 +148,7 @@ func del(addr, authURL, username, password string) error {
 	}
 	fsid := f.Args()[0]
 	token := auth(authURL, username, password)
-	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	rpc := formic.NewFormic(zap.L(), "", addr, 1, &ftls.Config{InsecureSkipVerify: true})
 	err := rpc.DeleteFS(context.Background(), token, fsid)
 	if err != nil {
 		fmt.Println("DeleteFS failed:", err)
@@ -172,7 +173,7 @@ func update(addr, authURL, username, password string) error {
 	newFSName := f.Args()[0]
 	fsid := f.Args()[1]
 	token := auth(authURL, username, password)
-	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	rpc := formic.NewFormic(zap.L(), "", addr, 1, &ftls.Config{InsecureSkipVerify: true})
 	err := rpc.UpdateFS(context.Background(), token, fsid, newFSName)
 	if err != nil {
 		fmt.Println("UpdateFS failed:", err)
@@ -203,7 +204,7 @@ func grant(addr, authURL, username, password string) error {
 		f.Usage()
 	}
 	token := auth(authURL, username, password)
-	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	rpc := formic.NewFormic(zap.L(), "", addr, 1, &ftls.Config{InsecureSkipVerify: true})
 	err := rpc.GrantAddressFS(context.Background(), token, fsid, ip)
 	if err != nil {
 		fmt.Println("GrantAddressFS failed:", err)
@@ -234,7 +235,7 @@ func revoke(addr, authURL, username, password string) error {
 		f.Usage()
 	}
 	token := auth(authURL, username, password)
-	rpc := formic.NewFormic("", addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	rpc := formic.NewFormic(zap.L(), "", addr, 1, &ftls.Config{InsecureSkipVerify: true})
 	err := rpc.RevokeAddressFS(context.Background(), token, fsid, ip)
 	if err != nil {
 		fmt.Println("RevokeAddressFS failed", err)
@@ -272,7 +273,7 @@ func check(addr string) error {
 		fmt.Println("Error stating:", parentPath, err)
 		os.Exit(1)
 	}
-	rpc := formic.NewFormic(string(fsidBytes), addr, 1, &ftls.Config{InsecureSkipVerify: true})
+	rpc := formic.NewFormic(zap.L(), string(fsidBytes), addr, 1, &ftls.Config{InsecureSkipVerify: true})
 	resp, err := rpc.Check(context.Background(), stat.Ino, childName)
 	if err != nil {
 		fmt.Println("Check failed:", err)

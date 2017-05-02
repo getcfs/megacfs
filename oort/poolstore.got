@@ -7,9 +7,11 @@ import (
     "github.com/gholt/store"
     "golang.org/x/net/context"
     "google.golang.org/grpc"
+    "go.uber.org/zap"
 )
 
 type pool{{.T}}Store struct {
+    logger          *zap.Logger
     addr            string
     size            int
     concurrency     int
@@ -19,8 +21,9 @@ type pool{{.T}}Store struct {
     storeChan       chan store.{{.T}}Store
 }
 
-func newPool{{.T}}Store(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *pool{{.T}}Store {
+func newPool{{.T}}Store(logger *zap.Logger, addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *pool{{.T}}Store {
     ps := &pool{{.T}}Store{
+        logger:         logger,
         addr:           addr,
         size:           size,
         concurrency:    concurrency,
@@ -30,7 +33,7 @@ func newPool{{.T}}Store(addr string, size int, concurrency int, ftlsConfig *ftls
         storeChan:      make(chan store.{{.T}}Store, size),
     }
     for i := 0; i < ps.size; i++ {
-        ps.stores[i] = new{{.T}}Store(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
+        ps.stores[i] = new{{.T}}Store(logger, ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
         ps.storeChan <- ps.stores[i]
     }
     return ps

@@ -198,7 +198,7 @@ func (rs *ReplGroupStore) storesFor(ctx context.Context, keyA uint64) ([]store.G
 			if ss[i] == nil {
 				ss[i] = rs.stores[as[i]]
 				if ss[i] == nil {
-					ss[i] = newPoolGroupStore(as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
+					ss[i] = newPoolGroupStore(rs.logger, as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig, rs.grpcOpts...)
 					rs.stores[as[i]] = ss[i]
 					select {
 					case <-ctx.Done():

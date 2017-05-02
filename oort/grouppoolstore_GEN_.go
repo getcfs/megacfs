@@ -5,11 +5,13 @@ import (
 
 	"github.com/getcfs/megacfs/ftls"
 	"github.com/gholt/store"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
 type poolGroupStore struct {
+	logger      *zap.Logger
 	addr        string
 	size        int
 	concurrency int
@@ -19,8 +21,9 @@ type poolGroupStore struct {
 	storeChan   chan store.GroupStore
 }
 
-func newPoolGroupStore(addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *poolGroupStore {
+func newPoolGroupStore(logger *zap.Logger, addr string, size int, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *poolGroupStore {
 	ps := &poolGroupStore{
+		logger:      logger,
 		addr:        addr,
 		size:        size,
 		concurrency: concurrency,
@@ -30,7 +33,7 @@ func newPoolGroupStore(addr string, size int, concurrency int, ftlsConfig *ftls.
 		storeChan:   make(chan store.GroupStore, size),
 	}
 	for i := 0; i < ps.size; i++ {
-		ps.stores[i] = newGroupStore(ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
+		ps.stores[i] = newGroupStore(logger, ps.addr, ps.concurrency, ps.ftlsConfig, ps.opts...)
 		ps.storeChan <- ps.stores[i]
 	}
 	return ps
