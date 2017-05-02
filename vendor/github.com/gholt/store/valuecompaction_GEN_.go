@@ -20,6 +20,10 @@ type valueCompactionState struct {
 
 	startupShutdownLock sync.Mutex
 	notifyChan          chan *bgNotification
+
+	compactionLock              sync.Mutex
+	compactionPendingBatchChans []chan []valueTOCEntry
+	compactionFreeBatchChans    []chan []valueTOCEntry
 }
 
 func (store *defaultValueStore) compactionConfig(cfg *ValueStoreConfig) {
@@ -35,6 +39,17 @@ func (store *defaultValueStore) compactionStartup() {
 		store.compactionState.notifyChan = make(chan *bgNotification, 1)
 		go store.compactionLauncher(store.compactionState.notifyChan)
 	}
+	store.compactionState.compactionLock.Lock()
+	store.compactionState.compactionPendingBatchChans = make([]chan []valueTOCEntry, store.compactionState.workerCount)
+	store.compactionState.compactionFreeBatchChans = make([]chan []valueTOCEntry, len(store.compactionState.compactionPendingBatchChans))
+	for i := 0; i < len(store.compactionState.compactionPendingBatchChans); i++ {
+		store.compactionState.compactionPendingBatchChans[i] = make(chan []valueTOCEntry, 3)
+		store.compactionState.compactionFreeBatchChans[i] = make(chan []valueTOCEntry, cap(store.compactionState.compactionPendingBatchChans[i]))
+		for j := 0; j < cap(store.compactionState.compactionFreeBatchChans[i]); j++ {
+			store.compactionState.compactionFreeBatchChans[i] <- make([]valueTOCEntry, store.recoveryBatchSize)
+		}
+	}
+	store.compactionState.compactionLock.Unlock()
 	store.compactionState.startupShutdownLock.Unlock()
 }
 
@@ -49,6 +64,10 @@ func (store *defaultValueStore) compactionShutdown() {
 		<-c
 		store.compactionState.notifyChan = nil
 	}
+	store.compactionState.compactionLock.Lock()
+	store.compactionState.compactionPendingBatchChans = nil
+	store.compactionState.compactionFreeBatchChans = nil
+	store.compactionState.compactionLock.Unlock()
 	store.compactionState.startupShutdownLock.Unlock()
 }
 
@@ -211,24 +230,19 @@ func (store *defaultValueStore) compactionWorker(jobChan chan *valueCompactionJo
 }
 
 func (store *defaultValueStore) needsCompaction(nametoc string, candidateBlockID uint32, total int, toCheck uint32) bool {
+	// This currently just reads the first store.recoveryBatchSize entries to
+	// determine whether to compact the file or not. It would likely be better
+	// to sample throughout the file instead, but this was simpler for now and,
+	// hopefully, the writes will be scattered enough to not make much of a
+	// difference.
 	stale := uint32(0)
 	checked := uint32(0)
-	// Compaction workers work on one file each; maybe we'll expand the workers
-	// under a compaction worker sometime, but for now, limit it.
-	workers := uint64(1)
-	pendingBatchChans := make([]chan []valueTOCEntry, workers)
-	freeBatchChans := make([]chan []valueTOCEntry, len(pendingBatchChans))
-	for i := 0; i < len(pendingBatchChans); i++ {
-		pendingBatchChans[i] = make(chan []valueTOCEntry, 3)
-		freeBatchChans[i] = make(chan []valueTOCEntry, cap(pendingBatchChans[i]))
-		for j := 0; j < cap(freeBatchChans[i]); j++ {
-			freeBatchChans[i] <- make([]valueTOCEntry, store.recoveryBatchSize)
-		}
-	}
+	store.compactionState.compactionLock.Lock()
+	defer store.compactionState.compactionLock.Unlock()
 	controlChan := make(chan struct{})
 	wg := &sync.WaitGroup{}
-	wg.Add(len(pendingBatchChans))
-	for i := 0; i < len(pendingBatchChans); i++ {
+	wg.Add(len(store.compactionState.compactionPendingBatchChans))
+	for i := 0; i < len(store.compactionState.compactionPendingBatchChans); i++ {
 		go func(pendingBatchChan chan []valueTOCEntry, freeBatchChan chan []valueTOCEntry) {
 			skipRest := false
 			for {
@@ -257,7 +271,7 @@ func (store *defaultValueStore) needsCompaction(nametoc string, candidateBlockID
 				freeBatchChan <- batch
 			}
 			wg.Done()
-		}(pendingBatchChans[i], freeBatchChans[i])
+		}(store.compactionState.compactionPendingBatchChans[i], store.compactionState.compactionFreeBatchChans[i])
 	}
 	fpr, err := store.openReadSeeker(path.Join(store.pathtoc, nametoc))
 	if err != nil {
@@ -267,13 +281,13 @@ func (store *defaultValueStore) needsCompaction(nametoc string, candidateBlockID
 		store.logger.Error("cannot open", zap.String("name", store.loggerPrefix+"compaction"), zap.String("filename", nametoc), zap.Error(err))
 		return false
 	}
-	_, errs := valueReadTOCEntriesBatched(fpr, candidateBlockID, freeBatchChans, pendingBatchChans, controlChan)
+	_, errs := valueReadTOCEntriesBatched(fpr, candidateBlockID, store.compactionState.compactionFreeBatchChans, store.compactionState.compactionPendingBatchChans, controlChan)
 	for _, err := range errs {
 		store.logger.Warn("error from ReadTOCEntriesBatched", zap.String("name", store.loggerPrefix+"compaction"), zap.String("filename", nametoc), zap.Error(err))
 	}
 	closeIfCloser(fpr)
-	for i := 0; i < len(pendingBatchChans); i++ {
-		pendingBatchChans[i] <- nil
+	for i := 0; i < len(store.compactionState.compactionPendingBatchChans); i++ {
+		store.compactionState.compactionPendingBatchChans[i] <- nil
 	}
 	wg.Wait()
 	if len(errs) > 0 {
@@ -290,21 +304,11 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 	var count uint32
 	var rewrote uint32
 	var stale uint32
-	// Compaction workers work on one file each; maybe we'll expand the workers
-	// under a compaction worker sometime, but for now, limit it.
-	workers := uint64(1)
-	pendingBatchChans := make([]chan []valueTOCEntry, workers)
-	freeBatchChans := make([]chan []valueTOCEntry, len(pendingBatchChans))
-	for i := 0; i < len(pendingBatchChans); i++ {
-		pendingBatchChans[i] = make(chan []valueTOCEntry, 3)
-		freeBatchChans[i] = make(chan []valueTOCEntry, cap(pendingBatchChans[i]))
-		for j := 0; j < cap(freeBatchChans[i]); j++ {
-			freeBatchChans[i] <- make([]valueTOCEntry, store.recoveryBatchSize)
-		}
-	}
+	store.compactionState.compactionLock.Lock()
+	defer store.compactionState.compactionLock.Unlock()
 	wg := &sync.WaitGroup{}
-	wg.Add(len(pendingBatchChans))
-	for i := 0; i < len(pendingBatchChans); i++ {
+	wg.Add(len(store.compactionState.compactionPendingBatchChans))
+	for i := 0; i < len(store.compactionState.compactionPendingBatchChans); i++ {
 		go func(pendingBatchChan chan []valueTOCEntry, freeBatchChan chan []valueTOCEntry) {
 			var value []byte
 			for {
@@ -369,7 +373,7 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 				freeBatchChan <- batch
 			}
 			wg.Done()
-		}(pendingBatchChans[i], freeBatchChans[i])
+		}(store.compactionState.compactionPendingBatchChans[i], store.compactionState.compactionFreeBatchChans[i])
 	}
 	fullpath := path.Join(store.path, nametoc[:len(nametoc)-3])
 	fullpathtoc := path.Join(store.pathtoc, nametoc)
@@ -404,7 +408,7 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 		spindown(false)
 		return
 	}
-	fdc, errs := valueReadTOCEntriesBatched(fpr, blockID, freeBatchChans, pendingBatchChans, controlChan)
+	fdc, errs := valueReadTOCEntriesBatched(fpr, blockID, store.compactionState.compactionFreeBatchChans, store.compactionState.compactionPendingBatchChans, controlChan)
 	closeIfCloser(fpr)
 	for _, err := range errs {
 		store.logger.Warn("error from ReadTOCEntriesBatched", zap.String("name", store.loggerPrefix+"compactFile"), zap.String("filename", nametoc), zap.Error(err))
@@ -416,8 +420,8 @@ func (store *defaultValueStore) compactFile(nametoc string, blockID uint32, cont
 		return
 	default:
 	}
-	for i := 0; i < len(pendingBatchChans); i++ {
-		pendingBatchChans[i] <- nil
+	for i := 0; i < len(store.compactionState.compactionPendingBatchChans); i++ {
+		store.compactionState.compactionPendingBatchChans[i] <- nil
 	}
 	wg.Wait()
 	if rec := atomic.LoadUint32(&readErrorCount); rec > 0 {

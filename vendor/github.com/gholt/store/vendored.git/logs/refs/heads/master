@@ -1,3 +1,4 @@
 0000000000000000000000000000000000000000 aa36450f89676fb1b4d564a817581d4aecd0c02d Greg Holt <gregory.holt@gmail.com> 1488232370 -0600	clone: from https://github.com/gholt/store
 aa36450f89676fb1b4d564a817581d4aecd0c02d da52219d4705d9a7e8164962da03c71b6a0a2c05 Greg Holt <gregory.holt@gmail.com> 1492545275 -0500	pull: Fast-forward
 da52219d4705d9a7e8164962da03c71b6a0a2c05 4bd34daa606ea0dece79e566b3d0ab855e901f37 Greg Holt <gregory.holt@gmail.com> 1493421849 -0500	commit: Updated watcher to be smarter
+4bd34daa606ea0dece79e566b3d0ab855e901f37 187a5658300ff6852a98867b42250a7be2a7f472 Greg Holt <gregory.holt@gmail.com> 1493701725 -0500	commit: Made compaction allocate much less
