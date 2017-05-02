@@ -1848,12 +1848,14 @@ func (m *WriteResponse) GetErr() string {
 }
 
 type INodeEntry struct {
-	Version   uint32            `protobuf:"varint,1,opt,name=Version" json:"Version,omitempty"`
-	IsDir     bool              `protobuf:"varint,2,opt,name=IsDir" json:"IsDir,omitempty"`
-	Attr      *Attr             `protobuf:"bytes,3,opt,name=Attr" json:"Attr,omitempty"`
-	Parent    uint64            `protobuf:"varint,4,opt,name=Parent" json:"Parent,omitempty"`
-	INode     uint64            `protobuf:"varint,5,opt,name=INode" json:"INode,omitempty"`
-	NodeCount uint64            `protobuf:"varint,6,opt,name=NodeCount" json:"NodeCount,omitempty"`
+	Version uint32 `protobuf:"varint,1,opt,name=Version" json:"Version,omitempty"`
+	// TODO: Is IsDir needed? I thought that was already part of Attr.Mode
+	IsDir     bool   `protobuf:"varint,2,opt,name=IsDir" json:"IsDir,omitempty"`
+	Attr      *Attr  `protobuf:"bytes,3,opt,name=Attr" json:"Attr,omitempty"`
+	Parent    uint64 `protobuf:"varint,4,opt,name=Parent" json:"Parent,omitempty"`
+	INode     uint64 `protobuf:"varint,5,opt,name=INode" json:"INode,omitempty"`
+	NodeCount uint64 `protobuf:"varint,6,opt,name=NodeCount" json:"NodeCount,omitempty"`
+	// TODO: Maybe we don't need IsLink and we can just Target != ""; also I think it's reflected in Attr.Mode
 	IsLink    bool              `protobuf:"varint,7,opt,name=IsLink" json:"IsLink,omitempty"`
 	Target    string            `protobuf:"bytes,8,opt,name=Target" json:"Target,omitempty"`
 	XAttr     map[string][]byte `protobuf:"bytes,9,rep,name=XAttr" json:"XAttr,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -1952,16 +1954,18 @@ func (m *INodeEntry) GetFSID() []byte {
 }
 
 type Attr struct {
+	// TODO: I'm curious if this is needed here. Perhaps INode is always otherwise known.
 	INode  uint64 `protobuf:"varint,1,opt,name=INode" json:"INode,omitempty"`
 	ATime  int64  `protobuf:"varint,2,opt,name=ATime" json:"ATime,omitempty"`
 	MTime  int64  `protobuf:"varint,3,opt,name=MTime" json:"MTime,omitempty"`
 	CTime  int64  `protobuf:"varint,4,opt,name=CTime" json:"CTime,omitempty"`
 	CrTime int64  `protobuf:"varint,5,opt,name=CrTime" json:"CrTime,omitempty"`
 	Mode   uint32 `protobuf:"varint,6,opt,name=Mode" json:"Mode,omitempty"`
-	Valid  int32  `protobuf:"varint,7,opt,name=Valid" json:"Valid,omitempty"`
-	Size   uint64 `protobuf:"varint,8,opt,name=Size" json:"Size,omitempty"`
-	UID    uint32 `protobuf:"varint,9,opt,name=UID" json:"UID,omitempty"`
-	GID    uint32 `protobuf:"varint,10,opt,name=GID" json:"GID,omitempty"`
+	// TODO: Not sure this should be here either; I think it's passed elsewhere now.
+	Valid int32  `protobuf:"varint,7,opt,name=Valid" json:"Valid,omitempty"`
+	Size  uint64 `protobuf:"varint,8,opt,name=Size" json:"Size,omitempty"`
+	UID   uint32 `protobuf:"varint,9,opt,name=UID" json:"UID,omitempty"`
+	GID   uint32 `protobuf:"varint,10,opt,name=GID" json:"GID,omitempty"`
 }
 
 func (m *Attr) Reset()                    { *m = Attr{} }

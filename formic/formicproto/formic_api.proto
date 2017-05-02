@@ -389,11 +389,13 @@ message WriteResponse {
 
 message INodeEntry {
     uint32              Version   = 1;
+    // TODO: Is IsDir needed? I thought that was already part of Attr.Mode
     bool                IsDir     = 2;
     Attr                Attr      = 3;
     uint64              Parent    = 4;
     uint64              INode     = 5;
     uint64              NodeCount = 6;
+    // TODO: Maybe we don't need IsLink and we can just Target != ""; also I think it's reflected in Attr.Mode
     bool                IsLink    = 7;
     string              Target    = 8;
     map<string, bytes>  XAttr     = 9; // NOTE: Probably not the best long term way to do this
@@ -403,12 +405,14 @@ message INodeEntry {
 }
 
 message Attr {
+    // TODO: I'm curious if this is needed here. Perhaps INode is always otherwise known.
     uint64 INode  = 1;
     int64  ATime  = 2;
     int64  MTime  = 3;
     int64  CTime  = 4;
     int64  CrTime = 5;
     uint32 Mode   = 6;
+    // TODO: Not sure this should be here either; I think it's passed elsewhere now.
     int32  Valid  = 7;
     uint64 Size   = 8;
     uint32 UID    = 9;
