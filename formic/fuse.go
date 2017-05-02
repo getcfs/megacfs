@@ -55,7 +55,7 @@ func NewFuseFormic(cfg *FuseFormicConfig) *FuseFormic {
 		allowOther: cfg.AllowOther,
 		readOnly:   cfg.ReadOnly,
 		handles:    newFileHandles(),
-		formic:     NewFormic(cfg.FSID, cfg.Address, 1, &ftls.Config{InsecureSkipVerify: true}),
+		formic:     NewFormic(cfg.Logger, cfg.FSID, cfg.Address, 1, &ftls.Config{InsecureSkipVerify: true}),
 	}
 	return FuseFormic
 }

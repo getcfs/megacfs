@@ -9,12 +9,14 @@ import (
 	pb "github.com/getcfs/megacfs/oort/groupproto"
 	"github.com/getcfs/megacfs/oort/proto"
 	"github.com/gholt/store"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
 type groupStore struct {
 	lock             sync.Mutex
+	logger           *zap.Logger
 	addr             string
 	ftlsc            *ftls.Config
 	opts             []grpc.DialOption
@@ -49,8 +51,9 @@ type groupStore struct {
 
 // NewGroupStore creates a GroupStore connection via grpc to the given
 // address.
-func newGroupStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.GroupStore {
+func newGroupStore(logger *zap.Logger, addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.GroupStore {
 	stor := &groupStore{
+		logger:           logger,
 		addr:             addr,
 		ftlsc:            ftlsConfig,
 		opts:             opts,
@@ -309,6 +312,7 @@ func (stor *groupStore) handleDelete() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncGroupDeleteRequest, len(waiting))
@@ -319,6 +323,7 @@ func (stor *groupStore) handleDelete() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeDeleteResChan <- res
 				go func(reqs []*asyncGroupDeleteRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -390,7 +395,8 @@ func (stor *groupStore) Delete(ctx context.Context, keyA, keyB uint64, childKeyA
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeDeleteResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -515,6 +521,7 @@ func (stor *groupStore) handleLookupGroup() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncGroupLookupGroupRequest, len(waiting))
@@ -525,6 +532,7 @@ func (stor *groupStore) handleLookupGroup() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeLookupGroupResChan <- res
 				go func(reqs []*asyncGroupLookupGroupRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -591,7 +599,8 @@ func (stor *groupStore) LookupGroup(ctx context.Context, parentKeyA, parentKeyB 
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeLookupGroupResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -722,6 +731,7 @@ func (stor *groupStore) handleLookup() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncGroupLookupRequest, len(waiting))
@@ -732,6 +742,7 @@ func (stor *groupStore) handleLookup() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeLookupResChan <- res
 				go func(reqs []*asyncGroupLookupRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -801,7 +812,8 @@ func (stor *groupStore) Lookup(ctx context.Context, keyA, keyB uint64, childKeyA
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeLookupResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -927,6 +939,7 @@ func (stor *groupStore) handleReadGroup() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncGroupReadGroupRequest, len(waiting))
@@ -937,6 +950,7 @@ func (stor *groupStore) handleReadGroup() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeReadGroupResChan <- res
 				go func(reqs []*asyncGroupReadGroupRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -1003,7 +1017,8 @@ func (stor *groupStore) ReadGroup(ctx context.Context, parentKeyA, parentKeyB ui
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeReadGroupResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -1134,6 +1149,7 @@ func (stor *groupStore) handleRead() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncGroupReadRequest, len(waiting))
@@ -1144,6 +1160,7 @@ func (stor *groupStore) handleRead() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeReadResChan <- res
 				go func(reqs []*asyncGroupReadRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -1213,7 +1230,8 @@ func (stor *groupStore) Read(ctx context.Context, keyA, keyB uint64, childKeyA, 
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeReadResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -1339,6 +1357,7 @@ func (stor *groupStore) handleWrite() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncGroupWriteRequest, len(waiting))
@@ -1349,6 +1368,7 @@ func (stor *groupStore) handleWrite() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeWriteResChan <- res
 				go func(reqs []*asyncGroupWriteRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -1424,7 +1444,8 @@ func (stor *groupStore) Write(ctx context.Context, keyA, keyB uint64, childKeyA,
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeWriteResChan <- res
 		default:
 			req.canceled = true
 		}

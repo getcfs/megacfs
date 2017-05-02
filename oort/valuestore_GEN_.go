@@ -9,12 +9,14 @@ import (
 	"github.com/getcfs/megacfs/oort/proto"
 	pb "github.com/getcfs/megacfs/oort/valueproto"
 	"github.com/gholt/store"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
 type valueStore struct {
 	lock             sync.Mutex
+	logger           *zap.Logger
 	addr             string
 	ftlsc            *ftls.Config
 	opts             []grpc.DialOption
@@ -41,8 +43,9 @@ type valueStore struct {
 
 // NewValueStore creates a ValueStore connection via grpc to the given
 // address.
-func newValueStore(addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.ValueStore {
+func newValueStore(logger *zap.Logger, addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) store.ValueStore {
 	stor := &valueStore{
+		logger:           logger,
 		addr:             addr,
 		ftlsc:            ftlsConfig,
 		opts:             opts,
@@ -279,6 +282,7 @@ func (stor *valueStore) handleDelete() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncValueDeleteRequest, len(waiting))
@@ -289,6 +293,7 @@ func (stor *valueStore) handleDelete() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeDeleteResChan <- res
 				go func(reqs []*asyncValueDeleteRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -357,7 +362,8 @@ func (stor *valueStore) Delete(ctx context.Context, keyA, keyB uint64, timestamp
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeDeleteResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -482,6 +488,7 @@ func (stor *valueStore) handleLookup() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncValueLookupRequest, len(waiting))
@@ -492,6 +499,7 @@ func (stor *valueStore) handleLookup() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeLookupResChan <- res
 				go func(reqs []*asyncValueLookupRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -558,7 +566,8 @@ func (stor *valueStore) Lookup(ctx context.Context, keyA, keyB uint64) (timestam
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeLookupResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -684,6 +693,7 @@ func (stor *valueStore) handleRead() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncValueReadRequest, len(waiting))
@@ -694,6 +704,7 @@ func (stor *valueStore) handleRead() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeReadResChan <- res
 				go func(reqs []*asyncValueReadRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -760,7 +771,8 @@ func (stor *valueStore) Read(ctx context.Context, keyA, keyB uint64, value []byt
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeReadResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -886,6 +898,7 @@ func (stor *valueStore) handleWrite() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncValueWriteRequest, len(waiting))
@@ -896,6 +909,7 @@ func (stor *valueStore) handleWrite() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				stor.freeWriteResChan <- res
 				go func(reqs []*asyncValueWriteRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -968,7 +982,8 @@ func (stor *valueStore) Write(ctx context.Context, keyA, keyB uint64, timestampM
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			stor.freeWriteResChan <- res
 		default:
 			req.canceled = true
 		}

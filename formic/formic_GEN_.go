@@ -6,6 +6,7 @@ import (
 
 	pb "github.com/getcfs/megacfs/formic/formicproto"
 	"github.com/getcfs/megacfs/ftls"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -13,6 +14,7 @@ import (
 
 type Formic struct {
 	lock             sync.Mutex
+	logger           *zap.Logger
 	fsid             string
 	addr             string
 	ftlsc            *ftls.Config
@@ -126,8 +128,9 @@ type Formic struct {
 	freeWriteResChan    chan *asyncFormicWriteResponse
 }
 
-func NewFormic(fsid string, addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *Formic {
+func NewFormic(logger *zap.Logger, fsid string, addr string, concurrency int, ftlsConfig *ftls.Config, opts ...grpc.DialOption) *Formic {
 	f := &Formic{
+		logger:           logger,
 		fsid:             fsid,
 		addr:             addr,
 		ftlsc:            ftlsConfig,
@@ -577,6 +580,7 @@ func (f *Formic) handleCheck() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicCheckRequest, len(waiting))
@@ -587,6 +591,7 @@ func (f *Formic) handleCheck() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeCheckResChan <- res
 				go func(reqs []*asyncFormicCheckRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -653,7 +658,8 @@ func (f *Formic) Check(ctx context.Context, parentINode uint64, childName string
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeCheckResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -778,6 +784,7 @@ func (f *Formic) handleCreateFS() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicCreateFSRequest, len(waiting))
@@ -788,6 +795,7 @@ func (f *Formic) handleCreateFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeCreateFSResChan <- res
 				go func(reqs []*asyncFormicCreateFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -854,7 +862,8 @@ func (f *Formic) CreateFS(ctx context.Context, token string, name string) (fsid 
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeCreateFSResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -979,6 +988,7 @@ func (f *Formic) handleCreate() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicCreateRequest, len(waiting))
@@ -989,6 +999,7 @@ func (f *Formic) handleCreate() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeCreateResChan <- res
 				go func(reqs []*asyncFormicCreateRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -1056,7 +1067,8 @@ func (f *Formic) Create(ctx context.Context, parentINode uint64, childName strin
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeCreateResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -1181,6 +1193,7 @@ func (f *Formic) handleDeleteFS() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicDeleteFSRequest, len(waiting))
@@ -1191,6 +1204,7 @@ func (f *Formic) handleDeleteFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeDeleteFSResChan <- res
 				go func(reqs []*asyncFormicDeleteFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -1257,7 +1271,8 @@ func (f *Formic) DeleteFS(ctx context.Context, token string, fsid string) (err e
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeDeleteFSResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -1380,6 +1395,7 @@ func (f *Formic) handleGetAttr() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicGetAttrRequest, len(waiting))
@@ -1390,6 +1406,7 @@ func (f *Formic) handleGetAttr() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeGetAttrResChan <- res
 				go func(reqs []*asyncFormicGetAttrRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -1455,7 +1472,8 @@ func (f *Formic) GetAttr(ctx context.Context, iNode uint64) (attr *pb.Attr, err 
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeGetAttrResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -1580,6 +1598,7 @@ func (f *Formic) handleGetXAttr() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicGetXAttrRequest, len(waiting))
@@ -1590,6 +1609,7 @@ func (f *Formic) handleGetXAttr() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeGetXAttrResChan <- res
 				go func(reqs []*asyncFormicGetXAttrRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -1658,7 +1678,8 @@ func (f *Formic) GetXAttr(ctx context.Context, iNode uint64, name string, size u
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeGetXAttrResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -1783,6 +1804,7 @@ func (f *Formic) handleGrantAddressFS() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicGrantAddressFSRequest, len(waiting))
@@ -1793,6 +1815,7 @@ func (f *Formic) handleGrantAddressFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeGrantAddressFSResChan <- res
 				go func(reqs []*asyncFormicGrantAddressFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -1860,7 +1883,8 @@ func (f *Formic) GrantAddressFS(ctx context.Context, token string, fsid string, 
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeGrantAddressFSResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -1983,6 +2007,7 @@ func (f *Formic) handleInitFS() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicInitFSRequest, len(waiting))
@@ -1993,6 +2018,7 @@ func (f *Formic) handleInitFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeInitFSResChan <- res
 				go func(reqs []*asyncFormicInitFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -2056,7 +2082,8 @@ func (f *Formic) InitFS(ctx context.Context) (err error) {
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeInitFSResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -2179,6 +2206,7 @@ func (f *Formic) handleListFS() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicListFSRequest, len(waiting))
@@ -2189,6 +2217,7 @@ func (f *Formic) handleListFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeListFSResChan <- res
 				go func(reqs []*asyncFormicListFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -2254,7 +2283,8 @@ func (f *Formic) ListFS(ctx context.Context, token string) (list []*pb.FSIDName,
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeListFSResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -2379,6 +2409,7 @@ func (f *Formic) handleListXAttr() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicListXAttrRequest, len(waiting))
@@ -2389,6 +2420,7 @@ func (f *Formic) handleListXAttr() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeListXAttrResChan <- res
 				go func(reqs []*asyncFormicListXAttrRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -2456,7 +2488,8 @@ func (f *Formic) ListXAttr(ctx context.Context, iNode uint64, size uint32, posit
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeListXAttrResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -2581,6 +2614,7 @@ func (f *Formic) handleLookup() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicLookupRequest, len(waiting))
@@ -2591,6 +2625,7 @@ func (f *Formic) handleLookup() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeLookupResChan <- res
 				go func(reqs []*asyncFormicLookupRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -2657,7 +2692,8 @@ func (f *Formic) Lookup(ctx context.Context, parent uint64, name string) (attr *
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeLookupResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -2782,6 +2818,7 @@ func (f *Formic) handleMkDir() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicMkDirRequest, len(waiting))
@@ -2792,6 +2829,7 @@ func (f *Formic) handleMkDir() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeMkDirResChan <- res
 				go func(reqs []*asyncFormicMkDirRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -2859,7 +2897,8 @@ func (f *Formic) MkDir(ctx context.Context, parent uint64, name string, attr *pb
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeMkDirResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -2984,6 +3023,7 @@ func (f *Formic) handleReadDirAll() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicReadDirAllRequest, len(waiting))
@@ -2994,6 +3034,7 @@ func (f *Formic) handleReadDirAll() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeReadDirAllResChan <- res
 				go func(reqs []*asyncFormicReadDirAllRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -3059,7 +3100,8 @@ func (f *Formic) ReadDirAll(ctx context.Context, iNode uint64) (readDirAllEnts [
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeReadDirAllResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -3184,6 +3226,7 @@ func (f *Formic) handleReadLink() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicReadLinkRequest, len(waiting))
@@ -3194,6 +3237,7 @@ func (f *Formic) handleReadLink() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeReadLinkResChan <- res
 				go func(reqs []*asyncFormicReadLinkRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -3259,7 +3303,8 @@ func (f *Formic) ReadLink(ctx context.Context, iNode uint64) (target string, err
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeReadLinkResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -3384,6 +3429,7 @@ func (f *Formic) handleRead() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicReadRequest, len(waiting))
@@ -3394,6 +3440,7 @@ func (f *Formic) handleRead() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeReadResChan <- res
 				go func(reqs []*asyncFormicReadRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -3461,7 +3508,8 @@ func (f *Formic) Read(ctx context.Context, iNode uint64, offset int64, size int6
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeReadResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -3586,6 +3634,7 @@ func (f *Formic) handleRemove() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicRemoveRequest, len(waiting))
@@ -3596,6 +3645,7 @@ func (f *Formic) handleRemove() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeRemoveResChan <- res
 				go func(reqs []*asyncFormicRemoveRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -3662,7 +3712,8 @@ func (f *Formic) Remove(ctx context.Context, parent uint64, name string) (err er
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeRemoveResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -3785,6 +3836,7 @@ func (f *Formic) handleRemoveXAttr() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicRemoveXAttrRequest, len(waiting))
@@ -3795,6 +3847,7 @@ func (f *Formic) handleRemoveXAttr() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeRemoveXAttrResChan <- res
 				go func(reqs []*asyncFormicRemoveXAttrRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -3861,7 +3914,8 @@ func (f *Formic) RemoveXAttr(ctx context.Context, iNode uint64, name string) (er
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeRemoveXAttrResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -3984,6 +4038,7 @@ func (f *Formic) handleRename() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicRenameRequest, len(waiting))
@@ -3994,6 +4049,7 @@ func (f *Formic) handleRename() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeRenameResChan <- res
 				go func(reqs []*asyncFormicRenameRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -4062,7 +4118,8 @@ func (f *Formic) Rename(ctx context.Context, oldParent uint64, newParent uint64,
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeRenameResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -4185,6 +4242,7 @@ func (f *Formic) handleRevokeAddressFS() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicRevokeAddressFSRequest, len(waiting))
@@ -4195,6 +4253,7 @@ func (f *Formic) handleRevokeAddressFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeRevokeAddressFSResChan <- res
 				go func(reqs []*asyncFormicRevokeAddressFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -4262,7 +4321,8 @@ func (f *Formic) RevokeAddressFS(ctx context.Context, token string, fsid string,
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeRevokeAddressFSResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -4385,6 +4445,7 @@ func (f *Formic) handleSetAttr() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicSetAttrRequest, len(waiting))
@@ -4395,6 +4456,7 @@ func (f *Formic) handleSetAttr() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeSetAttrResChan <- res
 				go func(reqs []*asyncFormicSetAttrRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -4461,7 +4523,8 @@ func (f *Formic) SetAttr(ctx context.Context, attr *pb.Attr, valid uint32) (resu
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeSetAttrResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -4586,6 +4649,7 @@ func (f *Formic) handleSetXAttr() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicSetXAttrRequest, len(waiting))
@@ -4596,6 +4660,7 @@ func (f *Formic) handleSetXAttr() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeSetXAttrResChan <- res
 				go func(reqs []*asyncFormicSetXAttrRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -4665,7 +4730,8 @@ func (f *Formic) SetXAttr(ctx context.Context, iNode uint64, name string, value 
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeSetXAttrResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -4788,6 +4854,7 @@ func (f *Formic) handleShowFS() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicShowFSRequest, len(waiting))
@@ -4798,6 +4865,7 @@ func (f *Formic) handleShowFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeShowFSResChan <- res
 				go func(reqs []*asyncFormicShowFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -4864,7 +4932,8 @@ func (f *Formic) ShowFS(ctx context.Context, token string, fsid string) (name st
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeShowFSResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -4990,6 +5059,7 @@ func (f *Formic) handleStatFS() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicStatFSRequest, len(waiting))
@@ -5000,6 +5070,7 @@ func (f *Formic) handleStatFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeStatFSResChan <- res
 				go func(reqs []*asyncFormicStatFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -5063,7 +5134,8 @@ func (f *Formic) StatFS(ctx context.Context) (blocks uint64, bFree uint64, bAvai
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeStatFSResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -5195,6 +5267,7 @@ func (f *Formic) handleSymLink() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicSymLinkRequest, len(waiting))
@@ -5205,6 +5278,7 @@ func (f *Formic) handleSymLink() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeSymLinkResChan <- res
 				go func(reqs []*asyncFormicSymLinkRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -5274,7 +5348,8 @@ func (f *Formic) SymLink(ctx context.Context, parent uint64, name string, target
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeSymLinkResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -5399,6 +5474,7 @@ func (f *Formic) handleUpdateFS() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicUpdateFSRequest, len(waiting))
@@ -5409,6 +5485,7 @@ func (f *Formic) handleUpdateFS() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeUpdateFSResChan <- res
 				go func(reqs []*asyncFormicUpdateFSRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -5476,7 +5553,8 @@ func (f *Formic) UpdateFS(ctx context.Context, token string, fsid string, newNam
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeUpdateFSResChan <- res
 		default:
 			req.canceled = true
 		}
@@ -5599,6 +5677,7 @@ func (f *Formic) handleWrite() {
 			}
 		case res := <-resChan:
 			if res.res == nil {
+				stream = nil
 				// Receiver got unrecoverable error, so we'll have to
 				// respond with errors to all waiting requests.
 				wereWaiting := make([]*asyncFormicWriteRequest, len(waiting))
@@ -5609,6 +5688,7 @@ func (f *Formic) handleWrite() {
 				if err == nil {
 					err = errors.New("receiver had error, had to close any other waiting requests")
 				}
+				f.freeWriteResChan <- res
 				go func(reqs []*asyncFormicWriteRequest, err error) {
 					for _, req := range reqs {
 						if req == nil {
@@ -5676,7 +5756,8 @@ func (f *Formic) Write(ctx context.Context, iNode uint64, offset int64, payload 
 	case <-ctx.Done():
 		req.canceledLock.Lock()
 		select {
-		case <-req.resChan:
+		case res = <-req.resChan:
+			f.freeWriteResChan <- res
 		default:
 			req.canceled = true
 		}

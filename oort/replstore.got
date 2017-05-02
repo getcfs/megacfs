@@ -12,9 +12,9 @@ import (
     "github.com/getcfs/megacfs/ftls"
     "github.com/gholt/ring"
     "github.com/gholt/store"
-    "go.uber.org/zap"
     "golang.org/x/net/context"
     "google.golang.org/grpc"
+    "go.uber.org/zap"
 )
 
 type Repl{{.T}}Store struct {
@@ -198,7 +198,7 @@ func (rs *Repl{{.T}}Store) storesFor(ctx context.Context, keyA uint64) ([]store.
             if ss[i] == nil {
                 ss[i] = rs.stores[as[i]]
                 if ss[i] == nil {
-                    ss[i] = newPool{{.T}}Store(as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig,  rs.grpcOpts...)
+                    ss[i] = newPool{{.T}}Store(rs.logger, as[i], rs.poolSize, rs.concurrentRequestsPerStore, rs.ftlsConfig,  rs.grpcOpts...)
                     rs.stores[as[i]] = ss[i]
                     select {
                     case <-ctx.Done():
