@@ -59,6 +59,10 @@ func (o *storeComms) WriteValue(ctx context.Context, id, data []byte) error {
 	keyA, keyB := murmur3.Sum128(id)
 	timestampMicro := brimtime.TimeToUnixMicro(time.Now())
 	oldTimestampMicro, err := o.vstore.Write(ctx, keyA, keyB, timestampMicro, data)
+	// TODO: Should we be doing this? Seems like if "someone else" wrote a
+	// newer value that we should consider that "we" lost and move on? I mean,
+	// we don't do this retrying for deletes, or group writes and deletes, so
+	// why here?
 	retries := 0
 	for (oldTimestampMicro >= timestampMicro) && (retries < maxRetries) {
 		retries++
@@ -84,6 +88,7 @@ func (o *storeComms) DeleteValue(ctx context.Context, id []byte) error {
 func (o *storeComms) DeleteValueTS(ctx context.Context, id []byte, tsm int64) error {
 	keyA, keyB := murmur3.Sum128(id)
 	oldTimestampMicro, err := o.vstore.Delete(ctx, keyA, keyB, tsm)
+	// TODO: Should this be: if err == nil && oldTimestampMicro >= tsm {
 	if oldTimestampMicro >= tsm {
 		return errStoreHasNewerValue
 	}
@@ -102,6 +107,7 @@ func (o *storeComms) WriteGroupTS(ctx context.Context, key, childKey, value []by
 	childKeyA, childKeyB := murmur3.Sum128(childKey)
 	oldTimestampMicro, err := o.gstore.Write(ctx, keyA, keyB, childKeyA, childKeyB, tsm, value)
 	if err != nil {
+		// TODO: This seems weird; why not return the err?
 		return nil
 	}
 	if oldTimestampMicro >= tsm {
@@ -260,7 +266,8 @@ func (o *oortFS) CreateFS(ctx context.Context, req *formicproto.CreateFSRequest,
 	}
 	ts := time.Now().Unix()
 	nr.Attr = &formicproto.Attr{
-		INode:  1,
+		INode: 1,
+		// TODO: Should we just get rid of ATime since we won't ever support it?
 		ATime:  ts,
 		MTime:  ts,
 		CTime:  ts,
@@ -548,6 +555,7 @@ func (o *oortFS) ReadDirAll(ctx context.Context, req *formicproto.ReadDirAllRequ
 		return err
 	}
 	// Iterate over each item, getting the ID then the INode Entry
+	// TODO: I think the above comment is out of date.
 	de := &formicproto.DirEntry{}
 	for _, item := range items {
 		err = unmarshal(item.Value, de)

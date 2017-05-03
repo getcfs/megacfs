@@ -13,6 +13,9 @@ import (
 
 func getID(fsid string, inode, block uint64) []byte {
 	// TODO: Figure out what arrangement we want to use for the hash
+	// TODO: This whole thing is a bit weird. It seems we generate these ids,
+	// using murmur, then use the resulting []byte to generate the store
+	// keypairs, using murmur again. Seems like we could cut out some steps.
 	h := murmur3.New128()
 	h.Write([]byte(fsid))
 	binary.Write(h, binary.BigEndian, inode)

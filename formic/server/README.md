@@ -25,3 +25,21 @@ These are of the type formicproto.MetaFilesystemEntry, each containing the AID, 
 ## `/filesystem/<fsid>/address/<address>`
 
 These are of the type formicproto.MetaFilesystem2Address, each containing an IP address that is allowed access.
+
+
+# File System Data
+
+Each file has an inode number, like with most filesystems.
+
+Inode number 1 is the root inode for the entire filesystem, the root directory, /.
+
+The first block of a file or directory, block 0, is the root block containing additional information about the file or directory. This information contains items such as mtime, ctime, mode, uid, gid, xattrs, etc.
+
+Any remaining blocks are data blocks for a file, each with a corresponding crc value. So, the first data block is block 1.
+
+The store keypairs are generated using the combination of fsid, inode number, and block number.
+
+Everything stored in the value store is a formicproto.FileBlock, which contains a version and checksum in addition to the actual data. The actual data may be file contents for blocks 1 onward, or a formicproto.INodeEntry for block 0.
+
+Everything stored in the group store is a formicproto.DirEntry except as noted in the Meta Information section.
+
