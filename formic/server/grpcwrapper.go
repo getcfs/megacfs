@@ -32,6 +32,9 @@ type grpcWrapper struct {
 
 func newGRPCWrapper(fs *oortFS, comms *storeComms, skipAuth bool, authURL string, authUser string, authPassword string) *grpcWrapper {
 	fs.log.Debug("newGRPCWrapper called", zap.Bool("skipAuth", skipAuth), zap.String("authURL", authURL), zap.String("authUser", authUser))
+	if !strings.HasSuffix(authURL, "/") {
+		authURL += "/"
+	}
 	return &grpcWrapper{
 		fs:           fs,
 		validIPs:     make(map[string]map[string]time.Time),
@@ -739,7 +742,7 @@ func (g *grpcWrapper) validateToken(logger *zap.Logger, token string) (string, e
 		logger.Debug("validateToken error from serverAuth", zap.Error(err))
 		return "", err
 	}
-	req, err := http.NewRequest("GET", g.authURL+"/v3/auth/tokens", nil)
+	req, err := http.NewRequest("GET", g.authURL+"v3/auth/tokens", nil)
 	if err != nil {
 		logger.Debug("validateToken error from NewRequest GET", zap.Error(err))
 		return "", err
@@ -775,7 +778,7 @@ func serverAuth(logger *zap.Logger, url string, user string, password string) (s
 	logger.Debug("serverAuth called", zap.String("url", url), zap.String("user", user))
 	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, user, password)
 	rbody := strings.NewReader(body)
-	req, err := http.NewRequest("POST", url+"/v3/auth/tokens", rbody)
+	req, err := http.NewRequest("POST", url+"v3/auth/tokens", rbody)
 	if err != nil {
 		logger.Debug("serverAuth error from NewRequest POST", zap.String("url", url), zap.String("user", user), zap.Error(err))
 		return "", err
