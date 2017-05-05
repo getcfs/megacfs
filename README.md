@@ -1,6 +1,6 @@
 # megacfs
 
-This is megalithic code repository for the CFS (Cloud File System) project.
+This is the megalithic code repository for the CFS (Cloud File System) project.
 
 The project is still in pre-release development stages.
 
