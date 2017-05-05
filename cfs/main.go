@@ -118,6 +118,9 @@ func auth(authURL string, username string, password string) string {
 	body := fmt.Sprintf(`{"auth":{"identity":{"methods":["password"],"password":{"user":{
 		"domain":{"id":"default"},"name":"%s","password":"%s"}}}}}`, username, password)
 	rbody := strings.NewReader(body)
+	if !strings.HasSuffix(authURL, "/") {
+		authURL += "/"
+	}
 	req, err := http.NewRequest("POST", authURL+"v3/auth/tokens", rbody)
 	if err != nil {
 		logger.Debug("auth error from NewRequest POST", zap.Error(err))
