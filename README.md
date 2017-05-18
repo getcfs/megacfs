@@ -1,3 +1,4 @@
+[![Stories in Ready](https://badge.waffle.io/getcfs/megacfs.png?label=ready&title=Ready)](https://waffle.io/getcfs/megacfs)
 # megacfs
 
 This is the megalithic code repository for the CFS (Cloud File System) project.
